@@ -46,8 +46,7 @@ typedef struct Config {
     /* code generation (stored; no effect on the Linux back end) */
     int model, fp, instr, c_calls, std_frame, stack_check, word_align, merge_strings, enums_as_ints;
     int under_scores, line_numbers, debug_info, fast_fp, fast_huge, comdefs, auto_far;
-    int far_threshold, precompiled, assume_ss, entry_code, virt_tables, templ_gen;
-    int cpp_ext, cpp_inline, cpp_far_vt;
+    int far_threshold, precompiled, assume_ss, entry_code;
     char defines[200];
     char seg_names[12][24];
     /* make / link */
@@ -238,8 +237,8 @@ enum {
     cmCompile, cmMake, cmLink, cmBuildAll, cmInformation, cmRemoveMsgs,
     cmInspect, cmEvalMod, cmCallStack, cmAddWatch, cmDelWatch, cmEditWatch, cmRemoveWatches, cmToggleBP, cmBreakpoints,
     cmOpenProject, cmCloseProject, cmAddItem, cmDelItem, cmLocalOpts, cmIncludeFiles,
-    cmOptApplication, cmOptCodeGen, cmOptAdvCodeGen, cmOptEntryExit, cmOptCpp, cmOptOptimize, cmOptSource,
-    cmOptMsgDisplay, cmOptMsgPortability, cmOptMsgAnsi, cmOptMsgCpp, cmOptMsgFrequent, cmOptMsgLess,
+    cmOptApplication, cmOptCodeGen, cmOptAdvCodeGen, cmOptEntryExit, cmOptOptimize, cmOptSource,
+    cmOptMsgDisplay, cmOptMsgPortability, cmOptMsgAnsi, cmOptMsgFrequent, cmOptMsgLess,
     cmOptNames, cmOptTransfer, cmOptMake, cmOptLinkSettings, cmOptLinkLibs, cmOptLibrarian, cmOptDebugger,
     cmOptDirs, cmOptPrefs, cmOptEditor, cmOptMouse, cmOptDesktop, cmOptStartup, cmOptColors, cmOptSave,
     cmSizeMove, cmZoom, cmTile, cmCascade, cmNextWin, cmCloseWin, cmCloseAll,

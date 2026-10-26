@@ -305,6 +305,8 @@ static const Topic basic[] = {
 "   64 bits. Memory models, near / far pointers, overlays and the\n"
 "   floating-point emulator do not apply (the settings are kept for\n"
 "   compatibility). Graphics, BIOS and interrupt calls are not provided.\n"
+" * Only C (ANSI C89) is supported. C++ is not supported, so there are no\n"
+"   C++ options and files with C++ extensions are not compiled as C++.\n"
 " * There is no separate object-file / link step: the compiler writes the\n"
 "   executable directly. Compile and Link therefore produce the same file.\n"
 " * The source-level debugger runs the program under ptrace (see\n"

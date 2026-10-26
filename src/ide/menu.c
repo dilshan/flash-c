@@ -86,22 +86,20 @@ static const MItem msg_items[] = {
     IT("~D~isplay...", NULL, cmOptMsgDisplay, "Configure error and warning display"),
     IT("~P~ortability...", NULL, cmOptMsgPortability, "Choose portability messages to display"),
     IT("~A~NSI violations...", NULL, cmOptMsgAnsi, "Choose ANSI-violation messages to display"),
-    IT("~C~++ warnings...", NULL, cmOptMsgCpp, "Choose C++ warning messages to display"),
     IT("~F~requent errors...", NULL, cmOptMsgFrequent, "Choose frequently encountered messages to display"),
     IT("~L~ess frequent errors...", NULL, cmOptMsgLess, "Choose less common messages to display"),
 };
-static const MMenu msg_menu = { "Messages", msg_items, 6 };
+static const MMenu msg_menu = { "Messages", msg_items, 5 };
 static const MItem comp_opt_items[] = {
     IT("~C~ode generation...", NULL, cmOptCodeGen, "Specify how the compiler prepares object code (memory models, etc.)"),
     IT("~A~dvanced code generation...", NULL, cmOptAdvCodeGen, "View further code generation options"),
     IT("~E~ntry/Exit Code...", NULL, cmOptEntryExit, "Change the entry/exit code generated for functions"),
-    IT("C~+~+ options...", NULL, cmOptCpp, "Specify how the C++ compiler prepares object code"),
     IT("~O~ptimizations...", NULL, cmOptOptimize, "Specify compiler optimizations"),
     IT("~S~ource...", NULL, cmOptSource, "Specify source code related options"),
     SUB("~M~essages", msg_menu, "Specify how the IDE handles errors and warnings"),
     IT("~N~ames...", NULL, cmOptNames, "Change the default segment, group, and class names"),
 };
-static const MMenu comp_opt_menu = { "Compiler", comp_opt_items, 8 };
+static const MMenu comp_opt_menu = { "Compiler", comp_opt_items, 7 };
 static const MItem linker_items[] = {
     IT("~S~ettings...", NULL, cmOptLinkSettings, "Set linker options (map files, overlays, etc.)"),
     IT("~L~ibraries...", NULL, cmOptLinkLibs, "Set libraries to be included in link"),

@@ -7,6 +7,8 @@ A small C compiler and a full-screen text-mode IDE for Linux.
 * **`fc`** – the IDE: pull-down menus, overlapping edit windows, Message window with error
   tracking, option dialogs, online help – laid out like the classic DOS-era C IDEs.
 
+Flash C compiles **C (ANSI C89) only**. C++ is not supported, and the IDE has no C++ options.
+
 ![editor](docs/screenshots/editor.png)
 
 The IDE structure (menu tables, dialog controls, status line, colour groups, compile/make/run

@@ -252,7 +252,7 @@ int ide_build(int mode)
     if (nproj > 0) {
         for (int i = 0; i < nproj && nf < 64; i++) {
             const char *p = proj_files[i]; const char *dot = strrchr(p, '.');
-            if (dot && (!strcasecmp(dot, ".c") || !strcasecmp(dot, ".cpp"))) files[nf++] = p;
+            if (dot && !strcasecmp(dot, ".c")) files[nf++] = p;
         }
     } else {
         Win *w = any_edit();

@@ -119,7 +119,7 @@ static CfgVar vars[] = {
     I(opt_redundant), I(opt_jump), I(opt_for_speed), I(regvars),
     I(model), I(fp), I(instr), I(c_calls), I(std_frame), I(stack_check), I(word_align), I(merge_strings), I(enums_as_ints),
     I(under_scores), I(line_numbers), I(debug_info), I(fast_fp), I(fast_huge), I(comdefs), I(auto_far), I(far_threshold),
-    I(precompiled), I(assume_ss), I(entry_code), I(virt_tables), I(templ_gen), I(cpp_ext), I(cpp_inline), I(cpp_far_vt),
+    I(precompiled), I(assume_ss), I(entry_code),
     S(defines),
     I(brk_warn), I(brk_err), I(brk_fatal), I(brk_all), I(after_compile), I(check_autodep),
     I(map_file), I(out_kind), I(lnk_init_seg), I(lnk_default_libs), I(lnk_warn_dup), I(lnk_nostack), I(lnk_case),

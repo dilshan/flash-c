@@ -103,7 +103,7 @@ void opt_command(int cmd)
         break;
     }
     case cmOptAdvCodeGen: {
-        db_start(&d, " Advanced Code Generation ", 74); d.bw = 32;
+        db_start(&d, " Advanced Code Generation ", 54); d.bw = 32;
         db_at(&d, 2, 2, 32);
         db_group(&d, "Options", 7);
         db_check(&d, "Generate ~u~nderbars", &cfg.under_scores, 0, "Add underscore character to start of global identifiers");
@@ -115,29 +115,6 @@ void opt_command(int cmd)
         db_check(&d, "~A~utomatic far data", &cfg.auto_far, 0, "Place data objects exceeding the threshold in far data segments");
         db_end_group(&d);
         db_num(&d, "Far Data ~T~hreshold", &cfg.far_threshold, 8, "Automatic far data generation minimum size");
-        db_at(&d, 36, 2, 20);
-        db_group(&d, "C++ Virtual Tables", 4);
-        const char *vn[] = { "~S~mart", "~L~ocal", "~E~xternal", "~P~ublic" };
-        radios(&d, &cfg.virt_tables, vn, 4, NULL);
-        db_end_group(&d);
-        db_group(&d, "Template Generation", 3);
-        const char *tn[] = { "S~m~art", "Ex~t~ernal", "~G~lobal" };
-        radios(&d, &cfg.templ_gen, tn, 3, NULL);
-        db_end_group(&d);
-        db_finish(&d, 1);
-        opt_run(&d, NULL);
-        break;
-    }
-    case cmOptCpp: {
-        db_start(&d, " C++ Options ", 62);
-        db_group(&d, "Use C++ Compiler", 2);
-        db_radio(&d, "CPP e~x~tension", &cfg.cpp_ext, 0, "Compile files with a C++ extension as C++");
-        db_radio(&d, "~C~++ always", &cfg.cpp_ext, 1, "Always compile as C++");
-        db_end_group(&d);
-        db_group(&d, "Options", 2);
-        db_check(&d, "~O~ut-of-line inline functions", &cfg.cpp_inline, 0, "Do not expand inline functions");
-        db_check(&d, "~F~ar virtual tables", &cfg.cpp_far_vt, 0, "Place virtual tables in far memory");
-        db_end_group(&d);
         db_finish(&d, 1);
         opt_run(&d, NULL);
         break;
@@ -204,12 +181,6 @@ void opt_command(int cmd)
         const char *n[] = { "~V~oid functions may not return a value", "~B~oth return and return of a value used", "~S~uspicious pointer conversion", "~U~ndefined structure 'ident'", "~R~edefinition of 'ident' is not identical", "~H~exadecimal value more than three digits", "Bit ~f~ields must be signed or unsigned int", "'ident' declared as both e~x~ternal and static", "~D~eclare 'ident' prior to use in prototype", "Division by ~z~ero", "~I~nitializing 'ident' with 'ident'", "Initialization is only ~p~artially bracketed" };
         int idx[] = { 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 };
         warn_dialog(" ANSI Violations ", n, idx, 12, 66);
-        break;
-    }
-    case cmOptMsgCpp: {
-        const char *n[] = { "~B~ase initialization without a class name is obsolete", "Functions containing 'ident' are not e~x~panded inline", "Temporary used to ~i~nitialize 'ident'", "~T~emporary used for parameter 'ident'", "Constant ~m~ember 'ident' is not initialized", "This ~s~tyle of function definition is now obsolete", "~U~se of 'overload' is now unnecessary and obsolete", "Assi~g~ning 'type' to 'enumeration'", "'function1' ~h~ides virtual function 'function2'", "~N~on-const function 'ident' called for const object", "Base ~c~lass 'ident' is inaccessible because also in 'ident'", "~O~verloaded prefix operator used as a postfix operator", "Array size for '~d~elete' ignored", "Use ~q~ualified name to access nested type 'ident'" };
-        int idx[] = { 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31 };
-        warn_dialog(" C++ Warnings ", n, idx, 14, 74);
         break;
     }
     case cmOptMsgFrequent: {
@@ -303,7 +274,7 @@ void opt_command(int cmd)
         break;
     }
     case cmOptDebugger: {
-        db_start(&d, " Debugger ", 62); d.bw = 24;
+        db_start(&d, " Debugger ", 72); d.bw = 24;
         db_at(&d, 2, 2, 24);
         db_group(&d, "Source Debugging", 3);
         const char *sn[] = { "~O~n", "~S~tandalone", "~N~one" };
