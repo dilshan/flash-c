@@ -592,9 +592,61 @@ static void close_window(Win *w)
 /* ------------------------------------------------------------------ */
 /* projects & desktop                                                  */
 /* ------------------------------------------------------------------ */
+/* ---- project notes: the text lives in the project file (a [notes] section, every line prefixed with |); without
+   a project it lives in the desktop file. notes_text is the saved copy, the notes window the working copy. ---- */
+static int notes_version = -1;          /* version of the notes buffer that notes_text was taken from */
+
+static void notes_put(FILE *f)
+{
+    if (!notes_text || !*notes_text) return;
+    fprintf(f, "[notes]\n");
+    for (const char *line = notes_text; ; ) {
+        const char *end = strchr(line, '\n');
+        fprintf(f, "|%.*s\n", end ? (int)(end - line) : (int)strlen(line), line);
+        if (!end) break;
+        line = end + 1;
+    }
+}
+
+/* one line of a [notes] section; returns 0 when the line does not belong to it */
+static int notes_get(const char *line, char **text)
+{
+    if (line[0] != '|') return 0;
+    int first = *text == NULL;              /* lines are joined with a new-line, none before the first */
+    size_t old = first ? 0 : strlen(*text), add = strlen(line + 1);
+    *text = realloc(*text, old + add + 2);
+    if (!first) (*text)[old++] = '\n';
+    memcpy(*text + old, line + 1, add + 1);
+    return 1;
+}
+
+/* the notes window shows the stored text (called when it opens and when another project is loaded) */
+static void notes_show(Win *w)
+{
+    const char *t = notes_text ? notes_text : "";
+    buf_set_data(w->buf, t, (long)strlen(t));
+    notes_version = w->buf->version;
+    w->cx = w->cy = w->top = 0;
+}
+
+/* Saves the notes as soon as they were changed (typing, pasting, undo): in the project file, or in the desktop
+   file when no project is open. Called once per pass of the main loop. */
+static void project_save(void);
+static void desktop_save(void);
+static void notes_autosave(void)
+{
+    Win *w = win_find_kind(W_NOTES);
+    if (!w || w->buf->version == notes_version) return;
+    notes_version = w->buf->version;
+    free(notes_text);
+    notes_text = buf_all(w->buf, NULL);
+    if (project_name[0]) project_save(); else desktop_save();
+}
+
 static void project_free(void)
 {
     for (int i = 0; i < nproj; i++) free(proj_files[i]);
+    free(notes_text); notes_text = NULL;
     free(proj_files); proj_files = NULL; free(proj_opts); proj_opts = NULL;
     nproj = 0; proj_sel = 0; project_name[0] = 0;
 }
@@ -612,6 +664,7 @@ static void project_save(void)
         if (it->nodebug) fprintf(f, "\tnodebug=1\n");
         if (it->nolink) fprintf(f, "\tnolink=1\n");
     }
+    notes_put(f);
     fclose(f);
     project_dirty = 0;
 }
@@ -632,9 +685,12 @@ static void project_open(const char *path)
     free(rp);
     FILE *f = fopen(project_name, "r");
     if (f) {
-        char line[600];
-        while (fgets(line, sizeof line, f)) {
+        char *line = NULL; size_t cap = 0;
+        int in_notes = 0;
+        while (getline(&line, &cap, f) >= 0) {           /* notes lines can be longer than any fixed buffer */
             char *nl = strchr(line, '\n'); if (nl) *nl = 0;
+            if (!strcmp(line, "[notes]")) { in_notes = 1; continue; }
+            if (in_notes) { notes_get(line, &notes_text); continue; }
             if (!line[0] || line[0] == '#') continue;
             if (line[0] == '\t' || line[0] == ' ') {          /* a setting of the item above */
                 if (!nproj) continue;
@@ -648,8 +704,24 @@ static void project_open(const char *path)
             }
             project_add(line);
         }
+        free(line);
         fclose(f);
     }
+    if (!notes_text) {                                   /* notes of older versions were kept in <project>.notes */
+        char side[700]; snprintf(side, sizeof side, "%s.notes", project_name);
+        FILE *nf = file_exists(side) ? fopen(side, "r") : NULL;
+        if (nf) {
+            char buf[2000];
+            while (fgets(buf, sizeof buf, nf)) {
+                char *nl = strchr(buf, '\n'); if (nl) *nl = 0;
+                char *prefixed = malloc(strlen(buf) + 2); prefixed[0] = '|'; strcpy(prefixed + 1, buf);
+                notes_get(prefixed, &notes_text);
+                free(prefixed);
+            }
+            fclose(nf);
+        }
+    }
+    { Win *nw = win_find_kind(W_NOTES); if (nw) notes_show(nw); }      /* an open notes window follows the project */
     project_dirty = 0;
     snprintf(cfg.last_project, sizeof cfg.last_project, "%s", project_name);
     Win *w = win_get_special(W_PROJ);
@@ -669,14 +741,18 @@ static void desktop_save(void)
     if (cfg.sv_watch) for (int i = 0; i < nwatch; i++) fprintf(f, "watch=%s\n", watches[i]);
     if (cfg.sv_bp) dbgui_save_bps(f);
     fprintf(f, "run_args=%s\n", cfg.run_args);
+    if (!project_name[0]) notes_put(f);                    /* with a project the notes are in the project file */
     fclose(f);
 }
 static void desktop_load(void)
 {
     FILE *f = fopen("fcdef.dsk", "r"); if (!f) return;
-    char line[800];
-    while (fgets(line, sizeof line, f)) {
+    char *line = NULL; size_t cap = 0;
+    int in_notes = 0;
+    while (getline(&line, &cap, f) >= 0) {
         char *nl = strchr(line, '\n'); if (nl) *nl = 0;
+        if (!strcmp(line, "[notes]")) { in_notes = 1; continue; }
+        if (in_notes) { if (!project_name[0]) notes_get(line, &notes_text); continue; }
         if (!strncmp(line, "project=", 8)) project_open(line + 8);
         else if (!strncmp(line, "watch=", 6)) { watches = realloc(watches, (nwatch + 1) * sizeof(char *)); watches[nwatch++] = strdup(line + 6); }
         else if (!strncmp(line, "bp=", 3)) dbgui_load_bp(line + 3);
@@ -691,6 +767,7 @@ static void desktop_load(void)
             }
         }
     }
+    free(line);
     fclose(f);
 }
 
@@ -966,7 +1043,7 @@ void ide_command(int cmd)
         }
         break;
     }
-    case cmCloseProject: if (project_dirty) project_save(); project_free(); { Win *w = win_find_kind(W_PROJ); if (w) win_close(w); } break;
+    case cmCloseProject: notes_autosave(); if (project_dirty) project_save(); project_free(); { Win *w = win_find_kind(W_PROJ); if (w) win_close(w); w = win_find_kind(W_NOTES); if (w) win_close(w); } break;
     case cmAddItem: {
         char path[512] = "*.c";
         int r = file_dialog(" Add to Project List ", "*.c;*.h", path, sizeof path, 0);
@@ -993,7 +1070,7 @@ void ide_command(int cmd)
         if (!w && nwins < MAXWIN) {
             w = calloc(1, sizeof *w); w->kind = W_NOTES; w->x = 6; w->y = 3; w->w = SW - 16; w->h = SH - 9; w->buf = buf_new(); w->errline = -1; w->insert = 1;
             snprintf(w->title, sizeof w->title, "Project notes"); wins[nwins++] = w;
-            if (project_name[0]) { char nf[700]; snprintf(nf, sizeof nf, "%s.notes", project_name); if (file_exists(nf)) buf_load(w->buf, nf); w->buf->named = 0; }
+            notes_show(w);
         } else if (w) win_activate(w);
         break;
     }
@@ -1068,6 +1145,7 @@ void ide_run(int argc, char **argv)
     }
     if (!opened) desktop_load();
     while (!quit_flag) {
+        notes_autosave();
         ide_draw();
         scr_flush();
         int key = next_key();

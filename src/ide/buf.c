@@ -63,6 +63,27 @@ void buf_clear(Buf *b)
     b->n = 1; undo_clear(b); b->dirty = 0; b->cst_n = 0;
 }
 
+/* Replaces the whole text of a buffer with len bytes of data (lines end with \n or \r\n). The undo history is
+   dropped and the buffer counts as unmodified. */
+void buf_set_data(Buf *b, const char *data, long len)
+{
+    for (int i = 0; i < b->cap; i++) b->ln[i].len = 0;
+    b->n = 0;
+    long line_start = 0;
+    for (long i = 0; i <= len; i++) {
+        if (i == len || data[i] == '\n') {
+            long line_end = i;
+            if (line_end > line_start && data[line_end - 1] == '\r') line_end--;
+            lines_reserve(b, b->n + 1);
+            line_set(&b->ln[b->n++], data + line_start, (int)(line_end - line_start));
+            line_start = i + 1;
+        }
+    }
+    if (!b->n) { b->n = 1; line_set(&b->ln[0], "", 0); }
+    undo_clear(b);
+    b->modified = 0; b->dirty = 0; b->cst_n = 0;
+}
+
 int buf_load(Buf *b, const char *path)
 {
     FILE *f = fopen(path, "rb");
@@ -72,22 +93,8 @@ int buf_load(Buf *b, const char *path)
     size_t got = fread(data, 1, sz, f);
     fclose(f);
     data[got] = 0;
-    for (int i = 0; i < b->cap; i++) b->ln[i].len = 0;
-    b->n = 0;
-    long s = 0;
-    for (long i = 0; i <= (long)got; i++) {
-        if (i == (long)got || data[i] == '\n') {
-            long e = i;
-            if (e > s && data[e - 1] == '\r') e--;
-            lines_reserve(b, b->n + 1);
-            line_set(&b->ln[b->n++], data + s, (int)(e - s));
-            s = i + 1;
-        }
-    }
+    buf_set_data(b, data, (long)got);
     free(data);
-    if (!b->n) { b->n = 1; line_set(&b->ln[0], "", 0); }
-    undo_clear(b);
-    b->modified = 0; b->dirty = 0; b->cst_n = 0;
     snprintf(b->name, sizeof b->name, "%s", path); b->named = 1;
     return 0;
 }

@@ -142,7 +142,7 @@ static const MItem window_items[] = {
     IT("~U~ser screen", "Alt+F5", cmUserScreen, "Switch to the full-screen user output"),
     IT("~R~egister", NULL, cmWinRegister, "Open the Register window"),
     IT("~P~roject", NULL, cmWinProject, "Open the Project Manager window"),
-    IT("Project n~o~tes", NULL, cmWinNotes, "Open the Project Manager Notebook window"),
+    IT("Project not~e~s", NULL, cmWinNotes, "Open the Project Manager Notebook window"),
     SEP,
     IT("~L~ist all...", "Alt+0", cmWinList, "Show a complete list of windows"),
 };

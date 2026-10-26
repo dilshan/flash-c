@@ -106,6 +106,7 @@ void buf_group(Buf *b);                               /* start a new undo group 
 int  buf_undo(Buf *b, int *l, int *c);
 int  buf_redo(Buf *b, int *l, int *c);
 char *buf_all(Buf *b, int *len);
+void  buf_set_data(Buf *b, const char *data, long len);   /* replace the text; clears undo, not modified */
 int  syntax_line_state(Buf *b, int line);             /* 1 if line starts inside a block comment */
 void syntax_line_attrs(Buf *b, int line, uint8_t *attrs, int n);
 

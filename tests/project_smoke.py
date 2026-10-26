@@ -52,6 +52,28 @@ try:
     s.send('\x1bp', 'l'); s.send('TAB'); s.send('TAB'); s.send(' '); s.send('TAB'); s.send('TAB'); s.send('ENTER')
     saved = open(os.path.join(work, 'demo.fcp')).read()
     check('changes made in the dialog are saved in the project file', 'nodebug=1' in saved and 'cmd=-DVALUE=7 -O' in saved, s)
+    s.send('ESC')
+    s.close()
+
+    # Window|Project notes: typed text is stored in the project file and comes back in a new session
+    s = Session([BIN, 'demo.fcp'], cwd=work, rows=25, cols=80, env={'ASAN_OPTIONS': 'detect_leaks=0'})
+    s.send('\x1bw', 'e')
+    check('Project notes window opens', 'Project notes' in s.screen.text(), s)
+    s.type('remember the milk\rsecond | line')
+    saved = open(os.path.join(work, 'demo.fcp')).read()
+    check('notes are saved in the project file while typing', '[notes]\n|remember the milk\n|second | line\n' in saved, s)
+    check('the project items are still in the file', 'main.c\n\tcmd=-DVALUE=7 -O' in saved and 'broken.c\n\tnolink=1' in saved, s)
+    s.close()
+    s = Session([BIN, 'demo.fcp'], cwd=work, rows=25, cols=80, env={'ASAN_OPTIONS': 'detect_leaks=0'})
+    s.send('\x1bw', 'e')
+    t = s.screen.text()
+    check('notes are shown again in a new session', 'remember the milk' in t and 'second | line' in t, s)
+    s.close()
+
+    # a project without notes keeps no [notes] section; notes without a project go to the desktop file
+    s = Session([BIN], cwd=work, rows=25, cols=80, env={'ASAN_OPTIONS': 'detect_leaks=0'})
+    s.send('\x1bw', 'e'); s.type('loose note')
+    check('notes without a project are kept in the desktop file', '[notes]\n|loose note\n' in open(os.path.join(work, 'fcdef.dsk')).read(), s)
     s.close()
 finally:
     shutil.rmtree(work, ignore_errors=True)
