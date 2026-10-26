@@ -503,13 +503,15 @@ int dlg_locate(char *name, int cap)
 void dlg_about(void)
 {
     Dialog d; dlg_init(&d, " About ");
-    d.w = 46; d.h = 13;
+    d.w = 46; d.h = 16;
     dlg_static(&d, 15, 2, "Flash C");
     dlg_static(&d, 12, 3, "Version " FC_VERSION);
     dlg_static(&d, 4, 5, "A C compiler and text-mode IDE for Linux");
     dlg_static(&d, 4, 6, "native x86-64 code, no external tools");
-    dlg_static(&d, 9, 8, "Press Alt-F1 for the help index");
-    dlg_button(&d, 17, 10, 12, "  OK  ", cmOK, 1, NULL);
+    dlg_static(&d, 4, 8, "Author: Dilshan R Jayakody");
+    dlg_static(&d, 4, 9, "E-mail: jayakody2000lk@gmail.com");
+    dlg_static(&d, 9, 11, "Press Alt-F1 for the help index");
+    dlg_button(&d, 17, 13, 12, "  OK  ", cmOK, 1, NULL);
     dlg_run(&d);
 }
 

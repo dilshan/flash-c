@@ -83,7 +83,7 @@ try:
 
     # about + quit with modified buffer
     s.send('\x1b ', 'a')
-    check('About box', 'About' in text(s) and 'Flash C' in text(s), s)
+    check('About box', 'About' in text(s) and 'Dilshan R Jayakody' in text(s) and 'jayakody2000lk@gmail.com' in text(s), s)
     s.send('ESC')
     s.send('ESC'); s.type('z')
     s.send('\x1bx')
