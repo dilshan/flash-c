@@ -452,11 +452,15 @@ int statusline_click(int mx)
     return 0;
 }
 
+/* The desktop is the dark-shade block (CP437 0xB2) in light gray on blue, as in the reference IDE: about three
+   quarters of every cell is light gray, which gives the pale blue-gray texture of the original. */
+#define DESKTOP_CHAR 0x2593
+
 /* ---------- drawing everything ---------- */
 void ide_draw(void)
 {
     scr_cursor(0, 0, 0);
-    scr_fill(0, 1, SW, SH - 2, 0x2591, pal[P_DESKTOP]);
+    scr_fill(0, 1, SW, SH - 2, DESKTOP_CHAR, pal[P_DESKTOP]);
     for (int i = 0; i < nwins; i++) {
         Win *w = wins[i];
         int active = i == nwins - 1;
