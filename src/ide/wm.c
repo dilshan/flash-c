@@ -1,5 +1,6 @@
 /* Flash C IDE - window manager, list windows, status line, desktop */
 #include "ide.h"
+#include "dbg.h"
 #include <ctype.h>
 #include <time.h>
 #include <unistd.h>
@@ -254,7 +255,7 @@ static int lw_count(Win *w)
     case W_WATCH: return nwatch;
     case W_PROJ: return nproj;
     case W_OUT: return noutlines;
-    case W_REG: return 1;
+    case W_REG: return dbg_state() == DS_STOPPED ? dbg_nregs() : 1;
     default: return 0;
     }
 }
@@ -275,9 +276,14 @@ static void lw_text(Win *w, int i, char *out, int n)
         break;
     }
     case W_WATCH: {
-        long long v; char err[128];
-        if (!fc_eval_expr(watches[i], &v, err, sizeof err)) snprintf(out, n, "%s: %lld", watches[i], v);
-        else snprintf(out, n, "%s: %s", watches[i], "Undefined symbol / not running");
+        char val[300];
+        int k = dbgui_eval(watches[i], val, sizeof val);
+        if (k == 0 || k == -1) snprintf(out, n, "%s: %s", watches[i], val);
+        else {
+            long long v; char err[128];
+            if (!fc_eval_expr(watches[i], &v, err, sizeof err)) snprintf(out, n, "%s: %lld", watches[i], v);
+            else snprintf(out, n, "%s: %s", watches[i], "Undefined symbol");
+        }
         break;
     }
     case W_PROJ: {
@@ -289,7 +295,7 @@ static void lw_text(Win *w, int i, char *out, int n)
         break;
     }
     case W_OUT: snprintf(out, n, "%s", outlines[i]); break;
-    case W_REG: snprintf(out, n, " Registers are available only while debugging"); break;
+    case W_REG: if (dbg_reg_text(i, out, n) < 0) out[0] = 0; break;
     }
 }
 

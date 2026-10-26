@@ -95,7 +95,7 @@ void cfg_defaults(void)
     for (int i = 0; i < 12; i++) strcpy(cfg.seg_names[i], sn[i]);
     cfg.brk_err = 1; cfg.check_autodep = 1; cfg.after_compile = 0; cfg.out_kind = 0;
     cfg.lnk_default_libs = 1; cfg.lnk_warn_dup = 1; cfg.lnk_nostack = 1; cfg.lib_stdrt = 1; cfg.lib_math = 1;
-    cfg.lib_pagesize = 16; cfg.dbg_source = 1; cfg.dbg_swap = 1; cfg.dbg_inherited = 1; cfg.dbg_methods = 1; cfg.dbg_heap = 8192;
+    cfg.lib_pagesize = 16; cfg.dbg_source = 0; cfg.dbg_swap = 1; cfg.dbg_inherited = 1; cfg.dbg_methods = 1; cfg.dbg_heap = 8192;
     cfg.screen_lines = 0; cfg.src_tracking = 1;
     cfg.cmdset = 1;
     cfg.as_editor = 1; cfg.backup = 1; cfg.insert = 1; cfg.autoindent = 1; cfg.use_tab = 1; cfg.optimal_fill = 1;

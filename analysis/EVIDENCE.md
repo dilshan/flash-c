@@ -97,7 +97,7 @@ Editor Options page: Create backup files, Insert mode, Autoindent, Use tab chara
 * The *code generator internals* of the reference compiler (register allocation, OMF record emission) were **not** reverse-engineered: that was unnecessary because Flash C targets a different CPU mode and object format. Statements about it above are limited to the observable interface (switches, messages, file names).
 * Colour defaults in Flash C are chosen to match the observed attribute table and the classic appearance; the exact per-item mapping inside `TCCONFIG.TC` records was not decoded.
 * Menu item **order** inside each pulldown follows the order of the string table plus the documented layout of this product family; the strings themselves, shortcut keys and hint texts are direct evidence.
-* The debugger (Inspect, Call stack, breakpoints, trace) exists in the reference IDE (strings `Inspecting %s`, `Too many inspectors`, `Cannot inspect: type not available`, breakpoint dialogs); Flash C exposes the menu entries but does not implement a debugger yet.
+* The debugger (Inspect, Call stack, breakpoints, trace) exists in the reference IDE (strings `Inspecting %s`, `Too many inspectors`, `Cannot inspect: type not available`, breakpoint dialogs); see §7 for how Flash C implements the same feature set.
 
 ## 6. The run-time libraries of the reference product
 
@@ -124,3 +124,22 @@ plain-text dumps to `dumps/` (`lib_inventory.txt`, `lib_modules_<LIB>.txt`, `lib
 library targets Linux x86-64 (`int` 32 bits, `long` and pointers 64 bits, Linux system calls), so module internals are original
 code; only the **structure** (start-up object, per-function modules, vectors for floating point, init/exit segments, header set, the
 documented behaviour of each function such as the `rand()` generator and `matherr` messages) follows the evidence.
+
+## 7. The source-level debugger
+
+`TC.EXE` is a New Executable (NE) image; the analysis engine used for the rest of this study could not open it as a
+whole, so the debugger's feature set is established from its string tables (`tc_strings_all.txt`,
+`menus_items.txt`, `hint_texts.txt`), which carry every menu entry, dialog caption, control and message. The internal
+design (symbol-table format, how it resumes the program) is not observable that way and Flash C does not copy it.
+
+| Evidence (strings) | Meaning | Flash C |
+|---|---|---|
+| Run: `Program reset Ctrl+F2`, `Go to cursor F4`, `Trace into F7`, `Step over F8`, `Arguments...` | execution control | same keys and items |
+| Debug: `Inspect... Alt+F4`, `Evaluate/modify... Ctrl+F4`, `Call stack... Ctrl+F3`, `Watches` (Add Ctrl+F7, Delete, Edit, Remove all), `Toggle breakpoint Ctrl+F8`, `Breakpoints...` | inspection and breakpoints | same |
+| Windows `Watch`, `Register (%s)` | live windows | Watch shows live values; Register shows the CPU registers |
+| `Options|Debugger`: Source debugging On/Standalone/None, Display swapping None/Smart/Always, Inspectors (decimal/hex/both), Program heap size | behaviour switches | honoured: source debugging selects debug info, swapping selects when the user screen appears, the radix applies to values |
+| Compiler: `Line numbers debug info`, `Debug info in OBJs`; assembler `?debug L/B/E/S` records | the compiler emits line and block info | `note_line` line table, per-function variable scopes |
+| Dialogs: Breakpoints list (`Breakpoint List`, `Line#`, `Condition`, `Pass`; OK, Edit, Delete, View, At), Modify/New breakpoint (`Condition`, `Pass Count`, `File Name`, `Line Number`), Breakpoint at function (`Symbol Name`) | conditional breakpoints with pass counts | `Debug|Breakpoints...` |
+| `Evaluate and Modify` (`Expression`, `Result`, `New Value`), `Data Inspect` / `Modify Data`, `Range Inspect` (`Starting Index`, `Count`), `Call Stack` | data access | same dialogs |
+| Messages `No program loaded.`, `Program terminated.`, `Program exit code: `, `Cannot be modified`, `Does not have range.`, `Cannot inspect: type not available`, `Too many inspectors` | status text | the same wording where it applies |
+| Mouse options: right button invokes Go to cursor / Toggle breakpoint / Inspect / Evaluate / Add watch; desktop options `Save all watch expressions` / `breakpoints` | | desktop file stores watches and breakpoints |

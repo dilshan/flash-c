@@ -178,14 +178,15 @@ void ed_draw(Win *w, int active)
         Line *L = &b->ln[ln];
         int n = L->len < 1024 ? L->len : 1024;
         syntax_line_attrs(b, ln, attrs, n);
-        uint8_t base = ln == w->errline ? pal[P_ED_ERRLINE] : pal[P_ED_NORM];
-        if (ln == w->errline) scr_fill(x + 1, sy, wd, 1, ' ', base);
+        int dp = w->kind == W_EDIT && w->buf->named ? dbgui_line_pal(w->buf->name, ln + 1) : -1;
+        uint8_t base = ln == w->errline ? pal[P_ED_ERRLINE] : dp >= 0 ? pal[dp] : pal[P_ED_NORM];
+        if (ln == w->errline || dp >= 0) scr_fill(x + 1, sy, wd, 1, ' ', base);
         int col = 0;
         for (int i = 0; i < L->len; i++) {
             int cw = 1;
             unsigned char ch = L->s[i];
             if (ch == '\t') cw = tabw() - col % tabw();
-            uint8_t a = ln == w->errline ? base : (i < 1024 ? attrs[i] : pal[P_ED_NORM]);
+            uint8_t a = (ln == w->errline || dp >= 0) ? base : (i < 1024 ? attrs[i] : pal[P_ED_NORM]);
             if (hb && pos_cmp(ln, i, l1, c1) >= 0 && pos_cmp(ln, i, l2, c2) < 0) a = pal[P_ED_SEL];
             for (int k = 0; k < cw; k++) {
                 int sx = col + k - w->left;

@@ -102,6 +102,8 @@ typedef struct Sym {
     int reach;            /* reachable from main */
     int codepos;          /* start in code buffer, -1 if not generated */
     int codelen;          /* generated size of a function, for the link map */
+    int endline;          /* local: last line of its scope (debug info) */
+    struct Sym **dbgvars; int ndbg, capdbg;   /* function: parameters and locals in declaration order */
     struct Sym *next, *hnext;
 } Sym;
 

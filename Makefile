@@ -46,6 +46,7 @@ test: $(BUILD)/fcc $(BUILD)/fc
 	sh tests/diag.sh
 	sh tests/libtest.sh
 	python3 tests/ide_smoke.py
+	python3 tests/debug_smoke.py
 
 install: all
 	install -d $(PREFIX)/bin

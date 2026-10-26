@@ -119,7 +119,18 @@ static void check_unused(Scope *s, int line)
         else fc_warn(cur_file(), line, "'%s' is declared but never used", y->name);
     }
 }
-static void pop_scope(int line) { check_unused(scope, line); scope = scope->parent; }
+static void pop_scope(int line)
+{
+    check_unused(scope, line);
+    for (Sym *y = scope->syms; y; y = y->next) if (y->kind == SY_VAR && !y->global) y->endline = line;
+    scope = scope->parent;
+}
+static void dbg_note_var(Sym *y)
+{
+    if (!curfn) return;
+    if (curfn->ndbg == curfn->capdbg) { curfn->capdbg = curfn->capdbg ? curfn->capdbg * 2 : 8; curfn->dbgvars = realloc(curfn->dbgvars, curfn->capdbg * sizeof(Sym *)); }
+    curfn->dbgvars[curfn->ndbg++] = y;
+}
 
 static Sym *find_in(Scope *s, const char *name)
 {
@@ -1296,6 +1307,7 @@ static Sym *new_local(char *name, Type *ty)
     fn_frame = (fn_frame + ty->size + a - 1) & ~(a - 1);
     if (!ty->size) fn_frame += 1;
     y->off = -fn_frame;
+    dbg_note_var(y);
     return y;
 }
 
@@ -1330,7 +1342,7 @@ static Node *local_init_nodes(Sym *y, Sink *sk)
             Node *d = mk(N_DEREF, it->ty); d->l = sum; lv = d;
         }
         Node *as = mk(N_ASSIGN, it->ty); as->l = lv; as->r = it->e;
-        Node *st = new_stmt(S_EXPR); st->l = as;
+        Node *st = new_stmt(S_EXPR); st->l = as; st->line = y->line;
         *tail = st; tail = &st->next;
     }
     Node *b = new_stmt(S_BLOCK); b->l = head; b->val = 1; /* val=1: transparent block (no scope) */
@@ -1651,6 +1663,7 @@ static void parse_function_body(Sym *f, ParamList *pl, Tok *nm)
         if (!pa->name) { if (!in_rt) ERRAT(nm, "Parameter name missing"); poff += slot; continue; }
         Sym *y = add_sym(scope, pa->name, pa->ty, SY_VAR);
         y->is_param = 1; y->off = poff; y->assigned = 1;
+        dbg_note_var(y);
         poff += slot;
     }
     (void)pl;

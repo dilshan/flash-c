@@ -62,8 +62,11 @@ int cmd_enabled(int cmd)
     case cmPrint: return e != NULL;
     case cmFind: case cmReplaceText: case cmSearchAgain: case cmGotoLine: case cmLocateFn: return e != NULL;
     case cmPrevError: case cmNextError: return nmsgs > 0;
-    case cmProgReset: case cmGotoCursor: case cmTraceInto: case cmStepOver:
-    case cmInspect: case cmCallStack: case cmToggleBP: case cmBreakpoints: return 0;
+    case cmProgReset: return dbgui_active();
+    case cmGotoCursor: case cmTraceInto: case cmStepOver: return any_edit() != NULL || nproj > 0 || dbgui_active();
+    case cmInspect: case cmCallStack: return dbgui_active();
+    case cmToggleBP: return e != NULL && e->kind == W_EDIT;
+    case cmBreakpoints: return 1;
     case cmCompile: case cmMake: case cmLink: case cmBuildAll: case cmRun: return any_edit() != NULL || nproj > 0;
     case cmCloseProject: case cmAddItem: return project_name[0] != 0;
     case cmDelItem: case cmLocalOpts: case cmIncludeFiles: return nproj > 0;
@@ -115,6 +118,7 @@ static void goto_error(int dir)
 void ide_fill_options(FcOptions *o)
 {
     fc_options_default(o);
+    o->debug = cfg.dbg_source != 2;
     o->nested_comments = cfg.nested_comments;
     o->unsigned_char = cfg.unsigned_char;
     o->ident_len = cfg.ident_len >= 32 ? 0 : cfg.ident_len;
@@ -296,6 +300,7 @@ int ide_build(int mode)
     int first_msg = nmsgs;
     msg_add(5, "", 0, hdr, 1);
 
+    dbgui_reset();
     FcContext cx; memset(&cx, 0, sizeof cx);
     ide_fill_options(&cx.opt);
     cx.diag = build_diag;
@@ -533,6 +538,7 @@ static void desktop_save(void)
             fprintf(f, "file=%d %d %d %d %d %d %s\n", w->cy, w->cx, w->top, w->x, w->w, w->h, w->buf->name);
     }
     if (cfg.sv_watch) for (int i = 0; i < nwatch; i++) fprintf(f, "watch=%s\n", watches[i]);
+    if (cfg.sv_bp) dbgui_save_bps(f);
     fprintf(f, "run_args=%s\n", cfg.run_args);
     fclose(f);
 }
@@ -544,6 +550,7 @@ static void desktop_load(void)
         char *nl = strchr(line, '\n'); if (nl) *nl = 0;
         if (!strncmp(line, "project=", 8)) project_open(line + 8);
         else if (!strncmp(line, "watch=", 6)) { watches = realloc(watches, (nwatch + 1) * sizeof(char *)); watches[nwatch++] = strdup(line + 6); }
+        else if (!strncmp(line, "bp=", 3)) dbgui_load_bp(line + 3);
         else if (!strncmp(line, "run_args=", 9)) snprintf(cfg.run_args, sizeof cfg.run_args, "%s", line + 9);
         else if (!strncmp(line, "file=", 5)) {
             int cy, cx, top, x, w, h, off;
@@ -789,10 +796,11 @@ void ide_command(int cmd)
     case cmLocateFn: do_locate(); break;
     case cmPrevError: goto_error(-1); break;
     case cmNextError: goto_error(1); break;
-    case cmRun: if (!ide_build(4)) run_program(); break;
-    case cmProgReset: break;
-    case cmGotoCursor: case cmTraceInto: case cmStepOver:
-        msgbox(" Debugger ", "Source-level debugging is not available in this version.\nUse Run (Ctrl-F9) to run the program.", MB_OK); break;
+    case cmRun: if (dbgui_wants_run()) dbgui_go(); else if (!ide_build(4)) run_program(); break;
+    case cmProgReset: dbgui_reset(); break;
+    case cmGotoCursor: dbgui_goto_cursor(); break;
+    case cmTraceInto: dbgui_step(1); break;
+    case cmStepOver: dbgui_step(0); break;
     case cmArguments: {
         char a[256]; snprintf(a, sizeof a, "%s", cfg.run_args);
         if (inputbox(" Program Arguments ", "~E~nter Program Parameters", a, sizeof a, "Enter command-line arguments to be passed to your program")) snprintf(cfg.run_args, sizeof cfg.run_args, "%s", a);
@@ -804,8 +812,10 @@ void ide_command(int cmd)
     case cmBuildAll: ide_build(3); break;
     case cmInformation: dlg_compiler_info(last_lines, last_errors, last_warnings); break;
     case cmRemoveMsgs: msg_clear(); { Win *m = win_find_kind(W_MSG); if (m) win_close(m); } break;
-    case cmInspect: case cmCallStack: case cmToggleBP: case cmBreakpoints:
-        msgbox(" Debugger ", "This command is available only while debugging.", MB_OK); break;
+    case cmInspect: dbgui_inspect(); break;
+    case cmCallStack: dbgui_call_stack(); break;
+    case cmToggleBP: dbgui_toggle_bp(); break;
+    case cmBreakpoints: dbgui_breakpoints(); break;
     case cmEvalMod: dlg_eval(); break;
     case cmAddWatch: add_watch(0); break;
     case cmEditWatch: add_watch(1); break;
@@ -908,7 +918,7 @@ static int next_key(void)
 
 void ide_run(int argc, char **argv)
 {
-    cfg_defaults(); pal_defaults();
+    cfg_defaults(); pal_defaults(); dbgui_init();
     cfg_load();
     clipbuf = buf_new();
     find_opts[0] = 0;

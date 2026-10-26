@@ -276,6 +276,25 @@ static const Topic topics[] = {
 " number up, exit functions from the highest down.\n\n"
 " See also: {Library: stdio}, {Library: math}\n" },
 
+{ "Source-level debugger", "debug debugger breakpoint trace step watch inspect evaluate call stack go to cursor register",
+" Source-level debugger\n\n"
+" Ctrl+F9  Run to the next breakpoint        Ctrl+F2  Program reset\n"
+" F4  Go to cursor                           F7  Trace into\n"
+" F8  Step over                              Ctrl+F8  Toggle breakpoint\n"
+" Alt+F4  Inspect                            Ctrl+F4  Evaluate/modify\n"
+" Ctrl+F3  Call stack                        Ctrl+F7  Add watch\n\n"
+" The program is compiled with debug information when Options|Debugger|\n"
+" Source debugging is On. The first Trace into / Step over starts the\n"
+" program and stops at the first statement of main; the green bar marks the\n"
+" statement that runs next. Breakpoints (red lines) can have a condition\n"
+" (a C expression) and a pass count: Debug|Breakpoints.\n\n"
+" Expressions may use local and global variables, ., ->, [], *, &, casts,\n"
+" sizeof and assignment. A format suffix selects the display: total,x\n"
+" (hex), ,d (decimal), ,c (character).\n\n"
+" Display swapping (Options|Debugger) selects when the program screen is\n"
+" shown while stepping; Alt+F5 shows the user screen at any time.\n\n"
+" See also: {Differences from classic compilers}\n" },
+
 { "Differences from classic compilers", "dos difference int 64 float memory model far near",
 " Differences from classic DOS compilers\n\n"
 " * The target is 64-bit Linux, so int is 32 bits, long and pointers are\n"
@@ -284,8 +303,8 @@ static const Topic topics[] = {
 "   compatibility). Graphics, BIOS and interrupt calls are not provided.\n"
 " * There is no separate object-file / link step: the compiler writes the\n"
 "   executable directly. Compile and Link therefore produce the same file.\n"
-" * The source-level debugger is not available yet; the Debug menu offers\n"
-"   Evaluate and Watches for constant expressions.\n"
+" * The source-level debugger runs the program under ptrace (see\n"
+"   {Source-level debugger}); it needs Options|Debugger|Source debugging.\n"
 " * The standard library is built in (see {Libraries and linking}). Programs\n"
 "   get their header files from the compiler itself, and your own include\n"
 "   directories (Options|Directories) are searched first.\n" },

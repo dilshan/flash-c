@@ -107,8 +107,30 @@ Design points:
   (`tests/tui.py`), types a program, compiles, runs, breaks it, follows the error, opens dialogs and
   help, and quits. `tui.py` can also render PNG screenshots.
 
+* `tests/debug_smoke.py` drives the debugger in the real IDE: breakpoint, Run, Trace into, Call
+  stack, Evaluate, Step over, Program reset, Go to cursor, program exit.
+* `tools/dbgtest.c` is a headless driver for `dbgcore` (see below), used while developing.
+
+### Debugger
+
+* Compiler side (`-v` / `FcOptions.debug`): `gen.c` records a line table (`note_line`, one entry per
+  statement start, in code order), user functions with their variables (frame offset, scope lines) and
+  user globals, and exposes them as `fc_debug_info()` (`fc.h`, `FcDebug`). The data lives until the
+  next compile.
+* `src/ide/dbgcore.c`: runs the executable (a static ELF at fixed addresses) under `ptrace` with its
+  stdio on a pseudo terminal. Breakpoints are `int3` bytes inserted only while the program runs.
+  Trace/step single-step until the line changes; a `call` is detected from the opcode and stepped
+  over with a temporary breakpoint at the return address (checking `rsp`, so recursion works).
+  Frames are found by following the `rbp` chain; locals are `[rbp+off]`. The IDE switches to the
+  user screen (`term_suspend`) only while the program runs freely; during that time keyboard input
+  is forwarded to the pty.
+* `src/ide/dbgeval.c`: the expression evaluator (C operators on typed values read from
+  `/proc/<pid>/mem`), value formatter, inspector lines, frame descriptions and registers.
+* `src/ide/debugger.c`: the UI (commands, Breakpoints / Call stack / Inspect dialogs, execution
+  marker, desktop persistence). `ide_build` calls `dbgui_reset` first because a compile frees the
+  debug tables.
+
 ## 4. Ideas for next steps
-Source-level debugger via `ptrace` (the Debug menu and the Watch/Register windows are in
-place), bit-fields, a real optimizer pass (the code generator is
+Bit-fields, a real optimizer pass (the code generator is
 deliberately simple), `long double`, locale-independent `strftime`/`time.h`, a proper `.fcp`
 project dialog with per-file options.

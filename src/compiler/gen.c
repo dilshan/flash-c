@@ -445,6 +445,21 @@ static int goto_label(const char *name)
     return gls[ngl++].label;
 }
 
+enum { FC_USER, FC_C0, FC_LIBC, FC_LIBM, FC_OBJ };
+static int fid_class(int fid);
+
+/* ---------- debug line table ---------- */
+static struct DLn { uint32_t pos; int line; Sym *fn; } *dln;
+static int ndln, capdln, dbg_rec;
+static void note_line(int line)
+{
+    if (!dbg_rec || !gen_fn || line <= 0) return;
+    if (ndln && dln[ndln - 1].pos == (uint32_t)ncode && dln[ndln - 1].fn == gen_fn) { dln[ndln - 1].line = line; return; }
+    if (ndln && dln[ndln - 1].fn == gen_fn && dln[ndln - 1].line == line) return;
+    if (ndln == capdln) { capdln = capdln ? capdln * 2 : 256; dln = realloc(dln, capdln * sizeof *dln); }
+    dln[ndln].pos = ncode; dln[ndln].line = line; dln[ndln].fn = gen_fn; ndln++;
+}
+
 static void gen_stmt(Node *n);
 static void gen_list(Node *n) { for (; n; n = n->next) gen_stmt(n); }
 
@@ -452,7 +467,7 @@ static void gen_stmt(Node *n)
 {
     switch (n->k) {
     case S_NOP: return;
-    case S_EXPR: gen_expr(n->l); return;
+    case S_EXPR: note_line(n->line); gen_expr(n->l); return;
     case S_BLOCK: gen_list(n->l); return;
     case S_ZERO: {
         Sym *s = n->sym;
@@ -464,6 +479,7 @@ static void gen_stmt(Node *n)
     }
     case S_IF: {
         int lelse = newlabel(), lend = newlabel();
+        note_line(n->line);
         gen_truth(n->c); test_rax(); jump_to(lelse, CC_E);
         gen_stmt(n->l);
         if (n->r) { jump_to(lend, -1); place(lelse); gen_stmt(n->r); place(lend); }
@@ -472,7 +488,7 @@ static void gen_stmt(Node *n)
     }
     case S_WHILE: {
         int ltop = newlabel(), lend = newlabel();
-        place(ltop);
+        place(ltop); note_line(n->line);
         gen_truth(n->c); test_rax(); jump_to(lend, CC_E);
         brk_label[++ctl_sp] = lend; cont_label[ctl_sp] = ltop;
         gen_stmt(n->l);
@@ -486,25 +502,27 @@ static void gen_stmt(Node *n)
         brk_label[++ctl_sp] = lend; cont_label[ctl_sp] = lcont;
         gen_stmt(n->l);
         ctl_sp--;
-        place(lcont);
+        place(lcont); note_line(n->c->line);
         gen_truth(n->c); test_rax(); jump_to(ltop, CC_NE);
         place(lend);
         return;
     }
     case S_FOR: {
         int ltop = newlabel(), lcont = newlabel(), lend = newlabel();
+        note_line(n->line);
         gen_list(n->d);
-        place(ltop);
+        place(ltop); note_line(n->line);
         if (n->c) { gen_truth(n->c); test_rax(); jump_to(lend, CC_E); }
         brk_label[++ctl_sp] = lend; cont_label[ctl_sp] = lcont;
         gen_stmt(n->l);
         ctl_sp--;
-        place(lcont);
+        place(lcont); note_line(n->line);
         if (n->r) gen_expr(n->r);
         jump_to(ltop, -1); place(lend);
         return;
     }
     case S_RETURN:
+        note_line(n->line);
         if (n->l) gen_expr(n->l);
         if (n->l && is_agg(gen_fn->ty->ret)) {            /* copy the value into the caller's buffer, return its address */
             b3(0x48, 0x89, 0xC6);                        /* mov rsi,rax */
@@ -515,14 +533,16 @@ static void gen_stmt(Node *n)
         }
         jump_to(ret_label, -1);
         return;
-    case S_BREAK: jump_to(brk_label[ctl_sp], -1); return;
+    case S_BREAK: note_line(n->line); jump_to(brk_label[ctl_sp], -1); return;
     case S_CONTINUE: {
+        note_line(n->line);
         int i = ctl_sp;
         while (i > 0 && cont_label[i] < 0) i--;
         jump_to(cont_label[i], -1); return;
     }
     case S_SWITCH: {
         int lend = newlabel(), ldef = -1;
+        note_line(n->line);
         gen_expr(n->c);
         for (Node *c = n->cases; c; c = c->r) {
             c->label = newlabel();
@@ -540,7 +560,7 @@ static void gen_stmt(Node *n)
     }
     case S_CASE: case S_DEFAULT: place(n->label); gen_stmt(n->l); return;
     case S_LABEL: place(goto_label(n->str)); gen_stmt(n->l); return;
-    case S_GOTO: jump_to(goto_label(n->str), -1); return;
+    case S_GOTO: note_line(n->line); jump_to(goto_label(n->str), -1); return;
     default:
         if (!gerr_set) { snprintf(gerr, sizeof gerr, "internal: unknown statement node %d", n->k); gerr_set = 1; }
     }
@@ -550,6 +570,7 @@ static void gen_function(Sym *f)
 {
     f->codepos = ncode;
     gen_fn = f; ngl = 0; ctl_sp = 0; nlabels = 0; njfix = 0;
+    dbg_rec = CX->opt.debug && fid_class(f->fileid) == FC_USER;
     cont_label[0] = -1;
     b1(0x55); b3(0x48, 0x89, 0xE5);
     b3(0x48, 0x81, 0xEC);
@@ -558,6 +579,7 @@ static void gen_function(Sym *f)
     gen_stmt(f->body);
     b2(0x31, 0xC0);                           /* falling off the end returns 0 */
     place(ret_label);
+    note_line(f->body->cmpty_uns);            /* the closing brace */
     if (f->ty->ret && f->ty->ret->kind == TY_VOID && !strcmp(f->name, "main")) b2(0x31, 0xC0);  /* void main exits with 0 */
     b2(0xC9, 0xC3);                           /* leave; ret */
     f->codelen = ncode - f->codepos;
@@ -592,7 +614,6 @@ static void linker_error(const char *fmt, ...)
 }
 
 /* ---------- link step: start-up / exit procedures, module bookkeeping, map file ---------- */
-enum { FC_USER, FC_C0, FC_LIBC, FC_LIBM, FC_OBJ };
 static int fid_class(int fid)
 {
     const char *n = file_name(fid);
@@ -779,6 +800,101 @@ static void write_map(const char *outpath, int mode, uint32_t codeaddr, int code
     fclose(f);
 }
 
+/* ---------- debug information handed to the IDE debugger ---------- */
+static FcDebug dbg_out;
+static int dbg_have;
+static void *dbg_blocks[4096]; static int ndbg_blocks;
+static void *dalloc(size_t n)
+{
+    void *p = calloc(1, n ? n : 1);
+    if (ndbg_blocks < 4096) dbg_blocks[ndbg_blocks++] = p;
+    return p;
+}
+static char *dstr(const char *s) { size_t n = strlen(s); char *p = dalloc(n + 1); memcpy(p, s, n); return p; }
+static void dbg_free(void)
+{
+    for (int i = 0; i < ndbg_blocks; i++) free(dbg_blocks[i]);
+    ndbg_blocks = 0; dbg_have = 0;
+    memset(&dbg_out, 0, sizeof dbg_out);
+}
+const FcDebug *fc_debug_info(void) { return dbg_have ? &dbg_out : NULL; }
+
+static struct { Type *t; FcDType *d; } tymap[512]; static int ntymap;
+static FcDType *dtype(Type *t)
+{
+    if (!t) return NULL;
+    for (int i = 0; i < ntymap; i++) if (tymap[i].t == t) return tymap[i].d;
+    FcDType *d = dalloc(sizeof *d);
+    if (ntymap < 512) { tymap[ntymap].t = t; tymap[ntymap].d = d; ntymap++; }
+    d->kind = t->kind; d->size = t->size; d->uns = t->uns; d->len = t->len;
+    d->tag = t->tag ? dstr(t->tag) : NULL;
+    d->base = t->kind == TY_FUNC ? dtype(t->ret) : dtype(t->base);
+    if ((t->kind == TY_STRUCT || t->kind == TY_UNION) && t->complete) {
+        int n = 0;
+        for (Member *m = t->members; m; m = m->next) n++;
+        d->mem = dalloc(n * sizeof *d->mem);
+        for (Member *m = t->members; m; m = m->next) {
+            d->mem[d->nmem].name = m->name ? dstr(m->name) : "";
+            d->mem[d->nmem].ty = dtype(m->ty); d->mem[d->nmem].off = m->off; d->nmem++;
+        }
+    }
+    return d;
+}
+
+static int dbg_file_index(const char *name)
+{
+    for (int i = 0; i < dbg_out.nfiles; i++) if (!strcmp(dbg_out.files[i], name)) return i;
+    const char **nf = dalloc((dbg_out.nfiles + 1) * sizeof *nf);
+    if (dbg_out.nfiles) memcpy(nf, dbg_out.files, dbg_out.nfiles * sizeof *nf);
+    nf[dbg_out.nfiles] = dstr(name);
+    dbg_out.files = nf;
+    return dbg_out.nfiles++;
+}
+
+static void dbg_build(uint32_t dataaddr, uint32_t bssaddr)
+{
+    dbg_free(); ntymap = 0;
+    if (!CX->opt.debug) return;
+    int nf = 0;
+    for (int i = 0; i < PG.nfuncs; i++) { Sym *f = PG.funcs[i]; if ((f->reach & 1) && f->defined && !f->is_builtin && fid_class(f->fileid) == FC_USER) nf++; }
+    dbg_out.funcs = dalloc(nf * sizeof(FcDFunc));
+    for (int i = 0; i < PG.nfuncs; i++) {
+        Sym *f = PG.funcs[i];
+        if (!((f->reach & 1) && f->defined && !f->is_builtin && fid_class(f->fileid) == FC_USER)) continue;
+        FcDFunc *d = &dbg_out.funcs[dbg_out.nfuncs++];
+        d->name = dstr(f->name); d->file = dstr(file_name(f->fileid));
+        d->addr = BASE + HDRSZ + f->codepos; d->end = d->addr + f->codelen;
+        d->line0 = f->line; d->line1 = f->body ? f->body->cmpty_uns : f->line;
+        d->ret = dtype(f->ty->ret);
+        d->vars = dalloc((f->ndbg ? f->ndbg : 1) * sizeof(FcDVar));
+        for (int k = 0; k < f->ndbg; k++) {
+            Sym *y = f->dbgvars[k];
+            FcDVar *v = &d->vars[d->nvars++];
+            v->name = dstr(y->name); v->ty = dtype(y->ty); v->off = y->off; v->is_param = y->is_param;
+            v->line0 = y->is_param ? d->line0 : y->line; v->line1 = y->endline ? y->endline : d->line1;
+            if (y->is_param) d->nparams++;
+        }
+        dbg_file_index(d->file);
+    }
+    dbg_out.lines = dalloc((ndln ? ndln : 1) * sizeof(FcDLine));
+    for (int i = 0; i < ndln; i++) {
+        FcDLine *l = &dbg_out.lines[dbg_out.nlines++];
+        l->addr = BASE + HDRSZ + dln[i].pos; l->line = dln[i].line;
+        l->file = dbg_file_index(file_name(dln[i].fn->fileid));
+    }
+    int ng = 0;
+    for (Sym *y = global_syms(); y; y = y->next) if (y->kind == SY_VAR && y->defined && y->global && fid_class(y->fileid) == FC_USER) ng++;
+    dbg_out.globals = dalloc((ng ? ng : 1) * sizeof(FcDGlobal));
+    for (Sym *y = global_syms(); y; y = y->next) {
+        if (!(y->kind == SY_VAR && y->defined && y->global && fid_class(y->fileid) == FC_USER)) continue;
+        FcDGlobal *g = &dbg_out.globals[dbg_out.nglobals++];
+        g->name = dstr(y->name); g->ty = dtype(y->ty); g->file = dstr(file_name(y->fileid));
+        g->addr = y->bss ? bssaddr + y->off : dataaddr + y->off;
+    }
+    dbg_out.entry = BASE + HDRSZ;
+    dbg_have = 1;
+}
+
 int gen_program(const char *outpath, char *err, int errlen, int mapmode)
 {
     Sym *mainf = global_lookup("main"), *startf = global_lookup("_fc_start");
@@ -835,6 +951,7 @@ int gen_program(const char *outpath, char *err, int errlen, int mapmode)
         put64(PG.data + PG.drel[i].off, a);
     }
     if (bad) return 1;
+    dbg_build(dataaddr, bssaddr);
 
     for (int i = 0; i < PG.nfuncs; i++) {
         Sym *f = PG.funcs[i];
@@ -877,4 +994,5 @@ void gen_reset(void)
     free(jfix); jfix = NULL; njfix = capjfix = 0;
     free(gls); gls = NULL; ngl = capgl = 0;
     gerr_set = 0; ctl_sp = 0;
+    free(dln); dln = NULL; ndln = capdln = 0;
 }

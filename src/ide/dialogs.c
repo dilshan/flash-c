@@ -568,6 +568,7 @@ static int ev_cmd(Dialog *d, int cmd)
     if (cmd == cmEvaluate || cmd == cmOK) {
         long long v; char err[160];
         if (!ev_expr[0]) return 1;
+        { int k = dbgui_eval(ev_expr, ev_result, sizeof ev_result); if (k != -2) return 1; }
         if (!fc_eval_expr(ev_expr, &v, err, sizeof err)) {
             snprintf(ev_result, sizeof ev_result, "%lld", v);
             if (v >= 0 && v < 0x100000000LL) { char hx[40]; snprintf(hx, sizeof hx, "  (0x%llX)", v); strcat(ev_result, hx); }
@@ -575,7 +576,12 @@ static int ev_cmd(Dialog *d, int cmd)
         } else snprintf(ev_result, sizeof ev_result, "%s", err);
         return 1;
     }
-    if (cmd == cmModify) { msgbox(" Evaluate and Modify ", "Variables can only be modified while a\nprogram is being debugged.", MB_OK); return 1; }
+    if (cmd == cmModify) {
+        if (!dbgui_active()) { msgbox(" Evaluate and Modify ", "Variables can only be modified while a\nprogram is being debugged.", MB_OK); return 1; }
+        if (!ev_expr[0] || !ev_new[0]) return 1;
+        dbgui_assign(ev_expr, ev_new, ev_result, sizeof ev_result);
+        return 1;
+    }
     return 0;
 }
 void dlg_eval(void)

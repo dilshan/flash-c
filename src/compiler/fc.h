@@ -29,6 +29,7 @@ typedef struct FcOptions {
     int wildargs;            /* link the wildcard argument expander (wildargs.obj) */
     int warn_dup;            /* warn when the program redefines a library function */
     int stack_warn;          /* warn when the program has no explicit stack size */
+    int debug;               /* record source-level debug information (-v) */
     const char *incdirs[16]; /* include search path                      */
     int nincdir;
     const char *defines[16]; /* NAME or NAME=VALUE */
@@ -58,5 +59,27 @@ const char *fc_builtin_header_at(int i, const char **text);
 /* names of the run-time library modules that were linked by the last successful compile */
 int fc_link_module_count(void);
 const char *fc_link_module_at(int i, const char **lib, long *bytes);
+
+
+/* ---- source-level debug information of the last successful compile (valid until the next compile) ---- */
+enum { FCT_VOID, FCT_CHAR, FCT_SHORT, FCT_INT, FCT_LONG, FCT_FLOAT, FCT_DOUBLE, FCT_PTR, FCT_ARRAY, FCT_STRUCT, FCT_UNION, FCT_FUNC };
+typedef struct FcDType FcDType;
+typedef struct FcDMember { const char *name; FcDType *ty; int off; } FcDMember;
+struct FcDType { int kind, size, uns, len; FcDType *base; const char *tag; FcDMember *mem; int nmem; };
+typedef struct FcDVar { const char *name; FcDType *ty; int off; int is_param; int line0, line1; } FcDVar;  /* off: rbp offset */
+typedef struct FcDFunc {
+    const char *name; const char *file; unsigned long addr, end; int line0, line1;
+    FcDType *ret; FcDVar *vars; int nvars; int nparams;
+} FcDFunc;
+typedef struct FcDLine { unsigned long addr; int line; int file; } FcDLine;      /* sorted by address */
+typedef struct FcDGlobal { const char *name; FcDType *ty; unsigned long addr; const char *file; } FcDGlobal;
+typedef struct FcDebug {
+    FcDFunc *funcs; int nfuncs;
+    FcDLine *lines; int nlines;
+    FcDGlobal *globals; int nglobals;
+    const char **files; int nfiles;
+    unsigned long entry;
+} FcDebug;
+const FcDebug *fc_debug_info(void);      /* NULL when the last compile recorded none */
 
 #endif

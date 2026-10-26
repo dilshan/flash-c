@@ -328,6 +328,24 @@ void dlg_about(void);
 void dlg_compiler_info(int lines, int errors, int warnings);
 int  dlg_window_list(int *action);     /* returns window index or -1; action: 0 select, 1 close */
 void dlg_eval(void);
+
+/* debugger.c */
+void dbgui_init(void);
+int  dbgui_active(void);                 /* a program is loaded in the debugger and stopped */
+void dbgui_reset(void);                  /* program reset */
+int  dbgui_wants_run(void);
+void dbgui_go(void);
+void dbgui_step(int into);
+void dbgui_goto_cursor(void);
+void dbgui_toggle_bp(void);
+void dbgui_breakpoints(void);
+void dbgui_call_stack(void);
+void dbgui_inspect(void);
+int  dbgui_line_pal(const char *file, int line);   /* palette index for the line, -1 none */
+int  dbgui_eval(const char *expr, char *out, int n);
+int  dbgui_assign(const char *expr, const char *val, char *out, int n);
+void dbgui_save_bps(FILE *f);
+void dbgui_load_bp(const char *s);
 void dlg_transfer(void);
 void dlg_colors(void);
 void dlg_local_options(const char *file);

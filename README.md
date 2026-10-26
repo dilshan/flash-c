@@ -77,8 +77,35 @@ Whole `struct`s can be passed to and returned from functions by value.
 
 **Not implemented yet:** bit-fields, compound
 literals, variable-length arrays, `long long` as a distinct type (it is `long`), `long double`
-(it is `double`), a source-level debugger (the Debug menu offers *Evaluate* and *Watches* for
-constant expressions; Trace/Step/Breakpoints are disabled and say so).
+(it is `double`).
+
+### Source-level debugger
+
+Flash C has a source-level debugger built into the IDE (the feature set follows the evidence in
+[`analysis/EVIDENCE.md`](analysis/EVIDENCE.md) §7). The compiler records line, function, variable and type
+information when *Options|Debugger|Source debugging* is *On* (or `fcc -v`); the IDE then runs the
+program under `ptrace`:
+
+| Command | Key | What it does |
+|---|---|---|
+| Run | Ctrl+F9 | runs to the next breakpoint (or the end) |
+| Program reset | Ctrl+F2 | ends the debug session |
+| Go to cursor | F4 | runs to the line under the cursor |
+| Trace into | F7 | executes the next statement, entering user functions |
+| Step over | F8 | executes the next statement, calls included |
+| Toggle breakpoint | Ctrl+F8 | sets or clears a breakpoint (red line) |
+| Breakpoints... | | list, edit (condition, pass count, file, line), delete, view, set at a function |
+| Evaluate/modify... | Ctrl+F4 | evaluates a C expression, assigns a new value |
+| Inspect... | Alt+F4 | inspects structures, arrays and pointers; modify elements; range inspect |
+| Call stack... | Ctrl+F3 | functions that led here, with arguments; selects the frame used for evaluation |
+| Watches | Ctrl+F7 | live values in the Watch window |
+| Window|Register | | CPU registers of the stopped program |
+
+The current statement is shown with a green bar. Expressions understand locals, globals, `.`, `->`,
+`[]`, `*`, `&`, casts, `sizeof`, assignment and a `,x` `,d` `,c` format suffix. The program's output
+goes to the user screen (Alt+F5); *Options|Debugger|Display swapping* controls when it is shown
+during a step. Breakpoints are saved in `fcdef.dsk` with *Options|Environment|Desktop*.
+Limits: the debugger does not call functions from expressions; there is no reverse execution.
 
 ### Library
 
