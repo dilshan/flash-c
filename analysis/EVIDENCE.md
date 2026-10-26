@@ -5,12 +5,11 @@ This report documents what was learned from the reference installation in
 be reproduced with:
 
 ```
-python3 -I analysis/extract_evidence.py /path/to/TC/BIN      # writes analysis/dumps/*.txt
+python3 -I analysis/extract_evidence.py /path/to/TC/BIN      # writes text extracts (not distributed)
 ```
 
-Raw extracts are in `analysis/dumps/`. Product names of the reference tool are
-replaced with `<brand>` in every dump (the Flash C sources contain none).
-Line references like `menus_items.txt:1-40` point into those dumps.
+The raw extracts are not distributed with this repository; they can be regenerated with the script
+above. Line references like `menus_items.txt:1-40` point into those extracts.
 
 **Method.** Static analysis only: parse the executable headers, enumerate segments,
 extract the text tables, read the settings file. Nothing was executed and no code
@@ -103,7 +102,7 @@ Editor Options page: Create backup files, Insert mode, Autoindent, Use tab chara
 
 *Method.* REA could not open the OMF `.LIB` archives (unsupported binary format), so `extract_libs.py` parses the Intel OMF
 records statically (THEADR, LNAMES, SEGDEF, GRPDEF, PUBDEF, EXTDEF, COMDEF, LEDATA, FIXUPP; the archive header and page size) and writes
-plain-text dumps to `dumps/` (`lib_inventory.txt`, `lib_modules_<LIB>.txt`, `lib_dependencies.txt`, `startup_objects.txt`,
+plain-text extracts (`lib_inventory.txt`, `lib_modules_<LIB>.txt`, `lib_dependencies.txt`, `startup_objects.txt`,
 `headers_inventory.txt`). Brand names are redacted to `<brand>`. Nothing was executed or disassembled.
 
 *Findings.*
