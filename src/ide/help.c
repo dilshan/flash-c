@@ -533,7 +533,7 @@ static void parse_topic(HS *h)
         const char *q = p + (L->example ? 1 : 0);
         char *out = malloc(e - q + 1); int o = 0;
         for (; q < e; q++) {
-            if (!L->example && *q == '{') {
+            if (!L->example && *q == '{' && q + 1 < e && q[1] != ' ') {      /* "{ " is a literal brace, "{Topic}" a link */
                 const char *c = memchr(q, '}', e - q);
                 if (c) {
                     const char *bar = memchr(q, '|', c - q);

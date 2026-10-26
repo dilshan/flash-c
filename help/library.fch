@@ -3,9 +3,8 @@
 
  Extended topics
 
+ {Language topics}
  {Library functions}
- {Keywords and operators}
- {Preprocessor}
  {printf formats}
  {scanf formats}
  {Predefined macros}
@@ -85,35 +84,6 @@
  or the largest double).
 
  Back to {Library functions}
-
-@topic Keywords and operators
-@keys keyword operator precedence if else for while do switch case default break continue goto return sizeof struct union enum typedef static extern register volatile const signed unsigned void char short int long float double auto
-@alias C keywords
- Keywords and operators
-
- Keywords
-   auto break case char const continue default do double else enum
-   extern float for goto if int long register return short signed
-   sizeof static struct switch typedef union unsigned void volatile
-   while
-
- The words near, far, huge, cdecl and pascal are accepted and ignored.
-
- Operators, highest precedence first
-   () [] -> .                       left to right
-   ! ~ ++ -- + - * & (type) sizeof  right to left
-   * / %                            left to right
-   + -
-   << >>
-   < <= > >=
-   == !=
-   &    ^    |
-   &&   ||
-   ?:                               right to left
-   = += -= *= /= %= &= ^= |= <<= >>=
-   ,                                left to right
-
- See {Preprocessor}, {Language reference}
 
 @topic L_tmpnam
 @keys L_tmpnam
@@ -311,7 +281,7 @@
  Back to {Library functions}
 
 @topic Not supported DOS features
-@keys int86 intdos inportb outportb outp inp peek poke MK_FP FP_SEG FP_OFF getvect setvect gettext puttext movetext graphics initgraph farmalloc far near interrupt unsupported
+@keys int86 intdos inportb outportb outp inp peek poke MK_FP FP_SEG FP_OFF getvect setvect gettext puttext movetext graphics initgraph farmalloc unsupported
  Not supported DOS features
 
  Flash C produces programs for 64-bit Linux, so features that depend
@@ -341,38 +311,6 @@
  The keywords near, far, huge, cdecl and pascal are accepted and ignored.
 
  See {Differences from classic compilers}
-
-@topic Predefined macros
-@keys __FILE__ __LINE__ __DATE__ __TIME__ __STDC__
- Predefined macros
-
-   __FILE__   the name of the source file as a string
-   __LINE__   the current line number
-   __DATE__   the compilation date, "Mmm dd yyyy"
-   __TIME__   the compilation time, "hh:mm:ss"
-   __STDC__   1
-
- See {Preprocessor}
-
-@topic Preprocessor
-@keys include define undef ifdef ifndef elif endif pragma line error defined
-@alias Preprocessor directives
- Preprocessor
-
- Directives
-   #include <file>   search the include directories
-   #include "file"   search the current directory first
-   #define NAME text / #define NAME(args) text
-   #undef  NAME
-   #if expr / #ifdef / #ifndef / #elif / #else / #endif
-   #line number "file"
-   #error text
-   #pragma ...       startup and exit functions, others ignored
-
- Operators in macros: # makes a string, ## joins tokens.
- Defined in expressions: defined(NAME).
-
- See {Predefined macros}
 
 @topic RAND_MAX
 @keys RAND_MAX
@@ -4363,7 +4301,7 @@ int main(void)
  Back to {Library functions}
 
 @topic struct date
-@keys struct date
+@keys date
  struct date
 
  Members: int da_year, char da_day, char da_mon. Used by getdate,
@@ -4372,7 +4310,7 @@ int main(void)
  Back to {Library functions}
 
 @topic struct dfree
-@keys struct dfree
+@keys dfree
  struct dfree
 
  Members: unsigned df_avail, df_total, df_bsec, df_sclus (free
@@ -4382,7 +4320,7 @@ int main(void)
  Back to {Library functions}
 
 @topic struct time
-@keys struct time
+@keys time
  struct time
 
  Members: unsigned char ti_min, ti_hour, ti_hund, ti_sec. Used by
@@ -4391,7 +4329,7 @@ int main(void)
  Back to {Library functions}
 
 @topic struct tm
-@keys struct tm
+@keys tm
  struct tm
 
  Broken-down time: int tm_sec, tm_min, tm_hour, tm_mday, tm_mon
