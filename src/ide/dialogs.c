@@ -69,6 +69,7 @@ void opt_command(int cmd)
     case cmOptSource: {
         db_start(&d, " Source Options ", 60);
         db_check(&d, "~N~ested comments", &cfg.nested_comments, 0, "Allow nested comments in source files");
+        db_gap(&d);
         db_num(&d, "~I~dentifier Length", &cfg.ident_len, 6, "Enter significant length of identifiers");
         db_finish(&d, 1);
         opt_run(&d, NULL);
