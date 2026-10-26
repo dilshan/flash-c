@@ -171,7 +171,7 @@ void win_close(Win *w)
     memmove(&wins[i], &wins[i + 1], (nwins - i - 1) * sizeof(Win *));
     nwins--;
     if (w->kind == W_EDIT) buf_free(w->buf);
-    if (w->kind == W_HELP) free(w->data);
+    if (w->kind == W_HELP) { help_free(w); free(w->data); }
     free(w);
     if (was_msg) wm_relayout_msg(0);
 }

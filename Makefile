@@ -51,8 +51,13 @@ test: $(BUILD)/fcc $(BUILD)/fc
 install: all
 	install -d $(PREFIX)/bin
 	install $(BUILD)/fc $(BUILD)/fcc $(PREFIX)/bin
+	install -d $(PREFIX)/share/flashc/help
+	install -m 644 help/*.fch $(PREFIX)/share/flashc/help
 
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all test install clean
+help:
+	python3 tools/helpgen/gen.py help
+
+.PHONY: all test install clean help

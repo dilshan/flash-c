@@ -161,3 +161,14 @@ There is no IDE option for bit-fields in the reference product (the Options dial
 dialog changed. The allocation order inside the storage unit is not observable from strings; Flash C uses the common
 least-significant-bit-first layout (`tests/cases/t21_bitfields.c` is checked against the host compiler).
 
+
+## 9. The help system
+
+`TCHELP.TCH` (about 1.5 MB) was examined with REA's byte-entropy tool and `strings`/`xxd`. Observed:
+a text signature header, a small index block, then a long high-entropy region (about 6.7-6.9 bits
+per byte), i.e. compressed topic text; plain strings only show keyword index entries (`#define`,
+`#include`, function names). So the reference uses one compressed database with a keyword index and
+cross-references. REA could not open the file as an executable. Only these structural facts were used:
+one external file, a keyword index, hyper-linked topics, context lookup of the word at the cursor,
+Index, Previous topic and examples that can be copied into the editor. Flash C's help text is
+original; its file format (`.fch`, plain text) is unrelated to the reference format.

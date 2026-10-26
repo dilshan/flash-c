@@ -56,7 +56,7 @@ int cmd_enabled(int cmd)
     case cmRedo: return e && e->buf->ucur < e->buf->nu;
     case cmCut: case cmCopy: case cmClear: return e && ed_has_block(e);
     case cmPaste: return e && !(clipbuf->n == 1 && clipbuf->ln[0].len == 0);
-    case cmCopyExample: return 0;
+    case cmCopyExample: { char *t = help_example_text(); int ok = t != NULL; free(t); return ok; }
     case cmSaveFile: case cmSaveAs: return e != NULL && e->kind == W_EDIT;
     case cmSaveAll: return any_edit() != NULL;
     case cmPrint: return e != NULL;
@@ -776,6 +776,11 @@ void ide_command(int cmd)
     case cmCopy: if (e) ed_copy(e, 0); break;
     case cmPaste: if (e) ed_paste(e); break;
     case cmClear: if (e) { buf_group(e->buf); ed_clear_block(e); } break;
+    case cmCopyExample: {
+        char *t = help_example_text();
+        if (t) { buf_clear(clipbuf); int l = 0, c = 0; buf_insert(clipbuf, &l, &c, t, -1); clip_set_system(t, (int)strlen(t)); free(t); }
+        break;
+    }
     case cmShowClip: {
         Win *w = win_find_kind(W_CLIP);
         if (!w) {

@@ -47,7 +47,7 @@ make test               # compiler tests, diagnostics tests, IDE end-to-end test
 | Ctrl+F9 | run | Alt+F5 | user screen (program output) |
 | Alt+F7 / Alt+F8 | previous / next error | F6 / F5 | next window / zoom |
 | Alt+F3 | close window | Alt+0 | window list |
-| F1 | help | Ctrl+F1 | help on word at cursor |
+| F1 | help | Ctrl+F1 | help on word at cursor (e.g. a library function) |
 | Alt+X | quit | Alt+Backspace | undo |
 
 Editor commands include the classic block commands (`Ctrl-K B/K/C/V/Y/R/W`), quick
@@ -209,3 +209,11 @@ More detail: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 ## License
 
 Flash C is released under the [MIT License](LICENSE).
+
+## Online help
+
+F1 opens hyper-linked help; Ctrl+F1 shows the topic for the word under the cursor (for example
+`printf`), Shift+F1 opens a searchable Index, Alt+F1 goes back. The reference for every standard
+library function (syntax, header, return value, examples that Edit|Copy example puts in the editor)
+is read from external files in `help/*.fch` (installed to `$PREFIX/share/flashc/help`; override with
+`FC_HELP=dir`). Without those files only the basic built-in documentation is shown.

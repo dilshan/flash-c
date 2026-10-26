@@ -83,9 +83,37 @@ try:
     s.send('F1')
     check('Help window', 'Flash C Help' in text(s) and 'Using the IDE' in text(s), s)
     s.send('ESC')
+    # extended help: contextual F1 on a library function, Index dialog, Previous topic
+    s.send('\x1b[1;5H'); s.send('CF1')
+    t = text(s)
+    check('Ctrl+F1 on a word shows nothing odd', 'Help' in t, s)
+    s.send('ESC')
+    s.send('\x1bhi'); s.type('strcpy')
+    check('Help|Index finds a library function', 'Index' in text(s) and 'strcpy' in text(s), s)
+    s.send('ENTER')
+    t = text(s)
+    check('Index shows the function topic', 'Help: strcpy' in t and 'Copies a string' in t, s)
+    s.send('TAB'); s.send('ENTER')
+    check('hyperlink is followed', 'Help: strcpy' not in text(s).split('\n')[1], s)
+    s.send('AF1')
+    check('Previous topic goes back', 'Help: strcpy' in text(s), s)
+    s.send('ESC')
     s.send('\x1b0')
     check('Window list', 'Window List' in text(s), s)
     s.send('ESC')
+
+
+    # without the help files only the basic documentation is shown
+    iso = tempfile.mkdtemp(prefix='fc-nohelp-')
+    for f in ('fc', 'fcc'):
+        shutil.copy(os.path.join(os.path.dirname(BIN), f), iso)
+    s2 = Session([os.path.join(iso, 'fc')], cwd=iso, rows=25, cols=80, env={'ASAN_OPTIONS': 'detect_leaks=0'})
+    s2.send('F1')
+    t = text(s2)
+    check('basic help without help files', 'Flash C Help' in t, s2)
+    s2.send('ESC'); s2.send('\x1bhi')
+    check('Index lists only the basic topics', 'strcpy' not in text(s2), s2)
+    s2.send('ESC')
 
     # about + quit with modified buffer
     s.send('\x1b ', 'a')

@@ -1,10 +1,14 @@
 /* Flash C IDE - online help */
 #include "ide.h"
 #include <ctype.h>
+#include <dirent.h>
+#include <unistd.h>
 
 typedef struct { const char *title, *keys, *text; } Topic;
 
-static const Topic topics[] = {
+/* The basic documentation is built in. Extended topics (the library reference, ...) are read from
+ * external *.fch files when they are installed; see help_load_external(). */
+static const Topic basic[] = {
 { "Contents", "",
 "                     Flash C Help\n\n"
 " {Using the IDE}\n"
@@ -317,21 +321,193 @@ static const Topic topics[] = {
 { NULL, NULL, NULL }
 };
 
-#define NTOPICS (int)(sizeof topics / sizeof topics[0] - 1)
 
-typedef struct HS { int topic, top, link, hist[32], nhist; } HS;
+/* ------------------------------------------------------------------ topic database */
+typedef struct { char *title, *keys, *alias, *text; } Tp;
+static Tp *tps; static int ntps, captps;
+static int ext_loaded, ext_files, ext_tried;
 
-static int find_topic(const char *name)
+static int tp_find(const char *name)
 {
-    for (int i = 0; i < NTOPICS; i++) if (!strcasecmp(topics[i].title, name)) return i;
+    for (int i = 0; i < ntps; i++) if (!strcasecmp(tps[i].title, name)) return i;
+    for (int i = 0; i < ntps; i++) {                         /* aliases are separated by ';' */
+        const char *a = tps[i].alias;
+        while (a && *a) {
+            while (*a == ' ' || *a == ';') a++;
+            const char *e = a; while (*e && *e != ';') e++;
+            const char *t = e; while (t > a && t[-1] == ' ') t--;
+            if ((size_t)(t - a) == strlen(name) && !strncasecmp(a, name, t - a)) return i;
+            a = e;
+        }
+    }
     return -1;
 }
 
-static int count_links(const char *t)
+static int tp_new(const char *title)
 {
-    int n = 0;
-    for (; *t; t++) if (*t == '{') n++;
+    int i = tp_find(title);
+    if (i >= 0 && !strcasecmp(tps[i].title, title)) {           /* replaces a topic of the same title */
+        free(tps[i].keys); free(tps[i].alias); free(tps[i].text);
+        tps[i].keys = strdup(""); tps[i].alias = strdup(""); tps[i].text = strdup("");
+        return i;
+    }
+    if (ntps == captps) { captps = captps ? captps * 2 : 256; tps = realloc(tps, captps * sizeof *tps); }
+    tps[ntps].title = strdup(title); tps[ntps].keys = strdup(""); tps[ntps].alias = strdup(""); tps[ntps].text = strdup("");
+    return ntps++;
+}
+
+static void tp_append(int i, const char *s)
+{
+    size_t a = strlen(tps[i].text), b = strlen(s);
+    tps[i].text = realloc(tps[i].text, a + b + 1);
+    memcpy(tps[i].text + a, s, b + 1);
+}
+
+static void init_db(void)
+{
+    if (ntps) return;
+    for (int i = 0; basic[i].title; i++) {
+        int k = tp_new(basic[i].title);
+        free(tps[k].keys); tps[k].keys = strdup(basic[i].keys);
+        free(tps[k].text); tps[k].text = strdup(basic[i].text);
+    }
+}
+
+/* ---- external help files (*.fch) ----
+ *   ;; comment
+ *   @topic Title          starts a topic (an existing topic of that title is replaced)
+ *   @append Title         adds the following text to an existing topic
+ *   @keys w1 w2 ...       words found by Topic search (Ctrl+F1)
+ *   @alias n1; n2         more names for the Index and for links
+ *   @example ... @end     program text; shown in the example colour and copied by Edit|Copy example
+ *   {Title} {label|Title} a link; a line that starts with @@ stands for a text line that starts with @ */
+static void load_file(const char *path)
+{
+    FILE *f = fopen(path, "r");
+    if (!f) return;
+    char line[600]; int cur = -1, in_ex = 0;
+    while (fgets(line, sizeof line, f)) {
+        char *nl = strchr(line, '\n'); if (nl) *nl = 0;
+        nl = strchr(line, '\r'); if (nl) *nl = 0;
+        if (!strncmp(line, ";;", 2)) continue;
+        if (line[0] == '@' && line[1] != '@') {
+            char *arg = strchr(line, ' '); if (arg) { *arg++ = 0; while (*arg == ' ') arg++; } else arg = line + strlen(line);
+            if (!strcmp(line, "@topic") && *arg) { cur = tp_new(arg); in_ex = 0; }
+            else if (!strcmp(line, "@append") && *arg) { cur = tp_find(arg); in_ex = 0; }
+            else if (cur >= 0 && !strcmp(line, "@keys")) { free(tps[cur].keys); tps[cur].keys = strdup(arg); }
+            else if (cur >= 0 && !strcmp(line, "@alias")) { free(tps[cur].alias); tps[cur].alias = strdup(arg); }
+            else if (!strcmp(line, "@example")) in_ex = 1;
+            else if (!strcmp(line, "@end")) in_ex = 0;
+            continue;
+        }
+        if (cur < 0) continue;
+        char *body = line[0] == '@' ? line + 1 : line;
+        if (in_ex) tp_append(cur, "\x01");
+        tp_append(cur, body); tp_append(cur, "\n");
+    }
+    fclose(f);
+    ext_files++;
+}
+
+static int cmp_str(const void *a, const void *b) { return strcmp(*(char *const *)a, *(char *const *)b); }
+
+static int load_dir(const char *dir)
+{
+    DIR *d = opendir(dir);
+    if (!d) return 0;
+    char *names[256]; int n = 0;
+    struct dirent *de;
+    while ((de = readdir(d)) && n < 256) {
+        size_t l = strlen(de->d_name);
+        if (l > 4 && !strcmp(de->d_name + l - 4, ".fch")) names[n++] = strdup(de->d_name);
+    }
+    closedir(d);
+    qsort(names, n, sizeof *names, cmp_str);
+    for (int i = 0; i < n; i++) { char p[1100]; snprintf(p, sizeof p, "%s/%s", dir, names[i]); load_file(p); free(names[i]); }
     return n;
+}
+
+/* where the help files may be installed */
+static void help_dirs(char dirs[][700], int *n)
+{
+    *n = 0;
+    const char *env = getenv("FC_HELP");
+    if (env && *env) snprintf(dirs[(*n)++], 700, "%s", env);
+    char exe[600]; ssize_t l = readlink("/proc/self/exe", exe, sizeof exe - 1);
+    if (l > 0) {
+        exe[l] = 0; char *sl = strrchr(exe, '/'); if (sl) *sl = 0;
+        snprintf(dirs[(*n)++], 700, "%s/help", exe);
+        snprintf(dirs[(*n)++], 700, "%s/../share/flashc/help", exe);
+        snprintf(dirs[(*n)++], 700, "%s/../help", exe);
+    }
+    snprintf(dirs[(*n)++], 700, "%s", "/usr/local/share/flashc/help");
+    snprintf(dirs[(*n)++], 700, "%s", "/usr/share/flashc/help");
+    snprintf(dirs[(*n)++], 700, "%s", "help");
+}
+
+static void help_load_external(void)
+{
+    if (ext_tried) return;
+    ext_tried = 1;
+    init_db();
+    char dirs[10][700]; int nd;
+    help_dirs(dirs, &nd);
+    for (int i = 0; i < nd && !ext_loaded; i++) if (load_dir(dirs[i]) > 0) ext_loaded = 1;
+    if (!ext_loaded) {
+        int c = tp_find("Contents");
+        if (c >= 0) tp_append(c, "\n The library reference and the language reference are not installed\n (no *.fch files were found, see the help directory); only the basic\n documentation is available.\n");
+    }
+}
+
+/* ------------------------------------------------------------------ parsed topic */
+typedef struct { char *s; int example; } PLine;
+typedef struct { int row, col, len; char target[100]; } PLink;
+typedef struct HS {
+    int topic, top, link, hist[32], nhist;
+    PLine *lines; int nlines; PLink *links; int nlinks;
+} HS;
+
+static void parse_free(HS *h)
+{
+    for (int i = 0; i < h->nlines; i++) free(h->lines[i].s);
+    free(h->lines); free(h->links);
+    h->lines = NULL; h->links = NULL; h->nlines = h->nlinks = 0;
+}
+
+static void parse_topic(HS *h)
+{
+    parse_free(h);
+    const char *text = tps[h->topic].text;
+    int caplines = 0, caplinks = 0;
+    for (const char *p = text; *p;) {
+        const char *e = strchr(p, '\n'); if (!e) e = p + strlen(p);
+        if (h->nlines == caplines) { caplines = caplines ? caplines * 2 : 64; h->lines = realloc(h->lines, caplines * sizeof *h->lines); }
+        PLine *L = &h->lines[h->nlines];
+        L->example = *p == 1;
+        const char *q = p + (L->example ? 1 : 0);
+        char *out = malloc(e - q + 1); int o = 0;
+        for (; q < e; q++) {
+            if (!L->example && *q == '{') {
+                const char *c = memchr(q, '}', e - q);
+                if (c) {
+                    const char *bar = memchr(q, '|', c - q);
+                    const char *ls = q + 1, *le = bar ? bar : c;
+                    const char *ts = bar ? bar + 1 : q + 1;
+                    if (h->nlinks == caplinks) { caplinks = caplinks ? caplinks * 2 : 32; h->links = realloc(h->links, caplinks * sizeof *h->links); }
+                    PLink *k = &h->links[h->nlinks++];
+                    k->row = h->nlines; k->col = o; k->len = (int)(le - ls);
+                    int tl = (int)(c - ts); if (tl > 99) tl = 99;
+                    memcpy(k->target, ts, tl); k->target[tl] = 0;
+                    memcpy(out + o, ls, le - ls); o += (int)(le - ls);
+                    q = c; continue;
+                }
+            }
+            out[o++] = *q;
+        }
+        out[o] = 0; L->s = out;
+        h->nlines++;
+        p = *e ? e + 1 : e;
+    }
 }
 
 static void help_goto(Win *w, int topic, int push)
@@ -339,11 +515,13 @@ static void help_goto(Win *w, int topic, int push)
     HS *h = w->data;
     if (push && h->topic >= 0 && h->nhist < 32) h->hist[h->nhist++] = h->topic;
     h->topic = topic; h->top = 0; h->link = 0;
-    snprintf(w->title, sizeof w->title, "Help: %s", topics[topic].title);
+    snprintf(w->title, sizeof w->title, "Help: %s", tps[topic].title);
+    parse_topic(h);
 }
 
 static Win *help_window(void)
 {
+    help_load_external();
     Win *w = win_find_kind(W_HELP);
     if (w) { win_activate(w); return w; }
     int ww = SW > 80 ? 76 : 72, hh = SH - 6;
@@ -356,33 +534,127 @@ static Win *help_window(void)
     return w;
 }
 
+void help_free(Win *w) { HS *h = w->data; if (h) parse_free(h); }
+
 void help_show(const char *topic)
 {
     Win *w = help_window(); if (!w) return;
-    int t = find_topic(topic);
+    int t = tp_find(topic);
     help_goto(w, t < 0 ? 0 : t, ((HS *)w->data)->topic >= 0);
 }
 void help_contents(void) { help_show("Contents"); }
 
-void help_index(void)
-{
-    Win *w = help_window(); if (!w) return;
-    help_goto(w, 0, ((HS *)w->data)->topic >= 0);
-}
+/* ---- Index: every topic title and alias, with type-ahead */
+typedef struct { char *name; int topic; } IEnt;
+static IEnt *ient; static int nient;
+static int cmp_ient(const void *a, const void *b) { return strcasecmp(((const IEnt *)a)->name, ((const IEnt *)b)->name); }
 
-void help_topic_search(const char *word)
+static void build_index(void)
 {
-    if (word && *word) {
-        for (int i = 0; i < NTOPICS; i++) {
-            const char *k = topics[i].keys;
-            size_t wl = strlen(word);
-            for (const char *p = k; *p;) {
-                while (*p == ' ') p++;
-                const char *e = p; while (*e && *e != ' ') e++;
-                if ((size_t)(e - p) == wl && !strncasecmp(p, word, wl)) { Win *w = help_window(); if (w) help_goto(w, i, ((HS *)w->data)->topic >= 0); return; }
-                p = e;
+    for (int i = 0; i < nient; i++) free(ient[i].name);
+    free(ient); ient = NULL; nient = 0;
+    int cap = 0;
+    for (int i = 0; i < ntps; i++) {
+        const char *a = tps[i].alias;
+        for (int pass = 0; pass < 2; pass++) {
+            const char *s = pass ? a : tps[i].title;
+            while (s && *s) {
+                const char *e = pass ? strchr(s, ';') : NULL; if (!e) e = s + strlen(s);
+                const char *b = s; while (b < e && *b == ' ') b++;
+                const char *t = e; while (t > b && t[-1] == ' ') t--;
+                if (t > b) {
+                    if (nient == cap) { cap = cap ? cap * 2 : 256; ient = realloc(ient, cap * sizeof *ient); }
+                    ient[nient].name = strndup(b, t - b); ient[nient].topic = i; nient++;
+                }
+                if (!pass || !*e) break;
+                s = e + 1;
             }
         }
+    }
+    qsort(ient, nient, sizeof *ient, cmp_ient);
+}
+
+static char ix_text[100], ix_last[100];
+static void ix_change(Dialog *d)
+{
+    if (!strcmp(ix_text, ix_last)) return;
+    snprintf(ix_last, sizeof ix_last, "%s", ix_text);
+    DItem *l = &d->it[1];
+    size_t n = strlen(ix_text);
+    for (int i = 0; i < nient; i++) if (!strncasecmp(ient[i].name, ix_text, n)) {
+        l->sel = i;
+        if (l->sel < l->top || l->sel >= l->top + l->h) l->top = i;
+        break;
+    }
+}
+
+static int index_dialog(const char *initial)
+{
+    help_load_external();
+    build_index();
+    if (!nient) return -1;
+    char **items = malloc(nient * sizeof *items);
+    for (int i = 0; i < nient; i++) items[i] = ient[i].name;
+    snprintf(ix_text, sizeof ix_text, "%s", initial ? initial : "");
+    ix_last[0] = 1; ix_last[1] = 0;
+    Dialog d; dlg_init(&d, " Index ");
+    d.w = 44; d.h = SH > 22 ? 20 : 16; d.on_change = ix_change;
+    dlg_input(&d, 3, 1, 36, "~S~earch for", ix_text, sizeof ix_text, "Type the first letters of a topic name");
+    int lh = d.h - 7;
+    dlg_list(&d, 3, 4, 36, lh, items, nient, "Use cursor keys to examine the list; Enter shows the topic");
+    d.it[1].link = 0;
+    dlg_button(&d, 3, d.h - 3, 10, "~S~how", cmOK, 1, NULL);
+    dlg_button(&d, 15, d.h - 3, 10, "Cancel", cmCancel, 0, NULL);
+    ix_change(&d);
+    int r = dlg_run(&d);
+    int t = (r == cmOK && d.it[1].sel < nient) ? ient[d.it[1].sel].topic : -1;
+    free(items);
+    return t;
+}
+
+void help_index(void)
+{
+    int t = index_dialog(NULL);
+    if (t < 0) return;
+    Win *w = help_window(); if (!w) return;
+    help_goto(w, t, ((HS *)w->data)->topic >= 0);
+}
+
+/* Ctrl+F1: the topic for the word at the cursor, or the index */
+void help_topic_search(const char *word)
+{
+    help_load_external();
+    if (word && *word) {
+        int cand[64], n = 0;
+        size_t wl = strlen(word);
+        for (int i = 0; i < ntps && n < 64; i++) {
+            int hit = !strcasecmp(tps[i].title, word) || tp_find(word) == i;
+            const char *k = tps[i].keys;
+            for (const char *p = k; *p && !hit;) {
+                while (*p == ' ') p++;
+                const char *e = p; while (*e && *e != ' ') e++;
+                if ((size_t)(e - p) == wl && !strncasecmp(p, word, wl)) hit = 1;
+                p = e;
+            }
+            if (hit) cand[n++] = i;
+        }
+        if (n == 1) { Win *w = help_window(); if (w) help_goto(w, cand[0], ((HS *)w->data)->topic >= 0); return; }
+        if (n > 1) {
+            char **items = malloc(n * sizeof *items);
+            for (int i = 0; i < n; i++) items[i] = tps[cand[i]].title;
+            Dialog d; dlg_init(&d, " Topic search ");
+            d.w = 44; d.h = n + 8 > 18 ? 18 : n + 8;
+            dlg_list(&d, 3, 1, 36, d.h - 5, items, n, "Choose the topic to display");
+            dlg_button(&d, 3, d.h - 3, 10, "~S~how", cmOK, 1, NULL);
+            dlg_button(&d, 15, d.h - 3, 10, "Cancel", cmCancel, 0, NULL);
+            int r = dlg_run(&d), sel = d.it[0].sel;
+            free(items);
+            if (r == cmOK) { Win *w = help_window(); if (w) help_goto(w, cand[sel], ((HS *)w->data)->topic >= 0); }
+            return;
+        }
+        int t = index_dialog(word);
+        if (t >= 0) { Win *w = help_window(); if (w) help_goto(w, t, ((HS *)w->data)->topic >= 0); }
+        return;
     }
     help_contents();
 }
@@ -396,74 +668,71 @@ void help_prev(void)
     win_activate(w);
 }
 
-static int link_target(const char *text, int idx, char *name, int n)
+/* the program text of the current topic, for Edit|Copy example (malloc'd, NULL if there is none) */
+char *help_example_text(void)
 {
-    int k = 0;
-    for (const char *p = text; *p; p++) if (*p == '{') {
-        if (k++ == idx) {
-            const char *e = strchr(p, '}'); if (!e) return -1;
-            int l = (int)(e - p - 1); if (l >= n) l = n - 1;
-            memcpy(name, p + 1, l); name[l] = 0; return find_topic(name);
-        }
-    }
-    return -1;
+    Win *w = win_find_kind(W_HELP);
+    if (!w || win_active() != w) return NULL;
+    HS *h = w->data;
+    if (!h || h->topic < 0) return NULL;
+    size_t n = 0;
+    for (int i = 0; i < h->nlines; i++) if (h->lines[i].example) n += strlen(h->lines[i].s) + 1;
+    if (!n) return NULL;
+    char *r = malloc(n + 1); size_t o = 0;
+    for (int i = 0; i < h->nlines; i++) if (h->lines[i].example) o += sprintf(r + o, "%s\n", h->lines[i].s);
+    return r;
 }
 
 void help_draw(Win *w, int active)
 {
     HS *h = w->data;
-    const char *text = topics[h->topic].text;
     uint8_t norm = pal[P_HELP_NORM];
     scr_fill(w->x, w->y, w->w, w->h, ' ', norm);
     scr_box(w->x, w->y, w->w, w->h, active ? BOX_DOUBLE : BOX_SINGLE, pal[P_HELP_BORDER]);
-    char t[100]; snprintf(t, sizeof t, " %s ", w->title);
+    char t[140]; snprintf(t, sizeof t, " %s ", w->title);
+    if ((int)strlen(t) > w->w - 12) t[w->w - 12] = 0;
     scr_str(w->x + (w->w - (int)strlen(t)) / 2, w->y, t, pal[P_HELP_BORDER]);
     scr_put(w->x + 1, w->y, '[', pal[P_HELP_BORDER]); scr_put(w->x + 2, w->y, 0x25A0, pal[P_ED_ICON]); scr_put(w->x + 3, w->y, ']', pal[P_HELP_BORDER]);
-    int row = 0, link = 0, hh = w->h - 2, nlines = 0, sel_row = -1;
-    const char *p = text;
-    /* first pass: find the row of the selected link */
-    {
-        int r = 0, l = 0;
-        for (const char *q = text; *q; q++) { if (*q == '\n') r++; else if (*q == '{') { if (l == h->link) sel_row = r; l++; } }
-        for (const char *q = text; *q; q++) if (*q == '\n') nlines++;
+    int hh = w->h - 2, wd = w->w - 2;
+    if (h->link >= h->nlinks) h->link = h->nlinks ? h->nlinks - 1 : 0;
+    if (h->nlinks) { int r = h->links[h->link].row; if (r < h->top) h->top = r; if (r >= h->top + hh) h->top = r - hh + 1; }
+    if (h->top > h->nlines - hh) h->top = h->nlines - hh;
+    if (h->top < 0) h->top = 0;
+    for (int r = 0; r < hh && h->top + r < h->nlines; r++) {
+        PLine *L = &h->lines[h->top + r];
+        int y = w->y + 1 + r;
+        if (L->example) scr_fill(w->x + 1, y, wd, 1, ' ', pal[P_HELP_EXAMPLE]);
+        scr_strn(w->x + 1, y, L->s, wd, L->example ? pal[P_HELP_EXAMPLE] : norm);
     }
-    if (sel_row >= 0) { if (sel_row < h->top) h->top = sel_row; if (sel_row >= h->top + hh) h->top = sel_row - hh + 1; }
-    if (h->top > nlines - hh) h->top = nlines - hh; if (h->top < 0) h->top = 0;
-    while (*p) {
-        const char *e = strchr(p, '\n'); if (!e) e = p + strlen(p);
-        int sy = row - h->top;
-        int x = 0;
-        for (const char *q = p; q < e; q++) {
-            if (*q == '{') {
-                const char *c = memchr(q, '}', e - q);
-                if (c) {
-                    uint8_t a = (link == h->link && active) ? pal[P_HELP_LINKSEL] : pal[P_HELP_LINK];
-                    if (sy >= 0 && sy < hh) for (const char *r = q + 1; r < c; r++) scr_put(w->x + 1 + x + (int)(r - q - 1), w->y + 1 + sy, (unsigned char)*r, a);
-                    x += (int)(c - q - 1); q = c; link++; continue;
-                }
-            }
-            if (sy >= 0 && sy < hh && x < w->w - 2) scr_put(w->x + 1 + x, w->y + 1 + sy, (unsigned char)*q, norm);
-            x++;
-        }
-        row++;
-        p = *e ? e + 1 : e;
+    for (int i = 0; i < h->nlinks; i++) {
+        PLink *k = &h->links[i];
+        int r = k->row - h->top;
+        if (r < 0 || r >= hh) continue;
+        uint8_t a = (i == h->link && active) ? pal[P_HELP_LINKSEL] : pal[P_HELP_LINK];
+        const char *s = h->lines[k->row].s + k->col;
+        for (int c = 0; c < k->len && k->col + c < wd; c++) scr_put(w->x + 1 + k->col + c, w->y + 1 + r, (unsigned char)s[c], a);
     }
 }
 
 int help_key(Win *w, int key)
 {
     HS *h = w->data;
-    int base = key & KMASK, nl = count_links(topics[h->topic].text);
-    char nm[100];
+    int base = key & KMASK, nl = h->nlinks;
     if (key == KEY_ESC) { win_close(w); return 1; }
     switch (base) {
     case KEY_TAB: if (nl) h->link = (h->link + ((key & K_SHIFT) ? nl - 1 : 1)) % nl; return 1;
-    case KEY_DOWN: case KEY_RIGHT: if (h->link < nl - 1) h->link++; else h->top++; return 1;
-    case KEY_UP: case KEY_LEFT: if (h->link > 0) h->link--; else if (h->top > 0) h->top--; return 1;
-    case KEY_PGDN: h->top += w->h - 3; return 1;
-    case KEY_PGUP: h->top -= w->h - 3; if (h->top < 0) h->top = 0; return 1;
+    case KEY_DOWN: case KEY_RIGHT: if (h->link < nl - 1 && (base == KEY_RIGHT || h->links[h->link + 1].row <= h->top + w->h - 3)) h->link++; else h->top++; return 1;
+    case KEY_UP: case KEY_LEFT: if (h->link > 0 && (base == KEY_LEFT || h->links[h->link - 1].row >= h->top)) h->link--; else if (h->top > 0) h->top--; return 1;
+    case KEY_PGDN: h->top += w->h - 3; if (nl) { int k = h->link; while (k < nl - 1 && h->links[k].row < h->top) k++; h->link = k; } return 1;
+    case KEY_PGUP: h->top -= w->h - 3; if (h->top < 0) h->top = 0; if (nl) { int k = h->link; while (k > 0 && h->links[k].row >= h->top + w->h - 2) k--; h->link = k; } return 1;
     case KEY_HOME: h->top = 0; h->link = 0; return 1;
-    case KEY_ENTER: { int t = link_target(topics[h->topic].text, h->link, nm, sizeof nm); if (t >= 0) help_goto(w, t, 1); return 1; }
+    case KEY_END: h->top = h->nlines; h->link = nl ? nl - 1 : 0; return 1;
+    case KEY_ENTER: {
+        if (!nl) return 1;
+        int t = tp_find(h->links[h->link].target);
+        if (t >= 0) help_goto(w, t, 1);
+        return 1;
+    }
     case KEY_BKSP: help_prev(); return 1;
     }
     return 0;
@@ -472,20 +741,9 @@ int help_key(Win *w, int key)
 void help_click(Win *w, int x, int y)
 {
     HS *h = w->data;
-    int row = y - w->y - 1 + h->top, link = 0, r = 0;
-    for (const char *q = topics[h->topic].text; *q; q++) {
-        if (*q == '\n') r++;
-        else if (*q == '{') {
-            const char *c = strchr(q, '}');
-            if (r == row && c) {
-                /* column of this link */
-                const char *ls = q; while (ls > topics[h->topic].text && ls[-1] != '\n') ls--;
-                int col = 0;
-                for (const char *z = ls; z < q; z++) { if (*z == '{') { const char *cz = strchr(z, '}'); col += (int)(cz - z - 1); z = cz; } else col++; }
-                int lx = w->x + 1 + col;
-                if (x >= lx && x < lx + (int)(c - q - 1)) { h->link = link; help_key(w, KEY_ENTER); return; }
-            }
-            link++; if (c) q = c;
-        }
+    int row = y - w->y - 1 + h->top, col = x - w->x - 1;
+    for (int i = 0; i < h->nlinks; i++) {
+        PLink *k = &h->links[i];
+        if (k->row == row && col >= k->col && col < k->col + k->len) { h->link = i; help_key(w, KEY_ENTER); return; }
     }
 }
