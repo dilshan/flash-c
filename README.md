@@ -15,6 +15,14 @@ behaviour) was derived from a static analysis of the reference IDE binaries in
 [`analysis/EVIDENCE.md`](analysis/EVIDENCE.md) with reproducible extraction output in
 `analysis/dumps/`.
 
+## Notice on the reference product
+
+This project uses Turbo C (TC) only as a reference. It does not use any of its resources: no code,
+libraries, headers, help text or other files from it are included. All of the compiler code and
+the standard library source in this repository is original, generated code. The compiler and the IDE
+were developed by studying the executable binary of the Turbo C++ compiler, available at
+<https://archive.org/details/turboc3.1_202112>.
+
 ## Build and run
 
 Requirements: a C compiler (gcc/clang), `make`, a terminal of at least 80×25 with UTF-8.
