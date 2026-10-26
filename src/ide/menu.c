@@ -13,7 +13,7 @@ static const MItem file_items[] = {
     IT("S~a~ve as...", NULL, cmSaveAs, "Save the file in the active window under a new name"),
     IT("Save a~l~l", NULL, cmSaveAll, "Save all modified files"),
     SEP,
-    IT("~C~hange dir...", NULL, cmChangeDir, "Change the current working directory"),
+    IT("~C~hange directory...", NULL, cmChangeDir, "Change the current working directory"),
     IT("~P~rint", NULL, cmPrint, "Print the contents of the active window"),
     IT("S~h~ell", NULL, cmShell, "Temporarily exit to the shell; type exit to return"),
     SEP,
