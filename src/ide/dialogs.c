@@ -256,7 +256,7 @@ void opt_command(int cmd)
         break;
     }
     case cmOptLinkSettings: {
-        db_start(&d, " Linker ", 66); d.bw = 28;
+        db_start(&d, " Linker ", 76); d.bw = 28;
         db_at(&d, 2, 2, 26);
         db_group(&d, "Map File", 4);
         const char *mn[] = { "O~f~f", "~S~egments", "~P~ublics", "~D~etailed" };
@@ -266,7 +266,7 @@ void opt_command(int cmd)
         const char *on[] = { "S~t~andard EXE", "O~v~erlaid EXE", "~S~tandard Library", "~O~verlaid Library" };
         radios(&d, &cfg.out_kind, on, 4, NULL);
         db_end_group(&d);
-        db_at(&d, 30, 2, 24);
+        db_at(&d, 30, 2, 30);
         db_group(&d, "Options", 5);
         db_check(&d, "~I~nitialize segments", &cfg.lnk_init_seg, 0, NULL);
         db_check(&d, "Default ~l~ibraries", &cfg.lnk_default_libs, 0, NULL);
@@ -281,10 +281,9 @@ void opt_command(int cmd)
     case cmOptLinkLibs: {
         db_start(&d, " Libraries ", 56);
         db_group(&d, "Libraries", 4);
-        db_check(&d, "~G~raphics library", &cfg.lib_graphics, 0, NULL);
-        db_check(&d, "Text-~U~I library", &cfg.lib_tvision, 0, NULL);
-        db_check(&d, "~C~ontainer library", &cfg.lib_container, 0, NULL);
-        db_check(&d, "~S~tandard run-time", &cfg.lib_stdrt, 0, NULL);
+        db_check(&d, "~S~tandard run-time library", &cfg.lib_stdrt, 0, "Link the C library (stdio, string, stdlib, time, io, dir, conio, ...)");
+        db_check(&d, "~M~ath library", &cfg.lib_math, 0, "Link the math library and floating-point formatting (math.h, %f, atof)");
+        db_check(&d, "~W~ildcard arguments", &cfg.lib_wild, 0, "Expand * and ? in command-line arguments (wildargs)");
         db_end_group(&d);
         db_finish(&d, 1);
         opt_run(&d, NULL);

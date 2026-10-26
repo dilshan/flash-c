@@ -1,61 +1,98 @@
 #ifndef _FC_STDIO_H
 #define _FC_STDIO_H
-#ifndef _FC_SIZE_T
-#define _FC_SIZE_T
-typedef unsigned long size_t;
-#endif
-#ifndef NULL
-#define NULL ((void *)0)
-#endif
+#include <_defs.h>
 #define EOF (-1)
 #define SEEK_SET 0
 #define SEEK_CUR 1
 #define SEEK_END 2
 #define BUFSIZ 1024
-typedef char *va_list;
+#define FOPEN_MAX 20
+#define _NFILE 20
+#define FILENAME_MAX 260
+#define L_tmpnam 32
+#define TMP_MAX 32767
+#define P_tmpdir "/tmp"
+#define _IOFBF 0
+#define _IOLBF 1
+#define _IONBF 2
+typedef long fpos_t;
 typedef struct _FILE {
     int fd, flags;
     int rpos, rlen, wlen, eof, err, unget;
-    char rbuf[1024];
-    char wbuf[1024];
+    int mode, tmp;
+    char *rbuf;
+    char *wbuf;
+    char *name;
 } FILE;
-extern FILE *stdin;
-extern FILE *stdout;
-extern FILE *stderr;
-int printf(const char *fmt, ...);
-int fprintf(FILE *f, const char *fmt, ...);
-int sprintf(char *buf, const char *fmt, ...);
-int snprintf(char *buf, size_t n, const char *fmt, ...);
-int vprintf(const char *fmt, va_list ap);
-int vfprintf(FILE *f, const char *fmt, va_list ap);
-int vsprintf(char *buf, const char *fmt, va_list ap);
-int vsnprintf(char *buf, size_t n, const char *fmt, va_list ap);
-int scanf(const char *fmt, ...);
-int fscanf(FILE *f, const char *fmt, ...);
-int sscanf(const char *s, const char *fmt, ...);
-int puts(const char *s);
-int putchar(int c);
-int fputs(const char *s, FILE *f);
-int fputc(int c, FILE *f);
-int putc(int c, FILE *f);
-int getchar(void);
-int fgetc(FILE *f);
-int getc(FILE *f);
-int ungetc(int c, FILE *f);
-char *gets(char *buf);
-char *fgets(char *buf, int n, FILE *f);
-int fflush(FILE *f);
-FILE *fopen(const char *name, const char *mode);
+/* FILE.flags */
+#define _F_READ 1
+#define _F_WRITE 2
+#define _F_LINE 4
+#define _F_RAW 8
+#define _F_USED 16
+#define _F_APPEND 32
+extern FILE _streams[_NFILE];
+#define stdin (&_streams[0])
+#define stdout (&_streams[1])
+#define stderr (&_streams[2])
+#define stdaux (&_streams[3])
+#define stdprn (&_streams[4])
+void clearerr(FILE *f);
 int fclose(FILE *f);
-size_t fread(void *p, size_t size, size_t n, FILE *f);
-size_t fwrite(const void *p, size_t size, size_t n, FILE *f);
-int fseek(FILE *f, long off, int whence);
-long ftell(FILE *f);
-void rewind(FILE *f);
+int fcloseall(void);
+FILE *fdopen(int fd, const char *mode);
 int feof(FILE *f);
 int ferror(FILE *f);
-void clearerr(FILE *f);
-int remove(const char *name);
-int rename(const char *a, const char *b);
+int fflush(FILE *f);
+int fgetc(FILE *f);
+int fgetchar(void);
+int fgetpos(FILE *f, fpos_t *pos);
+char *fgets(char *buf, int n, FILE *f);
+int fileno(FILE *f);
+int flushall(void);
+FILE *fopen(const char *name, const char *mode);
+int fprintf(FILE *f, const char *fmt, ...);
+int fputc(int c, FILE *f);
+int fputchar(int c);
+int fputs(const char *s, FILE *f);
+size_t fread(void *p, size_t size, size_t n, FILE *f);
+FILE *freopen(const char *name, const char *mode, FILE *f);
+int fscanf(FILE *f, const char *fmt, ...);
+int fseek(FILE *f, long off, int whence);
+int fsetpos(FILE *f, const fpos_t *pos);
+FILE *_fsopen(const char *name, const char *mode, int shflg);
+long ftell(FILE *f);
+size_t fwrite(const void *p, size_t size, size_t n, FILE *f);
+int getc(FILE *f);
+int getchar(void);
+char *gets(char *buf);
+int getw(FILE *f);
 void perror(const char *msg);
+int printf(const char *fmt, ...);
+int putc(int c, FILE *f);
+int putchar(int c);
+int puts(const char *s);
+int putw(int w, FILE *f);
+int remove(const char *name);
+int rename(const char *from, const char *to);
+void rewind(FILE *f);
+int rmtmp(void);
+int scanf(const char *fmt, ...);
+void setbuf(FILE *f, char *buf);
+int setvbuf(FILE *f, char *buf, int mode, size_t size);
+int snprintf(char *buf, size_t n, const char *fmt, ...);
+int sprintf(char *buf, const char *fmt, ...);
+int sscanf(const char *s, const char *fmt, ...);
+char *tempnam(const char *dir, const char *prefix);
+FILE *tmpfile(void);
+char *tmpnam(char *buf);
+int ungetc(int c, FILE *f);
+int unlink(const char *name);
+int vfprintf(FILE *f, const char *fmt, va_list ap);
+int vfscanf(FILE *f, const char *fmt, va_list ap);
+int vprintf(const char *fmt, va_list ap);
+int vscanf(const char *fmt, va_list ap);
+int vsnprintf(char *buf, size_t n, const char *fmt, va_list ap);
+int vsprintf(char *buf, const char *fmt, va_list ap);
+int vsscanf(const char *s, const char *fmt, va_list ap);
 #endif

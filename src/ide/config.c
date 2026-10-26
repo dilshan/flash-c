@@ -94,7 +94,7 @@ void cfg_defaults(void)
     static const char *sn[12] = {"*", "", "", "*", "", "", "*", "", "", "*", "", ""};
     for (int i = 0; i < 12; i++) strcpy(cfg.seg_names[i], sn[i]);
     cfg.brk_err = 1; cfg.check_autodep = 1; cfg.after_compile = 0; cfg.out_kind = 0;
-    cfg.lnk_default_libs = 1; cfg.lnk_warn_dup = 1; cfg.lnk_nostack = 1; cfg.lib_stdrt = 1;
+    cfg.lnk_default_libs = 1; cfg.lnk_warn_dup = 1; cfg.lnk_nostack = 1; cfg.lib_stdrt = 1; cfg.lib_math = 1;
     cfg.lib_pagesize = 16; cfg.dbg_source = 1; cfg.dbg_swap = 1; cfg.dbg_inherited = 1; cfg.dbg_methods = 1; cfg.dbg_heap = 8192;
     cfg.screen_lines = 0; cfg.src_tracking = 1;
     cfg.cmdset = 1;
@@ -123,7 +123,7 @@ static CfgVar vars[] = {
     S(defines),
     I(brk_warn), I(brk_err), I(brk_fatal), I(brk_all), I(after_compile), I(check_autodep),
     I(map_file), I(out_kind), I(lnk_init_seg), I(lnk_default_libs), I(lnk_warn_dup), I(lnk_nostack), I(lnk_case),
-    I(lib_graphics), I(lib_tvision), I(lib_container), I(lib_stdrt),
+    I(lib_stdrt), I(lib_math), I(lib_wild),
     I(lib_listing), I(lib_case), I(lib_purge), I(lib_extdict), I(lib_pagesize),
     I(dbg_source), I(dbg_swap), I(dbg_inherited), I(dbg_methods), I(dbg_radix), I(dbg_heap), I(app_target),
     S(incdir), S(libdir), S(outdir), S(srcdir), S(run_args),

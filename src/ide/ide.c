@@ -130,6 +130,13 @@ void ide_fill_options(FcOptions *o)
     o->w_assign = all || cfg.warn[38];
     o->w_divzero = all || cfg.warn[15];
     o->w_voidret = all || cfg.warn[6];
+    o->fp_mode = cfg.fp == 0 ? 0 : cfg.fp == 1 ? 1 : 2;
+    o->map = cfg.map_file < 0 ? 0 : cfg.map_file > 3 ? 3 : cfg.map_file;
+    o->nolibs = !cfg.lnk_default_libs || !cfg.lib_stdrt;
+    o->nomath = !cfg.lib_math;
+    o->wildargs = cfg.lib_wild;
+    o->warn_dup = cfg.lnk_warn_dup;
+    o->stack_warn = cfg.lnk_nostack;
     static char incbuf[260]; snprintf(incbuf, sizeof incbuf, "%s", cfg.incdir);
     o->nincdir = 0;
     for (char *t = strtok(incbuf, ";:"); t && o->nincdir < 15; t = strtok(NULL, ";:")) if (*t) o->incdirs[o->nincdir++] = t;

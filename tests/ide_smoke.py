@@ -67,6 +67,12 @@ try:
     s.send('\x1bo', 'r')
     check('Directories dialog', 'Include Directories' in text(s), s)
     s.send('ESC')
+    s.send('\x1bo', 'l', 'l')
+    check('Libraries dialog', 'Standard run-time library' in text(s) and 'Math library' in text(s) and 'Wildcard arguments' in text(s), s)
+    s.send('ESC')
+    s.send('\x1bo', 'l', 's')
+    check('Linker dialog', 'Map File' in text(s) and 'Default libraries' in text(s), s)
+    s.send('ESC')
 
     # search & replace
     s.send('\x1b[1;5H')

@@ -78,7 +78,10 @@ int file_register(const char *name)
     return nfiles++;
 }
 const char *file_name(int id) { return id >= 0 && id < nfiles ? fnames[id] : "?"; }
-void files_reset(void) { nfiles = 0; }
+static char fbuiltin[256];
+void file_set_builtin(int id) { if (id >= 0 && id < 256) fbuiltin[id] = 1; }
+int file_is_builtin(int id) { return id >= 0 && id < 256 && fbuiltin[id]; }
+void files_reset(void) { nfiles = 0; memset(fbuiltin, 0, sizeof fbuiltin); }
 
 static void emit(int sev, int fileid, int line, const char *fmt, va_list ap)
 {

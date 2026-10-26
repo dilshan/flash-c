@@ -22,6 +22,13 @@ typedef struct FcOptions {
     int w_assign;            /* possibly incorrect assignment            */
     int w_divzero;           /* division by zero                         */
     int w_voidret;           /* void function returns a value            */
+    int nolibs;              /* do not search the default libraries (-ln) */
+    int fp_mode;             /* 0 = no floating point (-f-), 1 = default, 2 = hardware (-f87) */
+    int map;                 /* link map: 0 off, 1 segments, 2 publics, 3 detailed (-M) */
+    int nomath;              /* do not link the math library (-lnm) */
+    int wildargs;            /* link the wildcard argument expander (wildargs.obj) */
+    int warn_dup;            /* warn when the program redefines a library function */
+    int stack_warn;          /* warn when the program has no explicit stack size */
     const char *incdirs[16]; /* include search path                      */
     int nincdir;
     const char *defines[16]; /* NAME or NAME=VALUE */
@@ -45,5 +52,11 @@ int fc_compile(FcContext *c, const char **files, int nfiles, const char *outpath
 /* Evaluate an integer constant expression (used by the IDE evaluator). Returns 0 on success. */
 int fc_eval_expr(const char *text, long long *result, char *err, int errlen);
 const char *fc_builtin_header(const char *name);
+/* enumerate the built-in headers (used by the online help); text may be NULL */
+int fc_builtin_header_count(void);
+const char *fc_builtin_header_at(int i, const char **text);
+/* names of the run-time library modules that were linked by the last successful compile */
+int fc_link_module_count(void);
+const char *fc_link_module_at(int i, const char **lib, long *bytes);
 
 #endif

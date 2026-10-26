@@ -70,29 +70,57 @@ conveniences (declarations anywhere in a block, `//` comments, designated initia
   assignments, pointer arithmetic and `sizeof`.
 * Preprocessor: `#include` (user, `<…>` and built-in headers), `#define` (object- and
   function-like, `#`, `##`, `__FILE__`, `__LINE__`), `#if/#ifdef/#ifndef/#elif/#else/#endif`,
-  `#undef`, `#error`, `#pragma` (ignored).
+  `#undef`, `#error`, `#pragma startup/exit` (other pragmas are ignored).
 * Keywords `near`, `far`, `huge`, `cdecl`, `pascal`, `interrupt` are accepted and ignored.
 
-**Not implemented yet:** bit-fields, passing/returning whole `struct`s by value, compound
+Whole `struct`s can be passed to and returned from functions by value.
+
+**Not implemented yet:** bit-fields, compound
 literals, variable-length arrays, `long long` as a distinct type (it is `long`), `long double`
 (it is `double`), a source-level debugger (the Debug menu offers *Evaluate* and *Watches* for
 constant expressions; Trace/Step/Breakpoints are disabled and say so).
 
 ### Library
 
-No external C library is needed. A compact runtime written in Flash C itself
-(`runtime/rt.c`) is compiled into every program, only the functions that are actually used are
-emitted. Headers are built into the compiler, so `#include <stdio.h>` just works; your own
-include directories (*Options → Directories* or `-I`) are searched first.
+Flash C ships a complete standard run-time library modelled on the structure of a classic DOS C
+library (see [`docs/LIBRARY.md`](docs/LIBRARY.md) for every function, header and module). It is
+written in Flash C itself (`runtime/lib/`), embedded into the compiler, and **linked per function**:
+only what your program (transitively) uses ends up in the executable.
 
-`stdio.h` (`printf` family with `%d %i %u %x %X %o %c %s %p %f %e %g`, flags, width,
-precision; `scanf` family; `fopen/fread/fwrite/fgets/fseek…`), `stdlib.h` (`malloc` family,
-`atoi/atof/strtol/strtod`, `rand`, `qsort`, `bsearch`, `itoa`, `exit`), `string.h`, `ctype.h`,
-`math.h` (`sqrt pow exp log sin cos tan atan atan2 asin acos floor ceil fmod …`), `limits.h`,
-`float.h`, `stdarg.h`, `stddef.h`, `stdbool.h`, `assert.h`, `errno.h`, and DOS-flavoured
-`conio.h` (`clrscr gotoxy getch getche putch cputs`), `dos.h` (`delay sleep`), `alloc.h`,
-`mem.h`, `process.h`. Floating-point output is exact (correctly rounded, half-to-even) and
-matched glibc's `printf` in the regression tests.
+| Part | Source | Contents |
+|---|---|---|
+| Start-up | `runtime/lib/c0.c` | entry point, `argc/argv/environ`, `atexit`, `exit/_exit/_cexit/abort`, `#pragma startup/exit` runner |
+| Standard library | `runtime/lib/c/*.c` | stdio, string/mem, ctype, stdlib (heap, `qsort`, `rand`, conversions), time, signal, setjmp, io (descriptors, `stat`), dir (`findfirst`, paths), process (`system`, `spawn*`, `exec*`), conio (ANSI console), dos/bios helpers, locale, assert |
+| Math library | `runtime/lib/m/*.c` | `math.h` (with the classic `matherr` messages), `%e %f %g` and `strtod/atof/ecvt/fcvt/gcvt`, `_control87` family |
+| Wildcard arguments | `runtime/lib/wildargs.c` | optional: expands `*` and `?` in the command line (`wildargs.obj`) |
+
+Public headers: `alloc assert bios conio ctype dir direct dirent dos errno fcntl float io limits locale
+malloc math mem memory process search setjmp share signal stdarg stddef stdbool stdio stdlib string
+time utime values varargs locking`, and `sys/stat sys/timeb sys/types`.
+
+How it works, in the same spirit as a classic linker setup:
+
+* **Floating point is optional.** A program that never uses `float`/`double` does not link the
+  conversion code; if `printf("%f")` runs without it the program stops with
+  `printf : floating point formats not linked` (as the original library does). Using `float` or
+  `double` pulls the math library in automatically.
+* **`#pragma startup fn [priority]` / `#pragma exit fn [priority]`** run `fn` before `main` /
+  after it returns (priority 0-255, default 100; start-up ascending, exit descending). The
+  library itself uses this to flush `stdio` and to register the floating-point converters.
+* **Link map:** `-M` writes `<output>.map` with the segments, `-Mp` adds public symbols and
+  `-Md` the detailed segment map; each symbol is attributed to its library module.
+* **Selecting libraries:** `-ln` links no libraries (only the start-up code), `-lnm` omits the math
+  library, `-f-` selects "no floating point", and `wildargs.obj` as an extra file enables wildcard
+  arguments. In the IDE these are *Options -> Linker*, *Options -> Libraries* and
+  *Options -> Compiler -> Code generation -> Floating point*.
+* The library is an **ordinary C library for Linux x86-64** underneath: files are real file
+  descriptors, `conio` writes ANSI sequences, `time` honours `TZ`, `signal` uses kernel signals,
+  `system/spawn/exec` use `fork/execve`. DOS-only facilities (BIOS, ports, interrupts, far/overlay
+  memory, `gettext/puttext/movetext`, graphics) are intentionally absent.
+
+Your own include directories (*Options -> Directories* or `-I`) are searched before the built-in
+headers. `printf` and `strtod` are exact (correctly rounded, half-to-even) and match glibc in the
+regression tests; `rand()` uses the classic generator, so `srand(1)` yields 346, 130, 10982, ...
 
 ## Compiler command line
 
@@ -103,6 +131,9 @@ fcc [options] file.c [file2.c ...]     * several files are compiled as one progr
   -w / -w-        all / no warnings    -w-use -w-pro -w-ret -w-par   individual warnings
   -jN  -gN        stop after N errors / warnings        -iN  identifier length
   -ename          output file name
+  -M -Mp -Md      link map (segments / + publics / detailed)
+  -ln  -lnm       no libraries / no math library      -f-  -f  -f87   floating-point mode
+  wildargs.obj    (as a file name) link the wildcard argument expander
 ```
 
 Diagnostics use the classic format: `Error hello.c 5: Undefined symbol 'x' in function main`,
@@ -116,10 +147,10 @@ src/compiler/   lexer + preprocessor (cpp.c), parser/type checker (parse.c),
 src/ide/        terminal layer (term.c), windows/menus/dialogs (wm.c menu.c dialog.c),
                 editor (editor.c buf.c), option dialogs (dialogs.c), help (help.c), commands (ide.c)
 src/cli/        fcc main program
-runtime/        rt.c (run-time library, written in Flash C) and include/*.h (built-in headers)
-tests/          run.sh (compiler vs gcc), diag.sh (message text), ide_smoke.py (pty-driven IDE test)
+runtime/        lib/ (c0.c start-up, c/ standard library, m/ math library, wildargs.c) and include/*.h (headers)
+tests/          run.sh (compiler vs gcc), diag.sh (message text), libtest.sh (library options), ide_smoke.py (IDE)
 analysis/       EVIDENCE.md + extract_evidence.py + dumps/  (study of the reference IDE)
-docs/           ARCHITECTURE.md, screenshots/
+docs/           ARCHITECTURE.md, LIBRARY.md (generated by tools/gen_libdoc.py), screenshots/
 ```
 
 More detail: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).

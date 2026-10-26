@@ -82,7 +82,7 @@ Editor Options page: Create backup files, Insert mode, Autoindent, Use tab chara
 | Observation | Flash C |
 |---|---|
 | IDE + separate command-line compiler sharing the same options | `build/fc` (IDE) and `build/fcc` (CLI) link the *same* compiler library |
-| Per-model start-up object + runtime library + external linker | Not needed on Linux x86-64: the code generator writes a complete ELF executable; a small runtime (written in Flash C, `runtime/rt.c`) is compiled in and only the reachable functions are emitted |
+| Per-model start-up object + runtime library + external linker | Not needed on Linux x86-64: the code generator writes a complete ELF executable; a run-time library written in Flash C (`runtime/lib/`: start-up, standard library, math library) is parsed with the program and only the reachable functions are emitted, see section 6 |
 | `-w`, `-g`, `-j`, `-I`, `-D`, `-C`, `-K`, `-i` switches | same letters in `fcc`; IDE dialogs map to the same `FcOptions` |
 | `Error file 5: …` / `Warning …` / `Linker Error:` | same prefixes and wording for the diagnostics Flash C can produce |
 | Message window with source tracking | `Message` window, Enter/Space/Alt-F7/Alt-F8 behave as in the status-line strings |
@@ -98,3 +98,29 @@ Editor Options page: Create backup files, Insert mode, Autoindent, Use tab chara
 * Colour defaults in Flash C are chosen to match the observed attribute table and the classic appearance; the exact per-item mapping inside `TCCONFIG.TC` records was not decoded.
 * Menu item **order** inside each pulldown follows the order of the string table plus the documented layout of this product family; the strings themselves, shortcut keys and hint texts are direct evidence.
 * The debugger (Inspect, Call stack, breakpoints, trace) exists in the reference IDE (strings `Inspecting %s`, `Too many inspectors`, `Cannot inspect: type not available`, breakpoint dialogs); Flash C exposes the menu entries but does not implement a debugger yet.
+
+## 6. The run-time libraries of the reference product
+
+*Method.* REA could not open the OMF `.LIB` archives (unsupported binary format), so `extract_libs.py` parses the Intel OMF
+records statically (THEADR, LNAMES, SEGDEF, GRPDEF, PUBDEF, EXTDEF, COMDEF, LEDATA, FIXUPP; the archive header and page size) and writes
+plain-text dumps to `dumps/` (`lib_inventory.txt`, `lib_modules_<LIB>.txt`, `lib_dependencies.txt`, `startup_objects.txt`,
+`headers_inventory.txt`). Brand names are redacted to `<brand>`. Nothing was executed or disassembled.
+
+*Findings.*
+
+| Observation (dump) | Evidence | Consequence for Flash C |
+|---|---|---|
+| One standard library per memory model (`CS CM CC CL CH`), each with **588 modules / ~870 public symbols**, about one function per module | `lib_inventory.txt` | library is split into one function group per module; the linker keeps only what is referenced (Flash C: function-level reachability) |
+| Math is a separate library per model (`MATHx`, 76 modules: `strtod, atof, ecvt, fcvt, gcvt, __matherr, _fpreset, _control87, ...`) plus `FP87`/`EMU` for the coprocessor/emulator | `lib_modules_MATHS.txt`, `lib_modules_FP87.txt` | `runtime/lib/m/` is a separate library, linked only when floating point is used |
+| One start-up object per model (`C0x.OBJ`) exporting `_argc/_argv/_environ`, `__RealCvtVector`, `__ScanTodVector`, `__cleanup`, `_abort`, `_stklen` and the `_INIT_/_INITEND_/_EXIT_/_EXITEND_` segments | `startup_objects.txt` | `runtime/lib/c0.c`: same names, `#pragma startup/exit` lists in generated `__fc_init/__fc_exit` |
+| `printf/scanf` reach float conversion only through the two **vectors** in the start-up object, which are set by an init-segment entry of the math library | `startup_objects.txt`, `lib_dependencies.txt` | `__RealCvtVector/__ScanTodVector` + `fpcvt.c` registering them with `#pragma startup`; without them: `printf : floating point formats not linked` |
+| `WILDARGS.OBJ` is an optional start-up object | `startup_objects.txt` | `runtime/lib/wildargs.c`, enabled by listing `wildargs.obj` or *Options -> Libraries -> Wildcard arguments* |
+| Link order in the IDE/driver strings: start-up object, user objects, [graphics], math, emulator/8087, standard library | strings in the driver | same order is used for module selection and the link map |
+| IDE: *Options -> Linker* (Map file Off/Segments/Publics/Detailed; Initialize segments; Default libraries; Warn duplicate symbols; "No stack" warning; Case-sensitive link) and *Libraries* (Graphics, Vision, Container Class, Standard Run Time); floating point None/Emulation/8087 | menu and dialog string tables | Map file -> `-M/-Mp/-Md`; Default libraries -> `-ln`; floating point -> `-f-/-f/-f87`; the Libraries dialog now offers Standard run-time, Math and Wildcard arguments (graphics, class libraries and overlays are out of scope) |
+| `GRAPHICS.LIB` (4 modules, 122 publics) and `OVERLAY.LIB` | `lib_inventory.txt` | deliberately not implemented |
+| Public headers (`headers_inventory.txt`): ~50 headers, e.g. `stdio stdlib string ctype math time io dir dos conio alloc mem process signal setjmp ...` | `headers_inventory.txt` | the same header set is provided (graphics, `bios`/ports/interrupt calls reduced to what makes sense on a terminal) |
+
+*What differs on purpose.* The reference library targets 16-bit DOS (`int` is 16 bits, far pointers, BIOS/DOS interrupts); Flash C's
+library targets Linux x86-64 (`int` 32 bits, `long` and pointers 64 bits, Linux system calls), so module internals are original
+code; only the **structure** (start-up object, per-function modules, vectors for floating point, init/exit segments, header set, the
+documented behaviour of each function such as the `rand()` generator and `matherr` messages) follows the evidence.

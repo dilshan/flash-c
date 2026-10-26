@@ -233,6 +233,7 @@ static void process(TokVec *src, TokVec *out, const char *dir, int depth);
 void pp_init(void)
 {
     memset(mtab, 0, sizeof mtab);
+    pp_npragmas = 0;
     s_FILE = intern("__FILE__", 8); s_LINE = intern("__LINE__", 8);
     s_defined = intern("defined", 7); s_VA_ARGS = intern("__VA_ARGS__", 11);
     Macro *m;
@@ -526,14 +527,32 @@ static void do_include(Tok *dir, Tok *v, int n, TokVec *out, const char *cdir, i
     }
     if (!text) { fc_error_nj(dir->fileid, dir->line, "Unable to open include file '%s'", shown); return; }
     int fid = file_register(path);
+    if (builtin) file_set_builtin(fid);
     TokVec sub = {0};
     lex_buffer(text, len, fid, &sub);
     free(text);
     char d2[1024]; dirname_of(path, d2, sizeof d2);
-    (void)builtin;
     process(&sub, out, d2, depth + 1);
     CX->lines += 0;
     free(sub.v);
+}
+
+PragmaFn pp_pragmas[64];
+int pp_npragmas;
+
+/* #pragma startup fn [priority]   /   #pragma exit fn [priority]  (priority 0..255, default 100) */
+static void do_pragma(Tok *v, int n, int fileid, int line)
+{
+    if (n < 2 || v[0].k != TK_ID) return;
+    int is_exit = !strcmp(v[0].s, "exit");
+    if (!is_exit && strcmp(v[0].s, "startup")) return;       /* argsused, warn, option ... are accepted and ignored */
+    if (v[1].k != TK_ID) { fc_error_nj(fileid, line, "Function name expected in #pragma %s", v[0].s); return; }
+    if (pp_npragmas >= 64) { fc_error_nj(fileid, line, "Too many #pragma startup/exit functions"); return; }
+    int prio = 100;
+    if (n >= 3 && v[2].k == TK_NUM) prio = (int)v[2].val;
+    if (prio < 0 || prio > 255) { fc_error_nj(fileid, line, "Priority out of range in #pragma %s", v[0].s); return; }
+    PragmaFn *p = &pp_pragmas[pp_npragmas++];
+    p->name = v[1].s; p->prio = prio; p->is_exit = is_exit; p->fileid = fileid; p->line = line;
 }
 
 static void do_define(Tok *v, int n)
@@ -618,7 +637,8 @@ static void process(TokVec *src, TokVec *out, const char *cdir, int depth)
                     for (int k = 0; k < an; k++) { if (k) strcat(msg, " "); strncat(msg, tok_spell(&args[k]), sizeof msg - strlen(msg) - 1); }
                     fc_error_nj(fid, line, "Error directive: %s", msg);
                 }
-                else if (!strcmp(name, "pragma") || !strcmp(name, "line") || !strcmp(name, "") ) { }
+                else if (!strcmp(name, "pragma")) do_pragma(args, an, fid, line);
+                else if (!strcmp(name, "line") || !strcmp(name, "") ) { }
                 else fc_error_nj(fid, line, "Invalid preprocessing directive '%s'", name);
             }
             i = j;

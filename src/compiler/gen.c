@@ -203,7 +203,7 @@ static void gen_addr(Node *n)
         if (n->val) { b2(0x48, 0x05); d32((int)n->val); }
         return;
     case N_STR: b1(0xB8); add_cfix(0, NULL, n->val); return;
-    case N_ASSIGN: case N_COND: case N_COMMA: gen_expr(n); return;   /* aggregate rvalues yield their address */
+    case N_ASSIGN: case N_COND: case N_COMMA: case N_CALL: gen_expr(n); return;   /* aggregate rvalues yield their address */
     default: break;
     }
     if (!gerr_set) { snprintf(gerr, sizeof gerr, "internal: cannot take address (node %d)", n->k); gerr_set = 1; }
@@ -273,17 +273,47 @@ static void gen_op_rr(int op, int u)
     }
 }
 
+static int arg_slot(Type *t) { return is_agg(t) ? (int)((t->size + 7) & ~7L) : 8; }
+
 static void gen_call(Node *n)
 {
-    Node *args[256]; int argc = 0;
+    Node *args[256]; int argc = 0, bytes = 0;
     for (Node *a = n->r; a && argc < 256; a = a->next) args[argc++] = a;
     for (int i = argc - 1; i >= 0; i--) {
         gen_expr(args[i]);
+        if (is_agg(args[i]->ty)) {                       /* structure by value: copy it onto the stack */
+            int slot = arg_slot(args[i]->ty);
+            b3(0x48, 0x89, 0xC6);                        /* mov rsi,rax */
+            b3(0x48, 0x81, 0xEC); d32(slot);             /* sub rsp,slot */
+            b3(0x48, 0x89, 0xE7);                        /* mov rdi,rsp */
+            b1(0xB9); d32((int)args[i]->ty->size);       /* mov ecx,size */
+            b2(0xF3, 0xA4);                              /* rep movsb */
+            bytes += slot;
+            continue;
+        }
         if (args[i]->ty->kind == TY_FLOAT) { movq_x0_rax(); cvt_sd2ss(); b1(0x66); b3(0x0F, 0x7E, 0xC0); }   /* movd eax,xmm0 */
         push_rax();
+        bytes += 8;
     }
     if (n->sym && n->sym->is_builtin && !strcmp(n->sym->name, "__sqrt")) {
         pop_rax(); movq_x0_rax(); b4(0xF2, 0x0F, 0x51, 0xC0); movq_rax_x0();
+        return;
+    }
+    if (n->sym && n->sym->is_builtin && !strcmp(n->sym->name, "__setjmp")) {
+        b1(0x58);                                        /* pop rax = jmp_buf */
+        b3(0x48, 0x89, 0x28);                            /* mov [rax],rbp */
+        b4(0x48, 0x89, 0x60, 0x08);                      /* mov [rax+8],rsp */
+        b3(0x48, 0x8D, 0x0D); d32(6);                    /* lea rcx,[rip+6]  -> the resume point below */
+        b4(0x48, 0x89, 0x48, 0x10);                      /* mov [rax+16],rcx */
+        b2(0x31, 0xC0);                                  /* xor eax,eax  (a longjmp resumes after this) */
+        return;
+    }
+    if (n->sym && n->sym->is_builtin && !strcmp(n->sym->name, "__longjmp")) {
+        b1(0x59); b1(0x58);                              /* pop rcx = jmp_buf; pop rax = value */
+        b2(0x85, 0xC0); b2(0x75, 0x05); b1(0xB8); d32(1);/* a value of 0 becomes 1 */
+        b3(0x48, 0x8B, 0x29);                            /* mov rbp,[rcx] */
+        b4(0x48, 0x8B, 0x61, 0x08);                      /* mov rsp,[rcx+8] */
+        b3(0xFF, 0x61, 0x10);                            /* jmp [rcx+16] */
         return;
     }
     if (n->sym && n->sym->is_builtin) {
@@ -292,9 +322,14 @@ static void gen_call(Node *n)
         b2(0x0F, 0x05);
         return;
     }
+    if (is_agg(n->ty)) {                                 /* hidden first argument: address of the result slot */
+        b3(0x48, 0x8D, 0x85); d32(n->cmpty_uns);         /* lea rax,[rbp+slot] */
+        push_rax();
+        bytes += 8;
+    }
     if (n->sym) { b1(0xE8); add_cfix(3, n->sym, 0); }
     else { gen_expr(n->l); b2(0xFF, 0xD0); }
-    if (argc) { b3(0x48, 0x81, 0xC4); d32(argc * 8); }
+    if (bytes) { b3(0x48, 0x81, 0xC4); d32(bytes); }
 }
 
 static void gen_incdec(Node *n)
@@ -471,6 +506,13 @@ static void gen_stmt(Node *n)
     }
     case S_RETURN:
         if (n->l) gen_expr(n->l);
+        if (n->l && is_agg(gen_fn->ty->ret)) {            /* copy the value into the caller's buffer, return its address */
+            b3(0x48, 0x89, 0xC6);                        /* mov rsi,rax */
+            b4(0x48, 0x8B, 0x7D, 0x10);                  /* mov rdi,[rbp+16] */
+            b1(0xB9); d32((int)gen_fn->ty->ret->size);   /* mov ecx,size */
+            b2(0xF3, 0xA4);                              /* rep movsb */
+            b4(0x48, 0x8B, 0x45, 0x10);                  /* mov rax,[rbp+16] */
+        }
         jump_to(ret_label, -1);
         return;
     case S_BREAK: jump_to(brk_label[ctl_sp], -1); return;
@@ -518,6 +560,7 @@ static void gen_function(Sym *f)
     place(ret_label);
     if (f->ty->ret && f->ty->ret->kind == TY_VOID && !strcmp(f->name, "main")) b2(0x31, 0xC0);  /* void main exits with 0 */
     b2(0xC9, 0xC3);                           /* leave; ret */
+    f->codelen = ncode - f->codepos;
     int fs = (f->frame + 15) & ~15;
     for (int i = 0; i < 4; i++) code[framepos + i] = (fs >> (8 * i)) & 0xff;
     for (int i = 0; i < njfix; i++) {
@@ -539,21 +582,215 @@ static void put64(uint8_t *p, uint64_t v) { for (int i = 0; i < 8; i++) p[i] = (
 
 static void linker_error(const char *fmt, ...)
 {
+    static char seen[64][300]; static int nseen;
     char msg[300]; va_list ap; va_start(ap, fmt); vsnprintf(msg, sizeof msg, fmt, ap); va_end(ap);
+    if (CX->errors == 0) nseen = 0;
+    for (int i = 0; i < nseen; i++) if (!strcmp(seen[i], msg)) return;     /* each undefined symbol is reported once */
+    if (nseen < 64) strcpy(seen[nseen++], msg);
     CX->errors++;
     if (CX->diag) CX->diag(CX->user, FC_FATAL + 1, "", 0, msg);
 }
 
-int gen_program(const char *outpath, char *err, int errlen)
+/* ---------- link step: start-up / exit procedures, module bookkeeping, map file ---------- */
+enum { FC_USER, FC_C0, FC_LIBC, FC_LIBM, FC_OBJ };
+static int fid_class(int fid)
+{
+    const char *n = file_name(fid);
+    if (!strncmp(n, "c0/", 3)) return FC_C0;
+    if (!strncmp(n, "libc/", 5)) return FC_LIBC;
+    if (!strncmp(n, "libm/", 5)) return FC_LIBM;
+    if (!strncmp(n, "obj/", 4)) return FC_OBJ;
+    return FC_USER;
+}
+
+/* does the module (library file) have any symbol that is part of the program besides `except`? */
+static int module_live(int fid, Sym *except)
+{
+    for (int i = 0; i < PG.nfuncs; i++) {
+        Sym *f = PG.funcs[i];
+        if (f != except && f->fileid == fid && f->defined && (f->reach & 1)) return 1;
+    }
+    for (Sym *y = global_syms(); y; y = y->next)
+        if (y != except && y->kind == SY_VAR && y->fileid == fid && y->defined && (y->reach & 1)) return 1;
+    return 0;
+}
+
+static Sym *pragma_fn(PragmaFn *p)
+{
+    Sym *f = global_lookup(p->name);
+    return (f && f->kind == SY_FUNC && f->defined) ? f : NULL;
+}
+
+/* #pragma startup / exit functions of the program and of linked library modules join the link */
+static void mark_pragma_fns(void)
+{
+    int changed;
+    do {
+        changed = 0;
+        for (int i = 0; i < pp_npragmas; i++) {
+            Sym *f = pragma_fn(&pp_pragmas[i]);
+            if (!f || (f->reach & 1)) continue;
+            int cls = fid_class(f->fileid);
+            if (cls == FC_USER || cls == FC_C0 || cls == FC_OBJ || module_live(f->fileid, f)) { mark(f); changed = 1; }
+        }
+    } while (changed);
+}
+
+/* the compiler writes __fc_init / __fc_exit: they call the collected procedures in priority order */
+static void emit_proc_list(const char *symname, int want_exit)
+{
+    Sym *t = global_lookup(symname);
+    if (!t || !(t->reach & 1)) return;
+    int sel[64], n = 0;
+    for (int i = 0; i < pp_npragmas; i++) {
+        PragmaFn *p = &pp_pragmas[i];
+        Sym *f = pragma_fn(p);
+        if (p->is_exit == want_exit && f && (f->reach & 1)) sel[n++] = i;
+    }
+    for (int i = 1; i < n; i++) {                       /* stable insertion sort: start-up ascending, exit descending */
+        int v = sel[i], j = i;
+        while (j > 0 && (want_exit ? pp_pragmas[sel[j - 1]].prio < pp_pragmas[v].prio : pp_pragmas[sel[j - 1]].prio > pp_pragmas[v].prio)) { sel[j] = sel[j - 1]; j--; }
+        sel[j] = v;
+    }
+    t->codepos = ncode; t->defined = 1;
+    b1(0x55); b3(0x48, 0x89, 0xE5);
+    for (int i = 0; i < n; i++) { b1(0xE8); add_cfix(3, pragma_fn(&pp_pragmas[sel[i]]), 0); }
+    b2(0x5D, 0xC3);
+    t->codelen = ncode - t->codepos;
+}
+
+/* signal delivery stubs: __sigtramp adapts the kernel's call to the stack convention, __sigrestorer returns to the kernel */
+static void emit_sigstubs(void)
+{
+    Sym *t = global_lookup("__sigtramp"), *r = global_lookup("__sigrestorer"), *d = global_lookup("__sig_dispatch");
+    if (t && (t->reach & 1) && d && d->defined) {
+        t->codepos = ncode; t->defined = 1;
+        b1(0x57);                                        /* push rdi  (signal number) */
+        b1(0xE8); add_cfix(3, d, 0);                     /* call __sig_dispatch */
+        b4(0x48, 0x83, 0xC4, 0x08);                      /* add rsp,8 */
+        b1(0xC3);                                        /* ret -> __sigrestorer */
+        t->codelen = ncode - t->codepos;
+    }
+    if (r && (r->reach & 1)) {
+        r->codepos = ncode; r->defined = 1;
+        b1(0xB8); d32(15);                               /* mov eax,15 (rt_sigreturn) */
+        b2(0x0F, 0x05);                                  /* syscall */
+        r->codelen = ncode - r->codepos;
+    }
+}
+
+typedef struct { const char *name; uint32_t addr, size; int fid, isfn; } MapEnt;
+static struct LinkMod { char name[64]; int cls; long bytes; } linkmods[256];
+static int nlinkmods;
+int fc_link_module_count(void) { return nlinkmods; }
+const char *fc_link_module_at(int i, const char **lib, long *bytes)
+{
+    if (i < 0 || i >= nlinkmods) return NULL;
+    if (lib) *lib = linkmods[i].cls == FC_C0 ? "start-up" : linkmods[i].cls == FC_LIBC ? "libc" : linkmods[i].cls == FC_LIBM ? "libm" : linkmods[i].cls == FC_OBJ ? "object" : "program";
+    if (bytes) *bytes = linkmods[i].bytes;
+    return linkmods[i].name;
+}
+
+static void note_module(int fid, long bytes)
+{
+    const char *full = file_name(fid);
+    const char *nm = strchr(full, '/') ? strchr(full, '/') + 1 : full;
+    int cls = fid_class(fid);
+    for (int i = 0; i < nlinkmods; i++)
+        if (linkmods[i].cls == cls && !strcmp(linkmods[i].name, nm)) { linkmods[i].bytes += bytes; return; }
+    if (nlinkmods >= 256) return;
+    snprintf(linkmods[nlinkmods].name, sizeof linkmods[0].name, "%s", nm);
+    char *dot = strrchr(linkmods[nlinkmods].name, '.'); if (dot && cls != FC_USER) *dot = 0;
+    linkmods[nlinkmods].cls = cls; linkmods[nlinkmods].bytes = bytes;
+    nlinkmods++;
+}
+
+static int map_cmp_name(const void *a, const void *b) { return strcmp(((const MapEnt *)a)->name, ((const MapEnt *)b)->name); }
+static int map_cmp_addr(const void *a, const void *b)
+{
+    const MapEnt *x = a, *y = b;
+    return x->addr < y->addr ? -1 : x->addr > y->addr ? 1 : strcmp(x->name, y->name);
+}
+
+static void write_map(const char *outpath, int mode, uint32_t codeaddr, int codelen, uint32_t dataaddr, int datalen, uint32_t bssaddr, int bsslen,
+                      uint32_t entry)
+{
+    char path[1100]; snprintf(path, sizeof path, "%s", outpath);
+    char *dot = strrchr(path, '.'), *sl = strrchr(path, '/');
+    if (dot && (!sl || dot > sl)) *dot = 0;
+    strncat(path, ".map", sizeof path - strlen(path) - 1);
+    FILE *f = fopen(path, "w");
+    if (!f) return;
+    const char *base = strrchr(outpath, '/'); base = base ? base + 1 : outpath;
+    fprintf(f, "\n Flash C link map of %s\n\n", base);
+    fprintf(f, " Start      Length     Name       Class\n");
+    fprintf(f, " 0x%08X 0x%08X _TEXT      CODE\n", codeaddr, (unsigned)codelen);
+    fprintf(f, " 0x%08X 0x%08X _DATA      DATA\n", dataaddr, (unsigned)datalen);
+    fprintf(f, " 0x%08X 0x%08X _BSS       BSS\n", bssaddr, (unsigned)bsslen);
+
+    MapEnt *ents = calloc(PG.nfuncs + 4096, sizeof *ents); int ne = 0;
+    for (int i = 0; i < PG.nfuncs; i++) {
+        Sym *fn = PG.funcs[i];
+        if (!(fn->reach & 1) || !fn->defined || fn->is_builtin || fn->codepos < 0) continue;
+        ents[ne++] = (MapEnt){ fn->name, codeaddr + fn->codepos, fn->codelen, fn->fileid, 1 };
+    }
+    for (int k = 0; k < 2; k++) {                       /* the compiler-written procedure lists */
+        Sym *t = global_lookup(k ? "__fc_exit" : "__fc_init");
+        if (t && (t->reach & 1) && t->codepos >= 0) ents[ne++] = (MapEnt){ t->name, codeaddr + t->codepos, t->codelen, t->fileid, 1 };
+    }
+    int nfn = ne;
+    for (Sym *y = global_syms(); y && ne < PG.nfuncs + 4090; y = y->next) {
+        if (y->kind != SY_VAR || !y->defined || !(y->reach & 1)) continue;
+        ents[ne++] = (MapEnt){ y->name, (y->bss ? bssaddr : dataaddr) + y->off, y->ty->size > 0 ? y->ty->size : 0, y->fileid, 0 };
+    }
+    if (mode >= 3) {
+        fprintf(f, "\n Detailed map of segments\n");
+        qsort(ents, ne, sizeof *ents, map_cmp_addr);
+        for (int pass = 0; pass < 3; pass++) {
+            const char *cn = pass == 0 ? "CODE" : pass == 1 ? "DATA" : "BSS", *sn = pass == 0 ? "_TEXT" : pass == 1 ? "_DATA" : "_BSS";
+            uint32_t lo = pass == 0 ? codeaddr : pass == 1 ? dataaddr : bssaddr, hi = lo + (pass == 0 ? codelen : pass == 1 ? datalen : bsslen);
+            for (int i = 0; i < ne; ) {
+                if (ents[i].addr < lo || ents[i].addr >= hi) { i++; continue; }
+                int j = i; uint32_t end = ents[i].addr;
+                while (j < ne && ents[j].fid == ents[i].fid && ents[j].addr >= lo && ents[j].addr < hi) { if (ents[j].addr + ents[j].size > end) end = ents[j].addr + ents[j].size; j++; }
+                fprintf(f, " 0x%08X 0x%08X C=%-5s S=%-6s M=%s\n", ents[i].addr, end - ents[i].addr, cn, sn, file_name(ents[i].fid));
+                i = j;
+            }
+        }
+    }
+    if (mode >= 2) {
+        int nstatic = 0;
+        MapEnt *pub = calloc(ne + 1, sizeof *pub);
+        for (int i = 0; i < ne; i++) {
+            if (!strcmp(ents[i].name, "<hidden>")) continue;
+            pub[nstatic++] = ents[i];
+        }
+        qsort(pub, nstatic, sizeof *pub, map_cmp_name);
+        fprintf(f, "\n  Address     Publics by Name\n\n");
+        for (int i = 0; i < nstatic; i++) fprintf(f, " 0x%08X   _%s\n", pub[i].addr, pub[i].name);
+        qsort(pub, nstatic, sizeof *pub, map_cmp_addr);
+        fprintf(f, "\n  Address     Publics by Value\n\n");
+        for (int i = 0; i < nstatic; i++) fprintf(f, " 0x%08X   _%s\n", pub[i].addr, pub[i].name);
+        free(pub);
+    }
+    (void)nfn;
+    fprintf(f, "\nProgram entry point at 0x%08X\n", entry);
+    free(ents);
+    fclose(f);
+}
+
+int gen_program(const char *outpath, char *err, int errlen, int mapmode)
 {
     Sym *mainf = global_lookup("main"), *startf = global_lookup("_fc_start");
     if (!mainf || mainf->kind != SY_FUNC || !mainf->defined) { linker_error("Undefined symbol _main in module C0"); return 1; }
     if (!startf || !startf->defined) { snprintf(err, errlen, "runtime start-up code missing"); return 1; }
+    nlinkmods = 0;
     mark(mainf); mark(startf);
     for (int i = 0; i < PG.nfuncs; i++) if (PG.funcs[i]->reach & 2) mark(PG.funcs[i]);
-    /* any symbol referenced from a global initialiser keeps its function alive */
-    for (int i = 0; i < PG.nfuncs; i++) if (PG.funcs[i]->reach & 2) mark(PG.funcs[i]);
     for (int i = 0; i < PG.ndrel; i++) if (PG.drel[i].kind == 2 && PG.drel[i].fn->kind == SY_FUNC) mark(PG.drel[i].fn);
+    if (PG.uses_fp && CX->opt.fp_mode) { Sym *r = global_lookup("__fpused"); if (r) mark(r); }   /* pulls in the floating-point run-time */
+    mark_pragma_fns();
+    { Sym *t = global_lookup("__sigtramp"), *d = global_lookup("__sig_dispatch"); if (t && (t->reach & 1) && d) mark(d); }
 
     /* entry stub */
     b1(0x5F); b3(0x48, 0x89, 0xE6); b1(0x56); b1(0x57);
@@ -565,6 +802,9 @@ int gen_program(const char *outpath, char *err, int errlen)
         if (f->is_builtin) continue;
         gen_function(f);
     }
+    emit_proc_list("__fc_init", 0);
+    emit_proc_list("__fc_exit", 1);
+    emit_sigstubs();
     if (gerr_set) { snprintf(err, errlen, "%s", gerr); return 1; }
 
     int codeend = (ncode + 15) & ~15;
@@ -595,6 +835,14 @@ int gen_program(const char *outpath, char *err, int errlen)
         put64(PG.data + PG.drel[i].off, a);
     }
     if (bad) return 1;
+
+    for (int i = 0; i < PG.nfuncs; i++) {
+        Sym *f = PG.funcs[i];
+        if ((f->reach & 1) && f->defined && !f->is_builtin) note_module(f->fileid, f->codelen);
+    }
+    for (Sym *y = global_syms(); y; y = y->next)
+        if (y->kind == SY_VAR && y->defined && (y->reach & 1)) note_module(y->fileid, y->ty->size > 0 ? y->ty->size : 0);
+    if (mapmode > 0) write_map(outpath, mapmode, BASE + HDRSZ, ncode, dataaddr, PG.ndata, bssaddr, PG.bss, BASE + HDRSZ);
 
     int filesz = HDRSZ + codeend + dataend;
     uint64_t memsz = filesz + PG.bss + 16;

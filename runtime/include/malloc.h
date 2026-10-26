@@ -1,4 +1,4 @@
-#ifndef _FC_ALLOC_H
-#define _FC_ALLOC_H
-#include <stdlib.h>
+#ifndef _FC_MALLOC_H
+#define _FC_MALLOC_H
+#include <alloc.h>
 #endif

@@ -53,7 +53,7 @@ typedef struct Config {
     /* make / link */
     int brk_warn, brk_err, brk_fatal, brk_all, after_compile, check_autodep;
     int map_file, out_kind, lnk_init_seg, lnk_default_libs, lnk_warn_dup, lnk_nostack, lnk_case;
-    int lib_graphics, lib_tvision, lib_container, lib_stdrt;
+    int lib_stdrt, lib_math, lib_wild;
     int lib_listing, lib_case, lib_purge, lib_extdict, lib_pagesize;
     int dbg_source, dbg_swap, dbg_inherited, dbg_methods, dbg_radix, dbg_heap;
     int app_target;

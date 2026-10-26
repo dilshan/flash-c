@@ -139,6 +139,7 @@ static Sym *lookup(const char *name)
     return NULL;
 }
 Sym *global_lookup(const char *name) { return find_in(gscope, intern(name, (int)strlen(name))); }
+Sym *global_syms(void) { return gscope ? gscope->syms : NULL; }
 
 static Sym *add_sym(Scope *s, char *name, Type *ty, int kind)
 {
@@ -188,10 +189,17 @@ static void add_reloc(int off, int kind, Sym *fn, long long add)
 }
 
 /* ---------- node helpers ---------- */
+static void note_fp(void)
+{
+    /* the program (not the library or a built-in header) uses floating point: the float run-time gets linked */
+    if (!in_rt && !file_is_builtin(toks[tp > 0 ? tp - 1 : 0].fileid)) PG.uses_fp = 1;
+}
+
 static Node *mk(int k, Type *ty)
 {
     Node *n = xalloc(sizeof *n);
     n->k = k; n->ty = ty; n->line = toks[tp > 0 ? tp - 1 : 0].line;
+    if (ty && (ty->kind == TY_FLOAT || ty->kind == TY_DOUBLE)) note_fp();
     return n;
 }
 static long long norm(long long v, Type *t)
@@ -617,10 +625,11 @@ static Node *parse_call(Node *fn)
                 a = coerce(a, pp->ty, argc, fname);
                 pp = pp->next;
             } else {
-                if (is_agg(a->ty)) ERR("Structure passed by value is not supported");
                 if (a->ty->kind == TY_VOID) ERR("Not an allowed type");
-                a = promote(a);
-                if (a->ty->kind == TY_FLOAT) a = conv(a, ty_double);
+                if (!is_agg(a->ty)) {
+                    a = promote(a);
+                    if (a->ty->kind == TY_FLOAT) a = conv(a, ty_double);
+                }
                 if (!ft->noproto && !ft->variadic) ERR("Too many parameters in call to '%s'", fname);
             }
             *tail = a; tail = &a->next;
@@ -629,9 +638,15 @@ static Node *parse_call(Node *fn)
     }
     expect(P_RPAR, "Function call missing )");
     if (!ft->noproto && pp) ERR("Too few parameters in call to '%s'", fname);
-    if (is_agg(ft->ret)) ERR("Functions returning structures are not supported");
     Node *c = mk(N_CALL, ft->ret);
     c->l = callee; c->sym = direct; c->r = head; c->val = argc;
+    if (is_agg(ft->ret)) {
+        /* the result is built in a hidden frame slot whose address is passed as an extra first argument */
+        int a = ft->ret->align > 0 ? ft->ret->align : 1;
+        if (!curfn) ERR("Initializer element is not a constant");
+        fn_frame = (fn_frame + ft->ret->size + a - 1) & ~(a - 1);
+        c->cmpty_uns = -fn_frame;
+    }
     return c;
 }
 
@@ -1126,8 +1141,8 @@ static Type *parse_declspec(int *storage, int *is_typedef, int *got_type)
         case K_CHAR: nchar++; any = 1; tp++; continue;
         case K_INT: nint++; any = 1; tp++; continue;
         case K_VOID: nvoid++; any = 1; tp++; continue;
-        case K_FLOAT: nfloat++; any = 1; tp++; continue;
-        case K_DOUBLE: ndouble++; any = 1; tp++; continue;
+        case K_FLOAT: nfloat++; any = 1; tp++; note_fp(); continue;
+        case K_DOUBLE: ndouble++; any = 1; tp++; note_fp(); continue;
         case K_STRUCT: case K_UNION:
             if (any || named) ERR("Too many types in declaration");
             tp++; named = parse_struct(t->k == K_UNION); any = 1; continue;
@@ -1325,6 +1340,7 @@ static Node *local_init_nodes(Sym *y, Sink *sk)
 static void global_define_var(Sym *y, Sink *sk)
 {
     int size = y->ty->size;
+    y->fileid = cur_file();                      /* the module that defines it */
     if (sk) {
         int off = data_alloc(size ? size : 1, y->ty->align);
         y->bss = 0; y->off = off; y->defined = 1;
@@ -1353,6 +1369,7 @@ static Sym *declare_global(Tok *nmtok, char *name, Type *ty, int kind, int stora
             if (y->defined && !y->from_rt && !in_rt && storage != SC_EXTERN && y->bss == 0 && 0) {}
         }
         if (storage == SC_STATIC) y->storage = SC_STATIC;
+        else if (kind == SY_VAR && y->storage == SC_EXTERN && storage != SC_EXTERN) y->storage = storage;   /* the definition follows an extern declaration */
         return y;
     }
     y = add_sym(gscope, name, ty, kind);
@@ -1626,12 +1643,15 @@ static void parse_function_body(Sym *f, ParamList *pl, Tok *nm)
 {
     curfn = f; fn_frame = 0; fn_ret_seen = 0; brk_depth = cont_depth = 0; cur_switch = NULL; fn_labels = NULL;
     push_scope(); scope->is_func_top = 1;
-    int i = 0;
+    int i = 0, poff = 16;
     Param *pa = f->ty->params;
+    if (is_agg(f->ty->ret)) poff += 8;                  /* hidden pointer to the caller's result buffer */
     for (; pa; pa = pa->next, i++) {
-        if (!pa->name) { if (!in_rt) ERRAT(nm, "Parameter name missing"); continue; }
+        int slot = is_agg(pa->ty) ? (int)((pa->ty->size + 7) & ~7L) : 8;
+        if (!pa->name) { if (!in_rt) ERRAT(nm, "Parameter name missing"); poff += slot; continue; }
         Sym *y = add_sym(scope, pa->name, pa->ty, SY_VAR);
-        y->is_param = 1; y->off = 16 + 8 * i; y->assigned = 1;
+        y->is_param = 1; y->off = poff; y->assigned = 1;
+        poff += slot;
     }
     (void)pl;
     expect(P_LBRC, "Declaration syntax error");
@@ -1650,6 +1670,7 @@ static void parse_function_body(Sym *f, ParamList *pl, Tok *nm)
         if (!ok) fc_error_nj(nm->fileid, r->line, "Undefined label '%s'", r->name);
     }
     f->body = body; f->frame = fn_frame; f->defined = 1;
+    f->fileid = nm->fileid;                      /* the module that defines it (a header may have declared it first) */
     if (PG.nfuncs == PG.capfuncs) { PG.capfuncs = PG.capfuncs ? PG.capfuncs * 2 : 64; PG.funcs = realloc(PG.funcs, PG.capfuncs * sizeof(Sym *)); }
     PG.funcs[PG.nfuncs++] = f;
     curfn = NULL;
@@ -1680,7 +1701,7 @@ static void parse_external_decl(void)
             else { Sym *y = add_sym(gscope, name, ty, SY_TYPEDEF); y->used = 1; }
         } else if (ty->kind == TY_FUNC) {
             Sym *f = declare_global(nm, name, ty, SY_FUNC, st == SC_STATIC ? SC_STATIC : SC_EXTERN);
-            if (in_rt && (!strcmp(name, "__syscall") || !strcmp(name, "__sqrt"))) f->is_builtin = 1;
+            if (!strcmp(name, "__syscall") || !strcmp(name, "__sqrt") || !strcmp(name, "__setjmp") || !strcmp(name, "__longjmp")) f->is_builtin = 1;
             if (toks[tp].k == P_LBRC || (saved_pl.knr && is_type_start(peek()))) {
                 if (f->defined && !(f->from_rt && !in_rt)) ERRAT(nm, "Multiple declaration for '%s'", name);
                 if (f->from_rt && !in_rt) { f->defined = 0; f->from_rt = 0; f->nrefs = 0; f->ty = ty; f->reach = 0; PG.nfuncs -= 0; 

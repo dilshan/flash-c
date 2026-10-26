@@ -36,16 +36,40 @@ source ──► lexer/preprocessor ──► parser + type checker ──► x8
   being parsed; only what is reachable from `main` and `_fc_start` is emitted.
 
 ### The run-time library
-`runtime/rt.c` is ordinary Flash C compiled together with the user's program. It is parsed
-first; its symbols are *hidden* from the user's program until the user (usually through a header)
-declares them. This keeps the classic diagnostics (`Call to function 'foo' with no prototype`,
-`Undefined symbol`) honest: forgetting `#include <stdio.h>` is still reported. If the program
-defines a function with the same name as a library function, the program's version wins for the
-program while the library keeps using its own.
+The library is a set of small Flash C modules (`runtime/lib/`), embedded in the compiler by
+`tools/embed.c` as a table of `{kind, name, text}`: kind `0` start-up (`c0.c`, always), `1` standard
+library (`c/*.c`), `2` math library (`m/*.c`), `3` optional objects (`wildargs.c`). On every compile
+the enabled modules are preprocessed and parsed together with the user's program (about 5 ms),
+under pseudo file names `c0/c0.c`, `libc/<name>.c`, `libm/<name>.c`; each symbol remembers its file, so
+the link map and the "module" in linker errors name the library module.
+
+* Library symbols are *hidden* from the user's program until a header declares them, which keeps the
+  classic diagnostics honest (`Call to function 'foo' with no prototype`, `Undefined symbol`).
+  A user function with the same name as a library function wins for the program.
+* **Linking = reachability.** Only functions reachable from `main`, the start-up code, and the
+  `#pragma startup/exit` functions of linked modules are emitted. A library module's pragma
+  function is only kept if the module has another reachable symbol, so unused modules cost nothing.
+* **Start-up** (`c0.c`): the ELF entry stub calls `_fc_start(argc, argv)`, which sets `_argc/_argv/environ`,
+  runs the generated `__fc_init()` (the `#pragma startup` list, ascending priority), then
+  `exit(main(...))`. `exit` runs `atexit` handlers and the generated `__fc_exit()` (the
+  `#pragma exit` list, descending priority, which flushes `stdio`), then `_exit`.
+* **Floating point is detected, not declared.** The parser sets `uses_fp` when user code declares
+  or computes with `float/double`; this links `fpcvt.c`, whose `#pragma startup` installs
+  `__RealCvtVector` and `__ScanTodVector`. `printf/scanf` call the converters only through those
+  vectors, so integer-only programs carry no floating-point code (same design as the original).
+* **Intrinsics** known to the code generator by name: `__syscall`, `__sqrt`, `__setjmp`,
+  `__longjmp` (inline code: save/restore `rbp`, `rsp` and the resume address), plus two stubs written by the
+  linker for kernel signal delivery (`__sigtramp`, `__sigrestorer`).
+* **Structures by value:** an argument is copied into its stack slot; a result is built in a hidden
+  frame slot of the caller whose address is passed as an extra first argument.
+* **Link map** (`-M/-Mp/-Md`): `write_map` lists `_TEXT/_DATA/_BSS`, public symbols and the
+  detailed segment map using the same symbol records.
+* Library-internal helpers are `static` functions with globally unique `__prefix` names (statics
+  share one scope across modules). Libraries may not use bit-fields or compound literals.
 
 `printf("%f")` uses an exact big-number decimal expansion of the binary value and rounds half to
 even, and matched glibc in every comparison in `tests/cases`. `math.h` is implemented with
-argument-reduced series (accuracy ~1e-15).
+argument-reduced series (accuracy ~1e-15). The function list is in [`LIBRARY.md`](LIBRARY.md).
 
 ## 2. IDE (`src/ide`)
 
@@ -77,12 +101,14 @@ Design points:
 * `tests/run.sh` compiles each `tests/cases/*.c` with Flash C and with the host `gcc` and compares
   program output byte for byte (an optional `name.in` file is fed to stdin).
 * `tests/diag.sh` checks the text/line numbers of the diagnostics.
+* `tests/libtest.sh` checks the library build options: link maps, `-ln/-lnm/-f-`, `#pragma startup/exit` order,
+  wildcard arguments, exit codes, `abort`, `atexit`, and that every public header compiles on its own.
 * `tests/ide_smoke.py` runs the real `fc` binary on a pseudo-terminal with a small VT emulator
   (`tests/tui.py`), types a program, compiles, runs, breaks it, follows the error, opens dialogs and
   help, and quits. `tui.py` can also render PNG screenshots.
 
 ## 4. Ideas for next steps
 Source-level debugger via `ptrace` (the Debug menu and the Watch/Register windows are in
-place), bit-fields, struct pass/return by value, a real optimizer pass (the code generator is
+place), bit-fields, a real optimizer pass (the code generator is
 deliberately simple), `long double`, locale-independent `strftime`/`time.h`, a proper `.fcp`
 project dialog with per-file options.

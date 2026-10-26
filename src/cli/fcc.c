@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include "fc.h"
 
 static const char *usage =
@@ -14,6 +15,11 @@ static const char *usage =
 "  -w-     Suppress all warnings     -jN     Stop after N errors\n"
 "  -gN     Stop after N warnings     -iN     Max. identifier length\n"
 "  -wxxx   Warning control (-w-use, -w-pro, -w-ret, -w-par, -w-rvl)\n"
+"  -f-     No floating-point support -f/-f87  Floating-point support (default)\n"
+"  -M      Create link map file      -Mp/-Md Map with publics / detailed segments\n"
+"  -ln     Do not search the standard libraries\n"
+"  -lnm    Do not link the math library\n"
+"  wildargs.obj  as a file name links the wildcard argument expander\n"
 "  -h      This help\n";
 
 static const char *progname = "fcc";
@@ -40,7 +46,12 @@ int main(int argc, char **argv)
     const char *out = NULL;
     for (int i = 1; i < argc; i++) {
         char *a = argv[i];
-        if (a[0] != '-') { if (nf < 64) files[nf++] = a; continue; }
+        if (a[0] != '-') {
+            const char *b = strrchr(a, '/'); b = b ? b + 1 : a;
+            if (!strcasecmp(b, "wildargs.obj")) { ctx.opt.wildargs = 1; continue; }
+            if (nf < 64) files[nf++] = a;
+            continue;
+        }
         switch (a[1]) {
         case 'C': ctx.opt.nested_comments = a[2] != '-'; break;
         case 'D': if (ctx.opt.ndefine < 16) ctx.opt.defines[ctx.opt.ndefine++] = a + 2; break;
@@ -48,6 +59,9 @@ int main(int argc, char **argv)
         case 'K': ctx.opt.unsigned_char = a[2] != '-'; break;
         case 'O': ctx.opt.optimize = a[2] != '-'; break;
         case 'e': out = a + 2; break;
+        case 'f': ctx.opt.fp_mode = !strcmp(a + 2, "-") ? 0 : !strcmp(a + 2, "87") ? 2 : 1; break;
+        case 'M': ctx.opt.map = a[2] == 'p' ? 2 : a[2] == 'd' ? 3 : a[2] == '-' ? 0 : 1; break;
+        case 'l': if (!strcmp(a + 2, "n") || !strcmp(a + 2, "-d")) ctx.opt.nolibs = 1; else if (!strcmp(a + 2, "nm")) ctx.opt.nomath = 1; break;
         case 'j': ctx.opt.max_errors = atoi(a + 2); break;
         case 'g': ctx.opt.max_warnings = atoi(a + 2); break;
         case 'i': ctx.opt.ident_len = atoi(a + 2); break;

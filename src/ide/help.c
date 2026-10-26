@@ -141,8 +141,8 @@ static const Topic topics[] = {
 "           pointers, arrays, struct, union, enum, typedef,\n"
 "           function pointers.\n"
 " Sizes:    char 1, short 2, int 4, long 8, pointer 8 bytes.\n"
-" Not yet:  float and double, bit fields, passing or returning whole\n"
-"           structures by value (pass a pointer instead).\n\n"
+" Also:    float and double; structures can be passed and returned by\n"
+"           value. Not yet: bit fields and compound literals.\n\n"
 " Statements: if else while do for switch case default break continue\n"
 "           goto return, declarations anywhere in a block.\n"
 " Operators:  the complete C set including ?: , && || and assignment\n"
@@ -150,56 +150,144 @@ static const Topic topics[] = {
 " Initializers: scalars, arrays, structs and strings, with nesting.\n"
 " Preprocessor: #include #define (also with arguments, # and ##)\n"
 "           #undef #if #ifdef #ifndef #elif #else #endif #error\n"
-"           #pragma (ignored)\n"
+"           #pragma startup / exit (other pragmas are ignored)\n"
 " Keywords near, far, huge, cdecl and pascal are accepted and ignored.\n" },
 
-{ "Library: stdio", "stdio printf scanf puts putchar getchar gets fgets fopen fclose fprintf sprintf sscanf fread fwrite fseek",
-" <stdio.h>\n\n"
-" printf fprintf sprintf snprintf vprintf vfprintf vsprintf vsnprintf\n"
-"    Formats: %d %i %u %x %X %o %c %s %p %% with flags - + space # 0,\n"
-"    width, precision and the l modifier. (No floating point.)\n"
-" scanf fscanf sscanf    reads %d %i %u %x %o %s %c\n"
-" puts putchar fputs fputc putc    gets fgets getchar fgetc getc ungetc\n"
-" fopen fclose fread fwrite fseek ftell rewind feof ferror fflush\n"
-" remove rename perror\n"
-" stdin stdout stderr\n\n"
-" Output to stdout is flushed at every new-line and when the program ends.\n" },
-
-{ "Library: string", "string strlen strcpy strcat strcmp strchr strstr memcpy memset strtok strdup",
-" <string.h>\n\n"
-" strlen strcpy strncpy strcat strncat strcmp strncmp stricmp strnicmp\n"
-" strchr strrchr strstr strspn strcspn strpbrk strtok strdup\n"
-" strupr strlwr strrev\n"
-" memcpy memmove memset memcmp memchr\n" },
-
-{ "Library: stdlib", "stdlib malloc free calloc realloc exit abs atoi atol strtol rand srand qsort bsearch itoa",
-" <stdlib.h>\n\n"
-" malloc calloc realloc free      exit abort\n"
-" abs labs atoi atol strtol strtoul itoa ltoa\n"
-" rand srand (RAND_MAX is 32767)  qsort bsearch\n" },
-
-{ "Library: ctype", "ctype isalpha isdigit isspace toupper tolower",
-" <ctype.h>\n\n"
-" isalpha isdigit isalnum isupper islower isspace isxdigit isprint\n"
-" isgraph iscntrl ispunct isascii toupper tolower\n" },
-
-{ "Library: conio and dos", "conio clrscr gotoxy getch getche putch cputs delay sleep",
-" <conio.h> <dos.h>\n\n"
-" clrscr clreol gotoxy(x, y)     use ANSI escape sequences\n"
-" getch getche putch cputs       unbuffered console input and output\n"
-" delay(milliseconds) sleep(seconds)\n" },
+{ "Library: stdio", "stdio clearerr fclose fcloseall fdopen feof ferror fflush fgetc fgetchar fgetpos fgets fileno flushall fopen fprintf fputc fputchar fputs fread freopen fscanf fseek fsetpos _fsopen ftell fwrite getc getchar gets getw perror printf putc putchar puts putw remove rename rewind rmtmp scanf setbuf setvbuf snprintf sprintf sscanf tempnam tmpfile tmpnam ungetc unlink vfprintf vfscanf vprintf vscanf vsnprintf vsprintf vsscanf",
+" <stdio.h>\n"
+"\n"
+" Formatted and character I/O on streams. stdin, stdout and stderr are predefined.\n"
+" Output to a terminal is flushed at each new-line; everything is flushed when the program ends.\n"
+"\n"
+" clearerr fclose fcloseall fdopen feof ferror fflush fgetc fgetchar\n"
+" fgetpos fgets fileno flushall fopen fprintf fputc fputchar fputs\n"
+" fread freopen fscanf fseek fsetpos _fsopen ftell fwrite getc getchar\n"
+" gets getw perror printf putc putchar puts putw remove rename rewind\n"
+" rmtmp scanf setbuf setvbuf snprintf sprintf sscanf tempnam tmpfile\n"
+" tmpnam ungetc unlink vfprintf vfscanf vprintf vscanf vsnprintf\n"
+" vsprintf vsscanf\n" },
+{ "Library: string", "string memccpy memchr memcmp memcpy memicmp memmove memset movmem setmem stpcpy strcat strchr strcmp strcmpi strcoll strcpy strcspn strdup strerror _strerror stricmp strlen strlwr strncat strncmp strncpy strnicmp strnset strpbrk strrchr strrev strset strspn strstr strtok strupr strxfrm",
+" <string.h> <mem.h>\n"
+"\n"
+" String and memory block functions (stricmp, strupr, movmem, setmem ... are included).\n"
+"\n"
+" memccpy memchr memcmp memcpy memicmp memmove memset movmem setmem\n"
+" stpcpy strcat strchr strcmp strcmpi strcoll strcpy strcspn strdup\n"
+" strerror _strerror stricmp strlen strlwr strncat strncmp strncpy\n"
+" strnicmp strnset strpbrk strrchr strrev strset strspn strstr strtok\n"
+" strupr strxfrm\n" },
+{ "Library: stdlib", "stdlib abort abs atexit atof atoi atol bsearch calloc div ecvt exit _exit _cexit _c_exit fcvt free gcvt getenv itoa labs ldiv lfind lsearch ltoa malloc mblen mbstowcs mbtowc putenv qsort rand realloc srand strtod strtol strtoul swab system ultoa wcstombs wctomb _rotl _rotr _lrotl _lrotr _fullpath _makepath _splitpath _searchenv brk sbrk coreleft heapcheck heapcheckfree heapchecknode heapfillfree heapwalk",
+" <stdlib.h> <alloc.h>\n"
+"\n"
+" Memory allocation, conversions, sorting, environment and program termination.\n"
+" rand() uses the classic generator: srand(1) gives 346, 130, 10982 ...\n"
+" RAND_MAX is 32767. exit runs atexit handlers and flushes the files.\n"
+"\n"
+" abort abs atexit atof atoi atol bsearch calloc div ecvt exit _exit\n"
+" _cexit _c_exit fcvt free gcvt getenv itoa labs ldiv lfind lsearch\n"
+" ltoa malloc mblen mbstowcs mbtowc putenv qsort rand realloc srand\n"
+" strtod strtol strtoul swab system ultoa wcstombs wctomb _rotl _rotr\n"
+" _lrotl _lrotr _fullpath _makepath _splitpath _searchenv brk sbrk\n"
+" coreleft heapcheck heapcheckfree heapchecknode heapfillfree heapwalk\n" },
+{ "Library: ctype", "ctype isalnum isalpha isascii iscntrl isdigit isgraph islower isprint ispunct isspace isupper isxdigit toascii tolower toupper _tolower _toupper",
+" <ctype.h>\n"
+"\n"
+" Character classification and conversion.\n"
+"\n"
+" isalnum isalpha isascii iscntrl isdigit isgraph islower isprint\n"
+" ispunct isspace isupper isxdigit toascii tolower toupper _tolower\n"
+" _toupper\n" },
+{ "Library: math", "math matherr abs labs acos asin atan atan2 atof ceil cos cosh exp fabs floor fmod frexp hypot ldexp log log10 modf poly pow pow10 sin sinh sqrt tan tanh acosl asinl atanl atan2l ceill cosl coshl expl fabsl floorl fmodl frexpl hypotl ldexpl logl log10l modfl polyl powl pow10l sinl sinhl sqrtl tanl tanhl trunc round log2 cbrt fmax fmin isnan isinf _clear87 _control87 _fpreset _status87",
+" <math.h> <float.h>\n"
+"\n"
+" Mathematics. Domain and range errors call matherr() and print a message such as\n"
+" 'sqrt: DOMAIN error'. Linking floating point is automatic when the program uses\n"
+" float or double; Options|Libraries|Math library can switch it off.\n"
+"\n"
+" matherr abs labs acos asin atan atan2 atof ceil cos cosh exp fabs\n"
+" floor fmod frexp hypot ldexp log log10 modf poly pow pow10 sin sinh\n"
+" sqrt tan tanh acosl asinl atanl atan2l ceill cosl coshl expl fabsl\n"
+" floorl fmodl frexpl hypotl ldexpl logl log10l modfl polyl powl pow10l\n"
+" sinl sinhl sqrtl tanl tanhl trunc round log2 cbrt fmax fmin isnan\n"
+" isinf _clear87 _control87 _fpreset _status87\n" },
+{ "Library: time", "time asctime clock ctime difftime gmtime localtime mktime strftime time stime tzset _strdate _strtime ftime utime",
+" <time.h> <dos.h> <sys/timeb.h>\n"
+"\n"
+" Calendar time. The time zone comes from the TZ variable (for example EST5EDT);\n"
+" without it local time is UTC. Also: the DOS-style date and time calls of dos.h.\n"
+"\n"
+" asctime clock ctime difftime gmtime localtime mktime strftime time\n"
+" stime tzset _strdate _strtime ftime utime\n" },
+{ "Library: io and dir", "io dir access chmod _chmod chsize close _close creat _creat creatnew creattemp dup dup2 eof filelength getftime ioctl isatty lock locking lseek mktemp open _open read _read remove rename setftime setmode sopen tell umask unlink unlock write _write stat fstat chdir findfirst findnext fnmerge fnsplit getcurdir getcwd getdisk mkdir rmdir searchpath setdisk opendir readdir closedir rewinddir _chdrive _getdcwd _getdrive",
+" <io.h> <fcntl.h> <sys/stat.h> <dir.h> <dirent.h>\n"
+"\n"
+" Low-level file handles, file status, directories and wildcard searches\n"
+" (findfirst/findnext), path splitting and merging.\n"
+"\n"
+" access chmod _chmod chsize close _close creat _creat creatnew\n"
+" creattemp dup dup2 eof filelength getftime ioctl isatty lock locking\n"
+" lseek mktemp open _open read _read remove rename setftime setmode\n"
+" sopen tell umask unlink unlock write _write stat fstat chdir\n"
+" findfirst findnext fnmerge fnsplit getcurdir getcwd getdisk mkdir\n"
+" rmdir searchpath setdisk opendir readdir closedir rewinddir _chdrive\n"
+" _getdcwd _getdrive\n" },
+{ "Library: process", "process abort _cexit _c_exit execl execle execlp execlpe execv execve execvp execvpe exit _exit getpid spawnl spawnle spawnlp spawnlpe spawnv spawnve spawnvp spawnvpe system signal raise",
+" <process.h> <signal.h> <setjmp.h>\n"
+"\n"
+" Running other programs (system, spawn..., exec...), signals and non-local jumps.\n"
+"\n"
+" abort _cexit _c_exit execl execle execlp execlpe execv execve execvp\n"
+" execvpe exit _exit getpid spawnl spawnle spawnlp spawnlpe spawnv\n"
+" spawnve spawnvp spawnvpe system signal raise\n" },
+{ "Library: conio and dos", "conio dos cgets clreol clrscr cprintf cputs cscanf delline getch getche gettextinfo getpass gotoxy highvideo insline kbhit lowvideo normvideo putch _setcursortype textattr textbackground textcolor textmode ungetch wherex wherey window delay sleep sound nosound getdate gettime setdate settime dostounix unixtodos getdfree getpid unlink biostime bioskey biosequip biosmemory setlocale localeconv",
+" <conio.h> <dos.h> <bios.h>\n"
+"\n"
+" Console I/O through ANSI terminal sequences: windows, colours, cursor control,\n"
+" unbuffered keyboard input (extended keys return 0 followed by a scan code).\n"
+" DOS interrupts, ports, far memory, gettext/puttext/movetext and graphics are not available.\n"
+"\n"
+" cgets clreol clrscr cprintf cputs cscanf delline getch getche\n"
+" gettextinfo getpass gotoxy highvideo insline kbhit lowvideo normvideo\n"
+" putch _setcursortype textattr textbackground textcolor textmode\n"
+" ungetch wherex wherey window delay sleep sound nosound getdate\n"
+" gettime setdate settime dostounix unixtodos getdfree getpid unlink\n"
+" biostime bioskey biosequip biosmemory setlocale localeconv\n" },
+{ "Libraries and linking", "library libraries link linker map wildargs pragma startup exit nolibs floating",
+" Libraries and linking\n\n"
+" Programs are linked with the Flash C run-time library. Only the functions\n"
+" a program really uses are placed in the executable.\n\n"
+" Start-up code      always linked (argc/argv/environ, exit, abort)\n"
+" Standard library   Options|Libraries|Standard run-time library\n"
+" Math library       Options|Libraries|Math library (math.h, %f %e %g,\n"
+"                    atof/strtod); linked when floating point is used\n"
+" Wildcard arguments Options|Libraries|Wildcard arguments expands * and ?\n"
+"                    in command-line arguments (command line: wildargs.obj)\n\n"
+" Options|Linker\n"
+"   Map file          Off / Segments / Publics / Detailed. Writes <program>.map\n"
+"                     listing every linked function and its library module.\n"
+"   Default libraries unchecked = link only the start-up code (-ln)\n\n"
+" Options|Compiler|Code generation|Floating point\n"
+"   None              floating-point formats are not linked; printf(\"%f\")\n"
+"                     stops with 'floating point formats not linked'\n"
+"   Emulation / 8087  both use the built-in floating-point code\n\n"
+" #pragma startup fn [priority]   run fn before main\n"
+" #pragma exit fn [priority]      run fn after main returns or exit() is called\n"
+" Priorities are 0-255 (default 100). Start-up functions run from the lowest\n"
+" number up, exit functions from the highest down.\n\n"
+" See also: {Library: stdio}, {Library: math}\n" },
 
 { "Differences from classic compilers", "dos difference int 64 float memory model far near",
 " Differences from classic DOS compilers\n\n"
 " * The target is 64-bit Linux, so int is 32 bits, long and pointers are\n"
 "   64 bits. Memory models, near / far pointers, overlays and the\n"
-"   floating-point emulator do not apply.\n"
+"   floating-point emulator do not apply (the settings are kept for\n"
+"   compatibility). Graphics, BIOS and interrupt calls are not provided.\n"
 " * There is no separate object-file / link step: the compiler writes the\n"
 "   executable directly. Compile and Link therefore produce the same file.\n"
 " * The source-level debugger is not available yet; the Debug menu offers\n"
 "   Evaluate and Watches for constant expressions.\n"
-" * The standard library is a compact built-in one. Programs get their\n"
-"   header files from the compiler itself, and your own include\n"
+" * The standard library is built in (see {Libraries and linking}). Programs\n"
+"   get their header files from the compiler itself, and your own include\n"
 "   directories (Options|Directories) are searched first.\n" },
 
 { "About Flash C", "about version",
