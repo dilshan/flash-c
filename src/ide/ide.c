@@ -98,7 +98,7 @@ void msg_goto(int idx, int focus_editor)
     if (!file_exists(m->file)) return;
     Win *w = win_open_file(m->file);
     if (!w) return;
-    w->errline = m->line - 1;
+    w->errline = m->line - 1; w->errver = w->buf->version;
     ed_goto(w, m->line - 1, 0);
     if (w->cy > 0) { w->top = w->cy - (w->h - 2) / 2; if (w->top < 0) w->top = 0; ed_ensure_visible(w); }
     if (!focus_editor && mw) win_activate(mw);

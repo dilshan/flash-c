@@ -59,6 +59,15 @@ try:
     check('error text is classic', 'Statement missing ;' in t, s)
     s.send('ENTER')
     check('Enter jumps to the source line', ' 7:' in text(s).split('\n')[-3] or '7:' in text(s), s)
+    def red_bar(): return any((a >> 4) == 4 for row in s.screen.at for a in row)
+    check('error line is shown with a red bar', red_bar(), s)
+    s.send('ESC')
+    check('Esc in the editor hides the red error bar', not red_bar(), s)
+    s.send('F9'); s.send('x'); s.send('ENTER')
+    check('error bar is shown again', red_bar(), s)
+    s.send('a')
+    check('Editing the text hides the red error bar', not red_bar(), s)
+    s.send('BKSP')
 
     # options dialogs
     s.send('\x1bo', 'c', 'c')

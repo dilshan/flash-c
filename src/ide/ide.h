@@ -121,6 +121,7 @@ typedef struct Win {
     int sel;                            /* list selection */
     int kprefix;                        /* pending ^K / ^Q */
     int errline;                        /* highlighted line, -1 none */
+    int errver;                         /* buffer version when errline was set; an edit hides the bar */
     int hist_pos;
     void *data;
 } Win;

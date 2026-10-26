@@ -166,6 +166,7 @@ void ed_draw(Win *w, int active)
             scr_put(x + ww - 3, y, ']', fr);
         }
     }
+    if (w->errline >= 0 && w->buf->version != w->errver) w->errline = -1;   /* editing hides the error bar */
     int h = vh(w), wd = vw(w);
     uint8_t attrs[1024];
     int l1 = 0, c1 = 0, l2 = 0, c2 = 0, hb = ed_has_block(w);
@@ -542,6 +543,11 @@ int ed_key(Win *w, int key)
         if (key == KEY_ESC) return 1;
         if (p == 'k') kcommand(w, base); else qcommand(w, base, shift);
         return 1;
+    }
+    if (key == KEY_ESC) {                              /* Esc hides the error / warning bar left by the Message window */
+        int any = 0;
+        for (int i = 0; i < nwins; i++) if (wins[i]->kind == W_EDIT && wins[i]->errline >= 0) { wins[i]->errline = -1; any = 1; }
+        if (any) return 1;
     }
     if (ctrl && !alt && !shift && cfg.cmdset == 0) {   /* CUA command set */
         switch (base) {
