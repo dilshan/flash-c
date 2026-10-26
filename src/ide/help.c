@@ -838,6 +838,8 @@ typedef struct HS {
     int topic, top, link, hist[32], nhist;
     int follow;                                  /* a key moved the selected link: scroll it into view */
     PLine *lines; int nlines; PLink *links; int nlinks;
+    int sel_on, ar, ac, br, bc;                  /* text selection: anchor and current end (line, column) */
+    int dragged, px, py;                         /* mouse: the pointer moved since the press; where it went down */
 } HS;
 
 static void parse_free(HS *h)
@@ -845,6 +847,7 @@ static void parse_free(HS *h)
     for (int i = 0; i < h->nlines; i++) free(h->lines[i].s);
     free(h->lines); free(h->links);
     h->lines = NULL; h->links = NULL; h->nlines = h->nlinks = 0;
+    h->sel_on = 0;
 }
 
 static PLine *add_line(HS *h, int *cap, int kind, const char *text)
@@ -1114,6 +1117,13 @@ void help_bar_click(Win *w, int y)
     else help_scroll(w, hh - 1);
 }
 
+/* the selection as an ordered range; the end column is exclusive and both end cells are included */
+static void sel_range(HS *h, int *sr, int *sc, int *er, int *ec)
+{
+    if (h->ar < h->br || (h->ar == h->br && h->ac <= h->bc)) { *sr = h->ar; *sc = h->ac; *er = h->br; *ec = h->bc + 1; }
+    else { *sr = h->br; *sc = h->bc; *er = h->ar; *ec = h->ac + 1; }
+}
+
 void help_draw(Win *w, int active)
 {
     HS *h = w->data;
@@ -1155,10 +1165,23 @@ void help_draw(Win *w, int active)
         int span = w->h - 5, max = h->nlines - hh;
         if (span > 0) scr_put(sx, w->y + 2 + (max > 0 ? (int)((long)h->top * span / max) : 0), 0x25A0, pal[P_ED_THUMB]);
     }
+    if (h->sel_on) {
+        int sr, sc, er, ec;
+        sel_range(h, &sr, &sc, &er, &ec);
+        for (int r = 0; r < hh && h->top + r < h->nlines; r++) {
+            int ln = h->top + r;
+            if (ln < sr || ln > er || h->lines[ln].kind == PL_RULE) continue;
+            const char *s = h->lines[ln].s; int len = (int)strlen(s);
+            int c0 = ln == sr ? sc : 0, c1 = ln == er ? ec : len;
+            if (c1 > len) c1 = len;
+            for (int c = c0; c < c1 && c < wd; c++) scr_put(w->x + 1 + c, w->y + 1 + r, (unsigned char)s[c], pal[P_ED_SEL]);
+        }
+    }
     for (int i = 0; i < h->nlinks; i++) {
         PLink *k = &h->links[i];
         int r = k->row - h->top;
         if (r < 0 || r >= hh) continue;
+        if (h->sel_on) continue;                                       /* the selection colours win over link colours */
         uint8_t a = (i == h->link && active) ? pal[P_HELP_LINKSEL] : pal[P_HELP_LINK];
         const char *s = h->lines[k->row].s + k->col;
         for (int c = 0; c < k->len && k->col + c < wd; c++) scr_put(w->x + 1 + k->col + c, w->y + 1 + r, (unsigned char)s[c], a);
@@ -1170,6 +1193,11 @@ int help_key(Win *w, int key)
     HS *h = w->data;
     int base = key & KMASK, nl = h->nlinks;
     if (key == KEY_ESC) { win_close(w); return 1; }
+    if ((key & K_CTRL) && !(key & K_ALT)) {
+        if (base == KEY_INS) return help_copy(w);
+        if (base == 'a' && h->nlines) { h->sel_on = 1; h->ar = h->ac = 0; h->br = h->nlines - 1; h->bc = (int)strlen(h->lines[h->br].s); if (h->bc) h->bc--; return 1; }
+        if (base == 'c') return help_copy(w);
+    }
     switch (base) {
     case KEY_TAB: h->follow = 1; if (nl) h->link = (h->link + ((key & K_SHIFT) ? nl - 1 : 1)) % nl; return 1;
     case KEY_DOWN: case KEY_RIGHT: h->follow = 1; if (h->link < nl - 1 && (base == KEY_RIGHT || h->links[h->link + 1].row <= h->top + w->h - 3)) h->link++; else h->top++; return 1;
@@ -1187,6 +1215,66 @@ int help_key(Win *w, int key)
     case KEY_BKSP: help_prev(); return 1;
     }
     return 0;
+}
+
+int help_has_selection(Win *w) { HS *h = w->data; return h && h->sel_on; }
+
+int help_copy(Win *w)
+{
+    HS *h = w->data;
+    if (!h || !h->sel_on) return 0;
+    int sr, sc, er, ec;
+    sel_range(h, &sr, &sc, &er, &ec);
+    size_t cap = 256, n = 0;
+    for (int r = sr; r <= er && r < h->nlines; r++) cap += strlen(h->lines[r].s) + 1;
+    char *t = malloc(cap);
+    for (int r = sr; r <= er && r < h->nlines; r++) {
+        PLine *L = &h->lines[r];
+        if (L->kind == PL_RULE) continue;
+        int len = (int)strlen(L->s);
+        int c0 = r == sr ? sc : 0, c1 = r == er ? ec : len;
+        if (c1 > len) c1 = len;
+        if (!L->example && c0 == 0 && len && L->s[0] == ' ') c0 = 1;      /* the one-column margin is not text */
+        if (c0 < c1) { memcpy(t + n, L->s + c0, c1 - c0); n += c1 - c0; }
+        if (r < er) t[n++] = '\n';
+    }
+    t[n] = 0;
+    clip_set_text(t);
+    free(t);
+    return 1;
+}
+
+static void sel_pos(Win *w, HS *h, int x, int y, int *row, int *col)
+{
+    int r = y - w->y - 1 + h->top, c = x - w->x - 1;
+    if (r >= h->nlines) r = h->nlines - 1;
+    if (r < 0) r = 0;
+    int len = h->nlines ? (int)strlen(h->lines[r].s) : 0;
+    if (c >= len) c = len ? len - 1 : 0;
+    if (c < 0) c = 0;
+    *row = r; *col = c;
+}
+
+void help_mouse_press(Win *w, int x, int y)
+{
+    HS *h = w->data;
+    h->sel_on = 0; h->dragged = 0; h->px = x; h->py = y;
+    if (h->nlines) sel_pos(w, h, x, y, &h->ar, &h->ac);
+}
+
+void help_mouse_drag(Win *w, int x, int y)
+{
+    HS *h = w->data;
+    if (!h->nlines || (x == h->px && y == h->py && !h->dragged)) return;
+    h->dragged = 1; h->sel_on = 1;
+    if (y <= w->y) help_scroll(w, -1); else if (y >= w->y + w->h - 1) help_scroll(w, 1);      /* scroll when dragging past the edge */
+    sel_pos(w, h, x, y, &h->br, &h->bc);
+}
+
+void help_mouse_release(Win *w)
+{
+    HS *h = w->data;
+    if (!h->dragged) help_click(w, h->px, h->py);           /* no drag: an ordinary click */
 }
 
 void help_click(Win *w, int x, int y)

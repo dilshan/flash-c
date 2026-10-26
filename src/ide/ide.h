@@ -278,6 +278,11 @@ void help_bar_click(Win *w, int y);
 char *help_example_text(void);     /* program text of the current help topic (malloc'd) or NULL */
 int  help_key(Win *w, int key);
 void help_click(Win *w, int x, int y);
+void help_mouse_press(Win *w, int x, int y);    /* text selection with the mouse; a click without a drag follows a link */
+void help_mouse_drag(Win *w, int x, int y);
+void help_mouse_release(Win *w);
+int  help_has_selection(Win *w);
+int  help_copy(Win *w);                          /* copy the selected text to the Clipboard; 0 when nothing is selected */
 
 /* compile support */
 int  ide_build(int mode);            /* 0 compile, 1 make, 2 link, 3 build all; returns 0 on success */
@@ -289,6 +294,7 @@ int  file_exists(const char *p);
 void base_name(const char *path, char *out, int n);
 void set_status_text(const char *s);
 void clip_set_system(const char *text, int n);
+void clip_set_text(const char *text);          /* put text into the Clipboard window and the terminal clipboard */
 #endif
 
 /* ------------------------------------------------------------------ */

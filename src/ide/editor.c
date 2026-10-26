@@ -94,17 +94,22 @@ void clip_set_system(const char *text, int n)
     free(out);
 }
 
+void clip_set_text(const char *t)
+{
+    buf_clear(clipbuf);
+    int l = 0, c = 0;
+    buf_insert(clipbuf, &l, &c, t, -1);
+    clipbuf->modified = 0;
+    clip_set_system(t, (int)strlen(t));
+}
+
 void ed_copy(Win *w, int cut)
 {
     if (!ed_has_block(w)) return;
     int l1, c1, l2, c2;
     ed_block_range(w, &l1, &c1, &l2, &c2);
     char *t = buf_get(w->buf, l1, c1, l2, c2);
-    buf_clear(clipbuf);
-    int l = 0, c = 0;
-    buf_insert(clipbuf, &l, &c, t, -1);
-    clipbuf->modified = 0;
-    clip_set_system(t, (int)strlen(t));
+    clip_set_text(t);
     free(t);
     if (cut) {
         ur_l = w->cy; ur_c = w->cx; buf_group(w->buf);

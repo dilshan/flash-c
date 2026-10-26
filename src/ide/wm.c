@@ -455,7 +455,7 @@ void wm_mouse(void)
 {
     static int last_click_x = -1, last_click_y = -1; static time_t last_click_t;
     Win *act = win_active();
-    if (ms.ev == MS_RELEASE) { drag_mode = 0; return; }
+    if (ms.ev == MS_RELEASE) { if (drag_mode == 4 && act && act->kind == W_HELP) help_mouse_release(act); drag_mode = 0; return; }
     if (ms.ev == MS_DRAG && drag_mode && act) {
         if (drag_mode == 1) {
             act->x = ms.x - drag_dx; act->y = ms.y - drag_dy;
@@ -463,6 +463,7 @@ void wm_mouse(void)
             if (act->x < -(act->w - 8)) act->x = -(act->w - 8); if (act->x > SW - 8) act->x = SW - 8;
             act->zoomed = 0;
         } else if (drag_mode == 2) win_resize_to(act, ms.x - act->x + 1, ms.y - act->y + 1);
+        else if (drag_mode == 4 && act->kind == W_HELP) help_mouse_drag(act, ms.x, ms.y);
         else if (drag_mode == 3 && (act->kind == W_EDIT || act->kind == W_CLIP || act->kind == W_NOTES)) ed_mouse(act);
         return;
     }
@@ -520,7 +521,7 @@ void wm_mouse(void)
         return;
     }
     if (isedit) { drag_mode = 3; ed_mouse(w); return; }
-    if (w->kind == W_HELP) { help_click(w, ms.x, ms.y); return; }
+    if (w->kind == W_HELP) { drag_mode = 4; help_mouse_press(w, ms.x, ms.y); return; }
     /* list windows */
     int row = w->top + (ms.y - w->y - 1);
     int cnt = lw_count(w);
