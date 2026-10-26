@@ -51,6 +51,8 @@ int  dbg_find_function(const char *name, char *file, int n, int *line);
 
 /* program output produced while the IDE screen was displayed */
 const char *dbg_pending_output(int *len);
+/* called with every piece of program output as it is read from the pseudo terminal (the IDE copies it to the Output window) */
+extern void (*dbg_output_hook)(const char *data, int len);
 void dbg_clear_output(void);
 
 /* breakpoints */

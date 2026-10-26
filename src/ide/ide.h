@@ -334,6 +334,7 @@ void wm_resize(void);
 void wm_relayout_msg(int open);
 extern char **outlines; extern int noutlines;
 void out_clear(void); void out_add(const char *s);
+void out_feed(const char *data, int len);   /* program output in arbitrary pieces, split into lines for the Output window */
 int  win_edit_count(void);
 void list_win_key(Win *w, int key);
 extern int drag_mode;

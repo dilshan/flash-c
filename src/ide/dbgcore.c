@@ -171,6 +171,8 @@ static int set_regs(void) { return ptrace(PTRACE_SETREGS, pid, 0, &regs) == 0 ? 
 unsigned long dbg_reg_rbp(void) { return regs.rbp; }
 
 /* ------------------------------------------------------------------ output captured from the pty */
+void (*dbg_output_hook)(const char *data, int len);
+
 static void drain_master(int to_stdout)
 {
     char b[1024];
@@ -179,6 +181,7 @@ static void drain_master(int to_stdout)
         if (master < 0 || poll(&p, 1, 0) <= 0 || !(p.revents & POLLIN)) break;
         ssize_t n = read(master, b, sizeof b);
         if (n <= 0) break;
+        if (dbg_output_hook) dbg_output_hook(b, (int)n);
         if (to_stdout) { ssize_t w = write(1, b, n); (void)w; }
         else {
             if (outlen + n > outcap) { outcap = (outlen + (int)n) * 2 + 256; outbuf = realloc(outbuf, outcap); }
@@ -251,7 +254,7 @@ static int wait_stop(int nohang_pump)
             struct pollfd p[2] = { { master, POLLIN, 0 }, { 0, POLLIN, 0 } };
             if (poll(p, 2, 15) > 0) {
                 char b[1024];
-                if (p[0].revents & POLLIN) { ssize_t n = read(master, b, sizeof b); if (n > 0) { ssize_t w = write(1, b, n); (void)w; } }
+                if (p[0].revents & POLLIN) { ssize_t n = read(master, b, sizeof b); if (n > 0) { if (dbg_output_hook) dbg_output_hook(b, (int)n); ssize_t w = write(1, b, n); (void)w; } }
                 if (p[1].revents & POLLIN) { ssize_t n = read(0, b, sizeof b); if (n > 0 && memchr(b, 3, n)) kill(pid, SIGINT); else if (n > 0) { ssize_t w = write(master, b, n); (void)w; } }
             }
             continue;

@@ -139,6 +139,7 @@ static int ensure_session(void)
     if (!dbg_info_ok()) { msgbox(" Debugger ", "No debug information is available for this program.", MB_OK | MB_ERROR); return -1; }
     char exe[700]; ide_exe_name(exe, sizeof exe);
     char *abs = realpath(exe, NULL);
+    out_clear();                                  /* the Output window shows the output of this session only */
     int r = dbg_start(abs ? abs : exe, cfg.run_args);
     free(abs);
     if (r) { msgbox(" Debugger ", dbg_msg, MB_OK | MB_ERROR); return -1; }
@@ -146,7 +147,7 @@ static int ensure_session(void)
     return 1;
 }
 
-void dbgui_init(void) { dbg_screen_hook = screen_hook; dbg_radix = cfg.dbg_radix; }
+void dbgui_init(void) { dbg_screen_hook = screen_hook; dbg_output_hook = out_feed; dbg_radix = cfg.dbg_radix; }
 
 /* Ctrl+F9: with breakpoints (or while debugging) the program runs under the debugger */
 int dbgui_wants_run(void) { return dbg_state() == DS_STOPPED || (cfg.dbg_source != 2 && dbg_nbps > 0); }

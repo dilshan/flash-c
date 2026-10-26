@@ -32,11 +32,36 @@ void msg_add(int type, const char *file, int line, const char *text, int header)
     snprintf(m->file, sizeof m->file, "%s", file ? file : "");
     snprintf(m->text, sizeof m->text, "%s", text ? text : "");
 }
-void out_clear(void) { for (int i = 0; i < noutlines; i++) free(outlines[i]); noutlines = 0; }
+static int out_open;      /* the last line of the Output window is still being written (no new-line yet) */
+static int out_esc;       /* inside an escape sequence: 1 after ESC, 2 inside CSI */
+void out_clear(void) { for (int i = 0; i < noutlines; i++) free(outlines[i]); noutlines = 0; out_open = out_esc = 0; }
 void out_add(const char *s)
 {
     outlines = realloc(outlines, (noutlines + 1) * sizeof(char *));
     outlines[noutlines++] = strdup(s);
+}
+
+/* Appends program output to the Output window. The bytes may come in any pieces; a line that has not been
+   finished yet is shown at once and extended by later calls. Escape sequences are dropped, \r is ignored
+   and \b erases the previous character. */
+void out_feed(const char *data, int len)
+{
+    for (int i = 0; i < len; i++) {
+        unsigned char ch = data[i];
+        if (out_esc == 1) { out_esc = ch == '[' ? 2 : 0; continue; }
+        if (out_esc == 2) { if (ch >= 0x40 && ch <= 0x7e) out_esc = 0; continue; }
+        if (ch == 27) { out_esc = 1; continue; }
+        if (ch == '\r') continue;
+        if (ch == '\n') { if (!out_open) out_add(""); out_open = 0; continue; }
+        if (!out_open) { out_add(""); out_open = 1; }
+        char *line = outlines[noutlines - 1];
+        size_t used = strlen(line);
+        if (ch == '\b') { if (used) line[used - 1] = 0; continue; }
+        if (used >= 590) continue;                       /* absurdly long lines are cut */
+        line = realloc(line, used + 2);
+        line[used] = ch; line[used + 1] = 0;
+        outlines[noutlines - 1] = line;
+    }
 }
 
 /* ---------- window list ---------- */

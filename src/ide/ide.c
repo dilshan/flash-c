@@ -448,7 +448,6 @@ static int run_on_pty(const char *cmd)
     out_clear();
     struct termios o, raw; int have_t = tcgetattr(0, &o) == 0;
     if (have_t) { raw = o; cfmakeraw(&raw); tcsetattr(0, TCSAFLUSH, &raw); }
-    char line[600]; int ll = 0, esc = 0;
     for (;;) {
         struct pollfd pf[2] = { { mfd, POLLIN, 0 }, { 0, POLLIN, 0 } };
         if (poll(pf, 2, -1) < 0) { if (errno == EINTR) continue; break; }
@@ -460,19 +459,9 @@ static int run_on_pty(const char *cmd)
             char buf[1024]; ssize_t n = read(mfd, buf, sizeof buf);
             if (n <= 0) break;
             { ssize_t w = write(1, buf, n); (void)w; }
-            for (ssize_t i = 0; i < n; i++) {
-                unsigned char c = buf[i];
-                if (esc == 1) { esc = c == '[' ? 2 : 0; continue; }
-                if (esc == 2) { if (c >= 0x40 && c <= 0x7e) esc = 0; continue; }
-                if (c == 27) { esc = 1; continue; }
-                if (c == '\r') continue;
-                if (c == '\n') { line[ll] = 0; out_add(line); ll = 0; continue; }
-                if (c == '\b') { if (ll) ll--; continue; }
-                if (ll < (int)sizeof line - 1) line[ll++] = c;
-            }
+            out_feed(buf, (int)n);
         }
     }
-    if (ll) { line[ll] = 0; out_add(line); }
     if (have_t) tcsetattr(0, TCSAFLUSH, &o);
     close(mfd);
     waitpid(pid, &status, 0);

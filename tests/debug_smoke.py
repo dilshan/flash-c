@@ -105,6 +105,8 @@ try:
     t = text(s)
     check('exit message', 'Program exit code: 0' in t or 'Program terminated' in t, s)
     s.send('ENTER')
+    s.send('\x1bw', 'o')
+    check('Window|Output holds the output of the debugged program', 'Output' in text(s) and 'total=9' in text(s), s)
     s.send('\x1bfq')
     s.pump(0.5)
 finally:
