@@ -16,7 +16,7 @@ int nwins;
 Msg *msgs; int nmsgs, capmsgs, msgsel;
 Buf *clipbuf;
 char project_name[256];
-char **proj_files; int nproj, proj_sel;
+char **proj_files; ProjItem *proj_opts; int nproj, proj_sel;
 char **watches; int nwatch;
 char *notes_text;
 char **outlines; int noutlines;

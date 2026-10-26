@@ -703,12 +703,20 @@ static void relax_jumps(int base, int cfix0, int dln0)
     (void)base;
 }
 
+/* Local Options|Exclude debug information: functions defined in these files get no line table */
+static int file_without_debug(int fileid)
+{
+    for (int i = 0; i < CX->opt.nnodebug; i++)
+        if (!strcmp(CX->opt.nodebug_files[i], file_name(fileid))) return 1;
+    return 0;
+}
+
 static void gen_function(Sym *f)
 {
     int cfix0 = ncfix, dln0 = ndln;
     f->codepos = ncode;
     gen_fn = f; ngl = 0; ctl_sp = 0; nlabels = 0; njfix = 0;
-    dbg_rec = CX->opt.debug && fid_class(f->fileid) == FC_USER;
+    dbg_rec = CX->opt.debug && fid_class(f->fileid) == FC_USER && !file_without_debug(f->fileid);
     cont_label[0] = -1;
     b1(0x55); b3(0x48, 0x89, 0xE5);
     b3(0x48, 0x81, 0xEC);

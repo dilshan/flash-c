@@ -143,7 +143,14 @@ void msg_add(int type, const char *file, int line, const char *text, int header)
 
 extern Buf *clipbuf;
 extern char project_name[256];
-extern char **proj_files; extern int nproj, proj_sel;
+/* settings of one project item (Project|Local options); proj_opts[i] belongs to proj_files[i] */
+typedef struct ProjItem {
+    char cmd[200];          /* extra compiler switches, applied to the whole build */
+    char out[260];          /* where the executable is written: a file name or an existing directory */
+    int nodebug;            /* leave this file out of the debug information */
+    int nolink;             /* do not compile this file into the program */
+} ProjItem;
+extern char **proj_files; extern ProjItem *proj_opts; extern int nproj, proj_sel;
 extern char **watches; extern int nwatch;
 extern char *notes_text;
 
@@ -360,5 +367,5 @@ void dbgui_save_bps(FILE *f);
 void dbgui_load_bp(const char *s);
 void dlg_transfer(void);
 void dlg_colors(void);
-void dlg_local_options(const char *file);
+int  dlg_local_options(const char *file, ProjItem *item);   /* returns 1 if the settings were changed */
 void dlg_include_files(const char *file);

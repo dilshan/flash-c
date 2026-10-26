@@ -207,6 +207,19 @@ const char *ide_exe_name(char *buf, int n)
     char *dot = strrchr(src, '.'), *sl = strrchr(src, '/');
     if (dot && (!sl || dot > sl)) *dot = 0;
     char nm[300]; base_name(src, nm, sizeof nm);
+    /* the Output Path of a project item (Project|Local options) wins over Options|Directories */
+    for (int i = 0; i < nproj; i++) {
+        const char *op = proj_opts[i].out;
+        if (!op[0] || proj_opts[i].nolink) continue;
+        struct stat st;
+        size_t len = strlen(op);
+        int is_dir = op[len - 1] == '/' || (!stat(op, &st) && S_ISDIR(st.st_mode));
+        if (is_dir) {
+            while (len > 1 && op[len - 1] == '/') len--;
+            snprintf(buf, n, "%.*s/%s", (int)len, op, nm);
+        } else snprintf(buf, n, "%s", op);
+        return buf;
+    }
     if (cfg.outdir[0]) snprintf(buf, n, "%s/%s", cfg.outdir, nm);
     else if (sl) snprintf(buf, n, "%s", src);
     else snprintf(buf, n, "./%s", nm);
@@ -268,14 +281,50 @@ static int save_for_build(void)
 }
 
 /* mode: 0 compile, 1 make, 2 link, 3 build all, 4 run (make, quiet on success) */
+/* Creates the missing directories in front of the last component of a path (an Output Path may name new ones). */
+static void make_parent_dirs(const char *path)
+{
+    char dir[700];
+    snprintf(dir, sizeof dir, "%s", path);
+    for (char *slash = strchr(dir + 1, '/'); slash; slash = strchr(slash + 1, '/')) {
+        *slash = 0;
+        mkdir(dir, 0777);                       /* existing directories simply fail, which is fine */
+        *slash = '/';
+    }
+}
+
+/* Adds the command line options of the project items to the build. The compiler keeps pointers to the
+   switch texts, so they are copied into storage that outlives the compile. */
+static void apply_item_switches(FcOptions *opt)
+{
+    static char text[64][200];
+    int used = 0;
+    for (int i = 0; i < nproj; i++) {
+        if (proj_opts[i].nolink || !proj_opts[i].cmd[0]) continue;
+        char line[sizeof proj_opts[i].cmd];
+        snprintf(line, sizeof line, "%s", proj_opts[i].cmd);
+        for (char *tok = strtok(line, " \t"); tok && used < 64; tok = strtok(NULL, " \t")) {
+            snprintf(text[used], sizeof text[used], "%s", tok);
+            if (!fc_apply_switch(opt, text[used])) {
+                char warning[300];
+                snprintf(warning, sizeof warning, "Unknown option '%s' in the Local Options of %s", tok, proj_files[i]);
+                msg_add(0, "", 0, warning, 0);
+            }
+            used++;
+        }
+    }
+}
+
 int ide_build(int mode)
 {
     const char *files[64]; int nf = 0;
     char *owned[64];
+    const char *nodebug_src[64]; int nnodebug = 0;       /* project items without debug information */
     if (nproj > 0) {
         for (int i = 0; i < nproj && nf < 64; i++) {
             const char *p = proj_files[i]; const char *dot = strrchr(p, '.');
-            if (dot && !strcasecmp(dot, ".c")) files[nf++] = p;
+            if (dot && !strcasecmp(dot, ".c") && !proj_opts[i].nolink) files[nf++] = p;     /* "Exclude from link" items are skipped */
+            if (dot && !strcasecmp(dot, ".c") && !proj_opts[i].nolink && proj_opts[i].nodebug) nodebug_src[nnodebug++] = p;
         }
     } else {
         Win *w = any_edit();
@@ -288,7 +337,11 @@ int ide_build(int mode)
     if (nproj > 0 && save_for_build()) return 1;
     if (!nf) { msgbox(" Error ", "No source files in the project", MB_OK | MB_ERROR); return 1; }
     for (int i = 0; i < nf; i++) { char r[600]; rel_path(files[i], r, sizeof r); owned[i] = strdup(r); files[i] = owned[i]; }
+    /* the same names as handed to the compiler, so that it can recognise the files */
+    static char nodebug_names[16][600];
+    for (int i = 0; i < nnodebug && i < 16; i++) rel_path(nodebug_src[i], nodebug_names[i], sizeof nodebug_names[i]);
     char exe[700]; ide_exe_name(exe, sizeof exe);
+    make_parent_dirs(exe);
     char mainfile[300]; base_name(files[0], mainfile, sizeof mainfile);
     /* up to date? */
     if (mode == 1 || mode == 4) {
@@ -326,6 +379,8 @@ int ide_build(int mode)
     dbgui_reset();
     FcContext cx; memset(&cx, 0, sizeof cx);
     ide_fill_options(&cx.opt);
+    for (int i = 0; i < nnodebug && i < 16; i++) cx.opt.nodebug_files[cx.opt.nnodebug++] = nodebug_names[i];
+    apply_item_switches(&cx.opt);
     cx.diag = build_diag;
     int rc = fc_compile(&cx, files, nf, exe);
     last_lines = cx.lines; last_errors = cx.errors; last_warnings = cx.warnings;
@@ -551,14 +606,23 @@ static void close_window(Win *w)
 static void project_free(void)
 {
     for (int i = 0; i < nproj; i++) free(proj_files[i]);
-    free(proj_files); proj_files = NULL; nproj = 0; proj_sel = 0; project_name[0] = 0;
+    free(proj_files); proj_files = NULL; free(proj_opts); proj_opts = NULL;
+    nproj = 0; proj_sel = 0; project_name[0] = 0;
 }
 static void project_save(void)
 {
     if (!project_name[0]) return;
     FILE *f = fopen(project_name, "w"); if (!f) return;
     fprintf(f, "# Flash C project\n");
-    for (int i = 0; i < nproj; i++) fprintf(f, "%s\n", proj_files[i]);
+    for (int i = 0; i < nproj; i++) {
+        ProjItem *it = &proj_opts[i];
+        fprintf(f, "%s\n", proj_files[i]);
+        /* the settings of an item follow its name, indented */
+        if (it->cmd[0]) fprintf(f, "\tcmd=%s\n", it->cmd);
+        if (it->out[0]) fprintf(f, "\tout=%s\n", it->out);
+        if (it->nodebug) fprintf(f, "\tnodebug=1\n");
+        if (it->nolink) fprintf(f, "\tnolink=1\n");
+    }
     fclose(f);
     project_dirty = 0;
 }
@@ -566,6 +630,8 @@ static void project_add(const char *p)
 {
     for (int i = 0; i < nproj; i++) if (!strcmp(proj_files[i], p)) return;
     proj_files = realloc(proj_files, (nproj + 1) * sizeof(char *));
+    proj_opts = realloc(proj_opts, (nproj + 1) * sizeof *proj_opts);
+    memset(&proj_opts[nproj], 0, sizeof *proj_opts);
     proj_files[nproj++] = strdup(p);
     project_dirty = 1;
 }
@@ -581,6 +647,16 @@ static void project_open(const char *path)
         while (fgets(line, sizeof line, f)) {
             char *nl = strchr(line, '\n'); if (nl) *nl = 0;
             if (!line[0] || line[0] == '#') continue;
+            if (line[0] == '\t' || line[0] == ' ') {          /* a setting of the item above */
+                if (!nproj) continue;
+                ProjItem *it = &proj_opts[nproj - 1];
+                const char *kv = line + strspn(line, " \t");
+                if (!strncmp(kv, "cmd=", 4)) snprintf(it->cmd, sizeof it->cmd, "%s", kv + 4);
+                else if (!strncmp(kv, "out=", 4)) snprintf(it->out, sizeof it->out, "%s", kv + 4);
+                else if (!strcmp(kv, "nodebug=1")) it->nodebug = 1;
+                else if (!strcmp(kv, "nolink=1")) it->nolink = 1;
+                continue;
+            }
             project_add(line);
         }
         fclose(f);
@@ -908,8 +984,8 @@ void ide_command(int cmd)
         if (r) { char *rp = realpath(path, NULL); if (rp) { char rel[600]; rel_path(rp, rel, sizeof rel); project_add(rel); free(rp); project_save(); } else msgbox(" Error ", "File not found", MB_OK | MB_ERROR); }
         break;
     }
-    case cmDelItem: if (nproj) { free(proj_files[proj_sel]); memmove(&proj_files[proj_sel], &proj_files[proj_sel + 1], (nproj - proj_sel - 1) * sizeof(char *)); nproj--; if (proj_sel >= nproj) proj_sel = nproj ? nproj - 1 : 0; project_save(); } break;
-    case cmLocalOpts: if (nproj) dlg_local_options(proj_files[proj_sel]); break;
+    case cmDelItem: if (nproj) { free(proj_files[proj_sel]); memmove(&proj_files[proj_sel], &proj_files[proj_sel + 1], (nproj - proj_sel - 1) * sizeof(char *)); memmove(&proj_opts[proj_sel], &proj_opts[proj_sel + 1], (nproj - proj_sel - 1) * sizeof *proj_opts); nproj--; if (proj_sel >= nproj) proj_sel = nproj ? nproj - 1 : 0; project_save(); } break;
+    case cmLocalOpts: if (nproj && dlg_local_options(proj_files[proj_sel], &proj_opts[proj_sel])) project_save(); break;
     case cmIncludeFiles: if (nproj) dlg_include_files(proj_files[proj_sel]); break;
     case cmSizeMove: size_move(); break;
     case cmZoom: if (win_active()) win_zoom(win_active()); break;

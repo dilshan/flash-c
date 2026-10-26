@@ -56,6 +56,8 @@ typedef struct FcOptions {
     int nincdir;
     const char *defines[16]; /* NAME or NAME=VALUE */
     int ndefine;
+    const char *nodebug_files[16]; /* source files whose functions get no debug information (IDE: Local Options) */
+    int nnodebug;
 } FcOptions;
 
 typedef void (*FcDiagFn)(void *user, int severity, const char *file, int line, const char *msg);
@@ -70,6 +72,9 @@ typedef struct FcContext {
 } FcContext;
 
 void fc_options_default(FcOptions *o);
+/* Applies one command-line switch such as "-O" or "-DNAME=1" to the options. Returns 1 if the text is a switch
+   the compiler knows (the string must stay valid until the compile is over), 0 otherwise. */
+int  fc_apply_switch(FcOptions *o, const char *arg);
 /* Compile one or more C files (as one program) into an executable. Returns 0 on success. */
 int fc_compile(FcContext *c, const char **files, int nfiles, const char *outpath);
 /* Evaluate an integer constant expression (used by the IDE evaluator). Returns 0 on success. */

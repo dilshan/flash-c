@@ -48,6 +48,7 @@ test: $(BUILD)/fcc $(BUILD)/fc
 	python3 tests/helpexamples.py
 	sh tests/libtest.sh
 	python3 tests/ide_smoke.py
+	python3 tests/project_smoke.py
 	python3 tests/debug_smoke.py
 
 install: all
@@ -58,6 +59,7 @@ install: all
 
 clean:
 	rm -rf $(BUILD)
+	find . -name __pycache__ -type d -prune -exec rm -rf {} +
 
 help:
 	python3 tools/helpgen/gen.py help

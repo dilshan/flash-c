@@ -24,6 +24,64 @@ void fc_options_default(FcOptions *o)
     o->w_unreach = o->w_cond = o->w_ucp = o->w_cpt = 1;
 }
 
+/* Applies one command-line switch (the same switches fcc takes) to the options. */
+int fc_apply_switch(FcOptions *o, const char *arg)
+{
+    if (arg[0] != '-') return 0;
+    switch (arg[1]) {
+    case 'A': o->ansi_keywords = arg[2] != '-'; break;
+    case 'C': o->nested_comments = arg[2] != '-'; break;
+    case 'U': if (o->nundef < 16) o->undefs[o->nundef++] = arg + 2; break;
+    case 'b': o->enum_int = arg[2] != '-'; break;
+    case 'd': o->merge_strings = arg[2] != '-'; break;
+    case 'a': o->align_struct = arg[2] != '-'; break;
+    case 'N': o->stack_check = arg[2] != '-'; break;
+    case 'O': o->jump_opt = arg[2] != '-'; break;
+    case 'Z': o->redundant_loads = arg[2] != '-'; break;
+    case 'D': if (o->ndefine < 16) o->defines[o->ndefine++] = arg + 2; break;
+    case 'I': if (o->nincdir < 16) o->incdirs[o->nincdir++] = arg + 2; break;
+    case 'K': o->unsigned_char = arg[2] != '-'; break;
+    case 'f': o->fp_mode = !strcmp(arg + 2, "-") ? 0 : !strcmp(arg + 2, "87") ? 2 : 1; break;
+    case 'v': o->debug = 1; break;
+    case 'M': o->map = arg[2] == 'p' ? 2 : arg[2] == 'd' ? 3 : arg[2] == '-' ? 0 : 1; break;
+    case 'l':
+        if (!strcmp(arg + 2, "n") || !strcmp(arg + 2, "-d")) o->nolibs = 1;
+        else if (!strcmp(arg + 2, "nm")) o->nomath = 1;
+        else if (arg[2] == 's') o->stack_kb = atoi(arg + 3);
+        else if (arg[2] == 't') o->elf_symtab = arg[3] != '-';
+        else if (arg[2] == 'w') o->wx = arg[3] != '-';
+        break;
+    case 'j': o->max_errors = atoi(arg + 2); break;
+    case 'g': o->max_warnings = atoi(arg + 2); break;
+    case 'i': o->ident_len = atoi(arg + 2); break;
+    case 'w':
+        if (!arg[2]) { o->warn_level = 2; }
+        else if (!strcmp(arg + 2, "-")) { o->warn_level = 0; }
+        else {
+            /* -wxxx turns a warning on, -w-xxx turns it off */
+            int on = arg[2] != '-'; const char *w = arg + 2 + !on;
+            if (!strcmp(w, "use") || !strcmp(w, "aus")) o->w_unused = on;
+            else if (!strcmp(w, "pro") || !strcmp(w, "nod")) o->w_noproto = on;
+            else if (!strcmp(w, "ret") || !strcmp(w, "rvl")) o->w_noreturn = on;
+            else if (!strcmp(w, "par") || !strcmp(w, "rpt")) o->w_pointer = on;
+            else if (!strcmp(w, "sus")) o->w_susp = on;
+            else if (!strcmp(w, "ucp")) o->w_ucp = on;
+            else if (!strcmp(w, "cpt")) o->w_cpt = on;
+            else if (!strcmp(w, "eff")) o->w_noeffect = on;
+            else if (!strcmp(w, "asn")) o->w_assign = on;
+            else if (!strcmp(w, "zdi")) o->w_divzero = on;
+            else if (!strcmp(w, "voi")) o->w_voidret = on;
+            else if (!strcmp(w, "rch")) o->w_unreach = on;
+            else if (!strcmp(w, "amb")) o->w_amb = on;
+            else if (!strcmp(w, "stv")) o->w_structval = on;
+            else if (!strcmp(w, "cln")) o->w_cond = on;
+        }
+        break;
+    default: return 0;   /* not a switch the compiler knows */
+    }
+    return 1;
+}
+
 static const char *lib_dir(char kind)
 {
     return kind == '0' ? "c0" : kind == '1' ? "libc" : kind == '2' ? "libm" : "obj";
