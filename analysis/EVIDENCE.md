@@ -142,3 +142,22 @@ design (symbol-table format, how it resumes the program) is not observable that 
 | `Evaluate and Modify` (`Expression`, `Result`, `New Value`), `Data Inspect` / `Modify Data`, `Range Inspect` (`Starting Index`, `Count`), `Call Stack` | data access | same dialogs |
 | Messages `No program loaded.`, `Program terminated.`, `Program exit code: `, `Cannot be modified`, `Does not have range.`, `Cannot inspect: type not available`, `Too many inspectors` | status text | the same wording where it applies |
 | Mouse options: right button invokes Go to cursor / Toggle breakpoint / Inspect / Evaluate / Add watch; desktop options `Save all watch expressions` / `breakpoints` | | desktop file stores watches and breakpoints |
+
+## 8. Bit-fields
+
+REA could not open `TCC.EXE` (a 16-bit NE image), so the evidence is again the compiler's string table. It contains exactly
+these diagnostics about bit-fields, which Flash C reproduces word for word:
+
+| Message in the reference compiler | Flash C condition |
+|---|---|
+| `Bit fields must be signed or unsigned int` | field declared `char`, `short` or `long` |
+| `Bit fields must have integral type` | field of float, pointer, array or aggregate type |
+| `Bit fields must contain at least one bit` | named field of width 0 (or negative) |
+| `Bit field too large` | width above the size of `int` (32 in Flash C, 16 in the 16-bit original) |
+| `Illegal to take address of bit field` | unary `&` applied to a field |
+| `sizeof may not be applied to a bit field` | `sizeof` of a field |
+
+There is no IDE option for bit-fields in the reference product (the Options dialogs contain no related switch), so no
+dialog changed. The allocation order inside the storage unit is not observable from strings; Flash C uses the common
+least-significant-bit-first layout (`tests/cases/t21_bitfields.c` is checked against the host compiler).
+

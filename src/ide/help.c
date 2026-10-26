@@ -142,7 +142,7 @@ static const Topic topics[] = {
 "           function pointers.\n"
 " Sizes:    char 1, short 2, int 4, long 8, pointer 8 bytes.\n"
 " Also:    float and double; structures can be passed and returned by\n"
-"           value. Not yet: bit fields and compound literals.\n\n"
+"           value; bit fields (int / unsigned int, C89). Not yet: compound literals.\n\n"
 " Statements: if else while do for switch case default break continue\n"
 "           goto return, declarations anywhere in a block.\n"
 " Operators:  the complete C set including ?: , && || and assignment\n"

@@ -419,13 +419,15 @@ static int addr_const(Node *n, int *kind, Sym **sym, long long *add)
 }
 
 /* ---------- initializers ---------- */
-typedef struct InitItem { long long off; Type *ty; Node *e; struct InitItem *next; } InitItem;
+typedef struct InitItem { long long off; Type *ty; Node *e; struct InitItem *next; int bw, bsh, buns; } InitItem;
+static Member *init_bf;      /* bit field that receives the next scalar initialiser */
 typedef struct { InitItem *head, *tail; long long maxend; } Sink;
 
 static void sink_add(Sink *s, long long off, Type *ty, Node *e)
 {
     InitItem *it = xalloc(sizeof *it);
     it->off = off; it->ty = ty; it->e = e;
+    if (init_bf) { it->bw = init_bf->bw; it->bsh = init_bf->bsh; it->buns = init_bf->buns; init_bf = NULL; }
     if (s->tail) s->tail->next = it; else s->head = it;
     s->tail = it;
     if (off + ty->size > s->maxend) s->maxend = off + ty->size;
@@ -475,10 +477,13 @@ static void init_elems(Type *ty, long long off, Sink *sk, int braced)
             long long o = 0; Member *f = find_member(ty, nm->s, &o);
             if (!f) ERRAT(nm, "'%s' is not a member of '%s'", nm->s, type_str(ty));
             expect(P_ASSIGN, "'=' expected");
+            init_bf = f->bw ? f : NULL;
             init_object(f->ty, off + o, sk);
             m = f->next; first = 0;
         } else {
+            while (m && !m->name && m->bw) m = m->next;          /* unnamed bit fields take no initialiser */
             if (!m || (ty->kind == TY_UNION && !first)) { if (braced) ERR("Too many initializers"); break; }
+            init_bf = m->bw ? m : NULL;
             init_object(m->ty, off + m->off, sk);
             m = m->next; first = 0;
         }
@@ -489,11 +494,13 @@ static void init_elems(Type *ty, long long off, Sink *sk, int braced)
 
 static void init_object(Type *ty, long long off, Sink *sk)
 {
+    Member *bf = init_bf; init_bf = NULL;
     if (toks[tp].k == P_LBRC) {
         tp++;
         if (ty->kind == TY_ARRAY || is_agg(ty)) {
             init_elems(ty, off, sk, 1);
         } else {
+            init_bf = bf;
             init_object(ty, off, sk);
             accept(P_COMMA);
         }
@@ -521,6 +528,7 @@ static void init_object(Type *ty, long long off, Sink *sk)
     }
     Node *e = parse_assign();
     e = coerce(e, ty, 0, NULL);
+    init_bf = bf;
     sink_add(sk, off, ty, e);
 }
 
@@ -540,6 +548,14 @@ static void apply_global_init(Sink *sk, int base)
         if (e->k == N_FNUM) {
             if (it->ty->kind == TY_FLOAT) { float f = (float)e->fval; memcpy(PG.data + off, &f, 4); }
             else { double dd = e->fval; memcpy(PG.data + off, &dd, 8); }
+            continue;
+        }
+        if (it->bw) {
+            if (e->k != N_NUM) ERR("Initializer must be a constant expression");
+            uint32_t unit, mask = (it->bw == 32 ? 0xFFFFFFFFu : ((1u << it->bw) - 1));
+            memcpy(&unit, PG.data + off, 4);
+            unit = (unit & ~(mask << it->bsh)) | (((uint32_t)e->val & mask) << it->bsh);
+            memcpy(PG.data + off, &unit, 4);
             continue;
         }
         if (e->k == N_NUM) { store_scalar(PG.data + off, e->val, it->ty->size); continue; }
@@ -675,6 +691,7 @@ static Node *member_access(Node *base, Tok *nm, int arrow)
     Member *m = find_member(st, nm->s, &off);
     if (!m) ERRAT(nm, "Undefined structure member '%s'", nm->s);
     Node *n = mk(N_MEMBER, m->ty); n->l = base; n->val = off;
+    n->bw = m->bw; n->bsh = m->bsh; n->buns = m->buns;
     return n;
 }
 
@@ -777,6 +794,7 @@ static Node *make_unary(int tk, Tok *t)
         if (o->k == N_CAST && 0) {}
         if (o->ty->kind == TY_FUNC || (o->k == N_VAR && o->sym->kind == SY_FUNC)) return rv(o);
         if (!is_lvalue(o)) ERRAT(t, "Must take address of a memory location");
+        if (o->k == N_MEMBER && o->bw) ERRAT(t, "Illegal to take address of bit field");
         if (o->k == N_VAR) { o->sym->used = 1; }
         Node *a = mk(N_ADDR, ptr_to(o->ty)); a->l = o; return a;
     }
@@ -832,6 +850,7 @@ static Node *parse_unary(void)
         } else {
             int sv_ref = 0; (void)sv_ref;
             Node *e = parse_unary();
+            if (e->k == N_MEMBER && e->bw) ERRAT(t, "sizeof may not be applied to a bit field");
             sz = e->ty->size;
             if (e->ty->kind == TY_FUNC) sz = 1;
         }
@@ -1067,6 +1086,7 @@ static Type *parse_struct(int is_union)
     if (ty->complete) ERRAT(kw, "Type mismatch in redeclaration of '%s'", tag ? tag : "");
     Member *head = NULL, **tail = &head;
     int off = 0, align = 1, size = 0;
+    int unit = 0, bu = 0;          /* open bit-field unit: its offset and the bits already used (0 = none open) */
     while (toks[tp].k != P_RBRC) {
         if (toks[tp].k == TK_EOF) ERR("Declaration terminated incorrectly");
         int st, td, gt;
@@ -1077,6 +1097,7 @@ static Type *parse_struct(int is_union)
             if (is_agg(bt) && !bt->tag) {
                 Member *m = xalloc(sizeof *m); m->name = NULL; m->ty = bt;
                 if (bt->align > align) align = bt->align;
+                bu = 0;
                 if (is_union) { m->off = 0; if (bt->size > size) size = bt->size; }
                 else { off = (off + bt->align - 1) & ~(bt->align - 1); m->off = off; off += bt->size; size = off; }
                 *tail = m; tail = &m->next;
@@ -1085,8 +1106,31 @@ static Type *parse_struct(int is_union)
         }
         for (;;) {
             char *name = NULL;
-            Type *mt = parse_declarator(bt, &name);
-            if (toks[tp].k == P_COLON) ERR("Bit fields are not supported in this version");
+            Type *mt = toks[tp].k == P_COLON ? bt : parse_declarator(bt, &name);
+            if (toks[tp].k == P_COLON) {                      /* bit field (C89: int, signed int, unsigned int) */
+                Tok *ct = &toks[tp++];
+                long long w = const_expr();
+                if (mt->kind == TY_CHAR || mt->kind == TY_SHORT || mt->kind == TY_LONG) ERRAT(ct, "Bit fields must be signed or unsigned int");
+                if (mt->kind != TY_INT) ERRAT(ct, "Bit fields must have integral type");
+                if (w < 0 || (w == 0 && name)) ERRAT(ct, "Bit fields must contain at least one bit");
+                if (w > 32) ERRAT(ct, "Bit field too large");
+                if (name) for (Member *o = head; o; o = o->next) if (o->name == name) ERR("Duplicate member '%s'", name);
+                if (4 > align) align = 4;
+                if (w == 0) bu = 32;                          /* the next field starts a new unit */
+                else {
+                    Member *m = xalloc(sizeof *m);
+                    m->name = name; m->bw = (int)w; m->buns = mt->uns;
+                    m->ty = (mt->uns && w == 32) ? ty_uint : ty_int;      /* narrower unsigned fields promote to int */
+                    if (is_union) { m->off = 0; m->bsh = 0; if (size < 4) size = 4; }
+                    else {
+                        if (bu == 0 || bu + (int)w > 32) { off = (off + 3) & ~3; unit = off; off += 4; size = off; bu = 0; }
+                        m->off = unit; m->bsh = bu; bu += (int)w;
+                    }
+                    if (name) { *tail = m; tail = &m->next; }
+                }
+                if (!accept(P_COMMA)) break;
+                continue;
+            }
             if (!name) ERR("Declaration syntax error");
             if (mt->kind == TY_FUNC) ERR("Size of the type is unknown or zero");
             if (!mt->complete || (mt->kind == TY_ARRAY && mt->len < 0)) ERR("Size of the type is unknown or zero");
@@ -1094,6 +1138,7 @@ static Type *parse_struct(int is_union)
             Member *m = xalloc(sizeof *m);
             m->name = name; m->ty = mt;
             if (mt->align > align) align = mt->align;
+            bu = 0;
             if (is_union) { m->off = 0; if (mt->size > size) size = mt->size; }
             else { off = (off + mt->align - 1) & ~(mt->align - 1); m->off = off; off += mt->size; size = off; }
             *tail = m; tail = &m->next;
@@ -1335,7 +1380,8 @@ static Node *local_init_nodes(Sym *y, Sink *sk)
     for (InitItem *it = sk->head; it; it = it->next) {
         Node *base = mk(N_VAR, y->ty); base->sym = y;
         Node *lv;
-        if (it->off == 0 && same_type(it->ty, y->ty) && !(y->ty->kind == TY_ARRAY)) lv = base;
+        if (it->bw) { lv = mk(N_MEMBER, it->ty); lv->l = base; lv->val = it->off; lv->bw = it->bw; lv->bsh = it->bsh; lv->buns = it->buns; }
+        else if (it->off == 0 && same_type(it->ty, y->ty) && !(y->ty->kind == TY_ARRAY)) lv = base;
         else {
             Node *a = mk(N_ADDR, ptr_to(ty_char)); a->l = base;
             Node *sum = mkbin(B_ADD, a, mknum(it->off, ty_long), ptr_to(it->ty), 1);

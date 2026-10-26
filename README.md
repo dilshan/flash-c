@@ -83,7 +83,14 @@ conveniences (declarations anywhere in a block, `//` comments, designated initia
 
 Whole `struct`s can be passed to and returned from functions by value.
 
-**Not implemented yet:** bit-fields, compound
+**Bit-fields** follow C89: members declared `int`, `signed int` or `unsigned int` with a constant
+width of 1 to 32 bits (`unsigned flag : 1;`), unnamed fields (`int : 3;`) and `: 0` to start a new
+unit. Fields are packed from the least significant bit into 32-bit units and never straddle a unit; a
+plain `int` field is signed. Fields can be read, assigned, used with `++`/`--`/`op=`, initialised in
+brace initialisers, copied with their struct and shown by the debugger. Taking their address or
+applying `sizeof` is an error, as are `char`, `short` and `long` fields.
+
+**Not implemented yet:** compound
 literals, variable-length arrays, `long long` as a distinct type (it is `long`), `long double`
 (it is `double`).
 

@@ -17,7 +17,7 @@ int dbg_cur_line(void);
 unsigned long dbg_cur_fp(void);
 const FcDebug *dbg_info(void);
 
-typedef struct EV { FcDType *ty; int lv; unsigned long addr; long long i; double f; } EV;
+typedef struct EV { FcDType *ty; int lv; unsigned long addr; long long i; double f; int bw, bsh, buns; } EV;   /* bw > 0: bit field in the 32-bit unit at addr */
 
 static FcDType t_void = { FCT_VOID, 0, 0, 0 }, t_char = { FCT_CHAR, 1, 0, 0 }, t_uchar = { FCT_CHAR, 1, 1, 0 },
     t_short = { FCT_SHORT, 2, 0, 0 }, t_ushort = { FCT_SHORT, 2, 1, 0 }, t_int = { FCT_INT, 4, 0, 0 }, t_uint = { FCT_INT, 4, 1, 0 },
@@ -70,6 +70,13 @@ static void load(EV *v)
 {
     if (!v->lv) return;
     if (is_agg(v->ty) || v->ty->kind == FCT_FUNC) return;
+    if (v->bw) {
+        unsigned u;
+        if (dbg_read_memory(v->addr, &u, 4)) evfail("Cannot access memory at 0x%lX", v->addr);
+        unsigned long long x = ((unsigned long long)u << (64 - v->bsh - v->bw));
+        v->i = v->buns ? (long long)(x >> (64 - v->bw)) : ((long long)x >> (64 - v->bw));
+        v->lv = 2; return;
+    }
     unsigned char b[16] = { 0 };
     int n = v->ty->size;
     if (n < 1 || n > 8) return;
@@ -320,7 +327,9 @@ static void expr_primary(EV *v)
             if (arrow) { rvalue(v); if (v->ty->kind != FCT_PTR || !v->ty->base) evfail("Structure required on left side of ->"); v->addr = (unsigned long)v->i; v->ty = v->ty->base; v->lv = 1; }
             if (v->ty->kind != FCT_STRUCT && v->ty->kind != FCT_UNION) evfail("Structure required on left side of . or ->");
             int found = 0;
-            for (int i = 0; i < v->ty->nmem; i++) if (!strcmp(v->ty->mem[i].name, name)) { v->addr += v->ty->mem[i].off; v->ty = v->ty->mem[i].ty; v->lv = 1; found = 1; break; }
+            for (int i = 0; i < v->ty->nmem; i++) if (!strcmp(v->ty->mem[i].name, name)) {
+                v->addr += v->ty->mem[i].off; v->bw = v->ty->mem[i].bw; v->bsh = v->ty->mem[i].bsh; v->buns = v->ty->mem[i].buns;
+                v->ty = v->ty->mem[i].ty; v->lv = 1; found = 1; break; }
             if (!found) evfail("Undefined structure member '%s'", name);
         } else if (src[pos] == '(') evfail("Function calls are not supported");
         else break;
@@ -343,6 +352,7 @@ static void expr_unary(EV *v)
     if (accept_op("&")) {
         expr_unary(v);
         if (!v->lv) evfail("Cannot take the address of a value");
+        if (v->bw) evfail("Illegal to take address of bit field");
         FcDType *pt = ptr_to(v->ty);
         mkint(v, (long long)v->addr, pt); return;
     }
@@ -437,6 +447,15 @@ static void store(EV *lhs, EV *rhs)
 {
     if (!lhs->lv) evfail("Cannot be modified");
     if (is_agg(lhs->ty) || lhs->ty->kind == FCT_FUNC) evfail("Cannot be modified");
+    if (lhs->bw) {
+        EV r = *rhs; convert(&r, lhs->ty);
+        unsigned u, mask = lhs->bw == 32 ? 0xFFFFFFFFu : ((1u << lhs->bw) - 1);
+        if (dbg_read_memory(lhs->addr, &u, 4)) evfail("Cannot access memory at 0x%lX", lhs->addr);
+        u = (u & ~(mask << lhs->bsh)) | (((unsigned)r.i & mask) << lhs->bsh);
+        if (dbg_write_memory(lhs->addr, &u, 4)) evfail("Cannot access memory at 0x%lX", lhs->addr);
+        lhs->lv = 1; load(lhs);
+        return;
+    }
     EV r = *rhs; convert(&r, lhs->ty);
     unsigned char b[8] = { 0 };
     if (lhs->ty->kind == FCT_FLOAT) { float f = (float)r.f; memcpy(b, &f, 4); }
@@ -542,7 +561,7 @@ static void format_value(EV *v, char *o, int n, int depth)
         if (depth > 2) { snprintf(o, n, "{...}"); return; }
         int k = snprintf(o, n, "{");
         for (int i = 0; i < t->nmem && k < n - 12; i++) {
-            EV e; memset(&e, 0, sizeof e); e.ty = t->mem[i].ty; e.lv = 1; e.addr = v->addr + t->mem[i].off;
+            EV e; memset(&e, 0, sizeof e); e.ty = t->mem[i].ty; e.lv = 1; e.addr = v->addr + t->mem[i].off; e.bw = t->mem[i].bw; e.bsh = t->mem[i].bsh; e.buns = t->mem[i].buns;
             char s[100]; format_value(&e, s, sizeof s, depth + 1);
             k += snprintf(o + k, n - k, "%s%s:%s", i ? "," : "", t->mem[i].name, s);
         }
@@ -641,7 +660,7 @@ int dbg_inspect_lines(const char *expr, char (*lines)[160], char (*exprs)[160], 
     snprintf(title, tn, "%s (%s)", expr, tb);
     if (t->kind == FCT_STRUCT || t->kind == FCT_UNION) {
         for (int i = 0; i < t->nmem && cnt < max; i++) {
-            EV m; memset(&m, 0, sizeof m); m.ty = t->mem[i].ty; m.lv = 1; m.addr = v.addr + t->mem[i].off;
+            EV m; memset(&m, 0, sizeof m); m.ty = t->mem[i].ty; m.lv = 1; m.addr = v.addr + t->mem[i].off; m.bw = t->mem[i].bw; m.bsh = t->mem[i].bsh; m.buns = t->mem[i].buns;
             char s[120]; format_value(&m, s, sizeof s, 1);
             snprintf(lines[cnt], 160, "%-14s %s", t->mem[i].name, s);
             snprintf(exprs[cnt], 160, "(%s).%s", e, t->mem[i].name); cnt++;

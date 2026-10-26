@@ -64,7 +64,7 @@ const char *fc_link_module_at(int i, const char **lib, long *bytes);
 /* ---- source-level debug information of the last successful compile (valid until the next compile) ---- */
 enum { FCT_VOID, FCT_CHAR, FCT_SHORT, FCT_INT, FCT_LONG, FCT_FLOAT, FCT_DOUBLE, FCT_PTR, FCT_ARRAY, FCT_STRUCT, FCT_UNION, FCT_FUNC };
 typedef struct FcDType FcDType;
-typedef struct FcDMember { const char *name; FcDType *ty; int off; } FcDMember;
+typedef struct FcDMember { const char *name; FcDType *ty; int off; int bw, bsh, buns; } FcDMember;   /* bw > 0: bit field */
 struct FcDType { int kind, size, uns, len; FcDType *base; const char *tag; FcDMember *mem; int nmem; };
 typedef struct FcDVar { const char *name; FcDType *ty; int off; int is_param; int line0, line1; } FcDVar;  /* off: rbp offset */
 typedef struct FcDFunc {

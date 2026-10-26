@@ -1,0 +1,9 @@
+Error bitf1.c 2: Bit fields must be signed or unsigned int
+Error bitf1.c 3: Bit fields must be signed or unsigned int
+Error bitf1.c 4: Bit fields must be signed or unsigned int
+Error bitf1.c 5: Bit fields must have integral type
+Error bitf1.c 6: Bit field too large
+Error bitf1.c 7: Bit fields must contain at least one bit
+Error bitf1.c 8: Bit fields must contain at least one bit
+Error bitf1.c 12: Illegal to take address of bit field
+Error bitf1.c 13: sizeof may not be applied to a bit field

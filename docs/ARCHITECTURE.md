@@ -65,7 +65,7 @@ the link map and the "module" in linker errors name the library module.
 * **Link map** (`-M/-Mp/-Md`): `write_map` lists `_TEXT/_DATA/_BSS`, public symbols and the
   detailed segment map using the same symbol records.
 * Library-internal helpers are `static` functions with globally unique `__prefix` names (statics
-  share one scope across modules). Libraries may not use bit-fields or compound literals.
+  share one scope across modules). Libraries may not use compound literals.
 
 `printf("%f")` uses an exact big-number decimal expansion of the binary value and rounds half to
 even, and matched glibc in every comparison in `tests/cases`. `math.h` is implemented with
@@ -131,6 +131,6 @@ Design points:
   debug tables.
 
 ## 4. Ideas for next steps
-Bit-fields, a real optimizer pass (the code generator is
+A real optimizer pass (the code generator is
 deliberately simple), `long double`, locale-independent `strftime`/`time.h`, a proper `.fcp`
 project dialog with per-file options.

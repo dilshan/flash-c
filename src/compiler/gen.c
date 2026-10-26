@@ -145,6 +145,33 @@ static void store_local(int off, Type *t)
     d32(off);
 }
 
+/* ---------- bit fields: a field lives in a 32-bit unit at the member offset ---------- */
+static int is_bf(Node *n) { return n->k == N_MEMBER && n->bw > 0; }
+static void bf_extract(Node *m)                 /* rax = unit value -> rax = field value */
+{
+    b3(0x48, 0xC1, 0xE0); b1((uint8_t)(64 - m->bsh - m->bw));            /* shl rax,64-sh-w */
+    b3(0x48, 0xC1, m->buns ? 0xE8 : 0xF8); b1((uint8_t)(64 - m->bw));    /* shr / sar rax,64-w */
+}
+static void bf_load(Node *m)                    /* rax = address of the unit -> rax = field value */
+{
+    b2(0x8B, 0x00);                                                      /* mov eax,[rax] */
+    bf_extract(m);
+}
+static void bf_store(Node *m)                   /* rax = value, rcx = address of the unit -> rax = stored value */
+{
+    uint32_t mask = (m->bw == 32 ? 0xFFFFFFFFu : ((1u << m->bw) - 1)) << m->bsh;
+    b3(0x48, 0x89, 0xC2);                                                /* mov rdx,rax */
+    b3(0x48, 0xC1, 0xE2); b1((uint8_t)(64 - m->bw));                     /* shl rdx,64-w */
+    b3(0x48, 0xC1, 0xEA); b1((uint8_t)(64 - m->bw));                     /* shr rdx,64-w */
+    if (m->bsh) { b3(0x48, 0xC1, 0xE2); b1((uint8_t)m->bsh); }           /* shl rdx,sh */
+    b2(0x8B, 0x31);                                                      /* mov esi,[rcx] */
+    b2(0x81, 0xE6); d32((int)~mask);                                     /* and esi,~mask */
+    b2(0x09, 0xD6);                                                      /* or esi,edx */
+    b2(0x89, 0x31);                                                      /* mov [rcx],esi */
+    b3(0x48, 0xC1, 0xE0); b1((uint8_t)(64 - m->bw));                     /* shl rax,64-w */
+    b3(0x48, 0xC1, m->buns ? 0xE8 : 0xF8); b1((uint8_t)(64 - m->bw));    /* shr / sar rax,64-w */
+}
+
 static void gen_cast(Type *from, Type *to)
 {
     if (to->kind == TY_VOID || !is_scalar(to) || !is_scalar(from)) return;
@@ -337,9 +364,10 @@ static void gen_incdec(Node *n)
     int pre = n->k == N_PREINC || n->k == N_PREDEC;
     int inc = n->k == N_PREINC || n->k == N_POSTINC;
     Type *t = n->l->ty;
+    int bf = is_bf(n->l);
     gen_addr(n->l);
     push_rax();                 /* [addr] */
-    load_ind(t);                /* rax = old */
+    if (bf) bf_load(n->l); else load_ind(t);                /* rax = old */
     if (!pre) push_rax();       /* [addr, old] */
     if (is_flt(t)) {
         movq_x0_rax(); b2(0x48, 0xB9); d64(0x3FF0000000000000LL); movq_x1_rcx();
@@ -351,7 +379,7 @@ static void gen_incdec(Node *n)
     }
     if (!pre) { b4(0x48, 0x8B, 0x4C, 0x24); b1(8); }       /* mov rcx,[rsp+8] */
     else { b3(0x48, 0x8B, 0x0C); b1(0x24); }               /* mov rcx,[rsp] */
-    store_ind(t);
+    if (bf) bf_store(n->l); else store_ind(t);
     if (!pre) { pop_rax(); pop_rcx(); }                    /* rax = old; drop addr */
     else pop_rcx();
 }
@@ -359,17 +387,18 @@ static void gen_incdec(Node *n)
 static void gen_assignop(Node *n)
 {
     Type *lt = n->l->ty, *ct = n->cty;
+    int bf = is_bf(n->l);
     gen_addr(n->l);
     push_rax();
     gen_expr(n->r);
     mov_rcx_rax();
     b4(0x48, 0x8B, 0x04, 0x24);          /* mov rax,[rsp] */
-    load_ind(lt);
+    if (bf) bf_load(n->l); else load_ind(lt);
     gen_cast(lt, ct);
     if (is_flt(ct)) { gen_fop(n->op); if (ct->kind == TY_FLOAT) { movq_x0_rax(); cvt_sd2ss(); cvt_ss2sd(); movq_rax_x0(); } } else { gen_op_rr(n->op, ct->uns); gen_norm(ct); }
     gen_cast(ct, lt);
     pop_rcx();
-    store_ind(lt);
+    if (bf) bf_store(n->l); else store_ind(lt);
 }
 
 static void gen_expr(Node *n)
@@ -384,7 +413,7 @@ static void gen_expr(Node *n)
         gen_addr(n); load_ind(n->ty); return;
     case N_ADDR: gen_addr(n->l); return;
     case N_DEREF: gen_expr(n->l); load_ind(n->ty); return;
-    case N_MEMBER: gen_addr(n); load_ind(n->ty); return;
+    case N_MEMBER: gen_addr(n); if (is_bf(n)) bf_load(n); else load_ind(n->ty); return;
     case N_ASSIGN:
         if (is_agg(n->ty)) {
             gen_expr(n->r); push_rax();
@@ -402,7 +431,7 @@ static void gen_expr(Node *n)
         gen_addr(n->l);
         mov_rcx_rax();
         pop_rax();
-        store_ind(n->l->ty);
+        if (is_bf(n->l)) bf_store(n->l); else store_ind(n->l->ty);
         return;
     case N_ASSIGNOP: gen_assignop(n); return;
     case N_COND: {
@@ -835,7 +864,8 @@ static FcDType *dtype(Type *t)
         d->mem = dalloc(n * sizeof *d->mem);
         for (Member *m = t->members; m; m = m->next) {
             d->mem[d->nmem].name = m->name ? dstr(m->name) : "";
-            d->mem[d->nmem].ty = dtype(m->ty); d->mem[d->nmem].off = m->off; d->nmem++;
+            d->mem[d->nmem].ty = dtype(m->ty); d->mem[d->nmem].off = m->off;
+            d->mem[d->nmem].bw = m->bw; d->mem[d->nmem].bsh = m->bsh; d->mem[d->nmem].buns = m->buns; d->nmem++;
         }
     }
     return d;
