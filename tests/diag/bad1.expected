@@ -1,0 +1,9 @@
+Error bad1.c 2: Statement missing ;
+Error bad1.c 6: Undefined symbol 'y' in function main
+Error bad1.c 7: Too few parameters in call to 'f'
+Error bad1.c 8: Statement missing ;
+Warning bad1.c 9: Call to function 'foo' with no prototype
+Warning bad1.c 10: Possibly incorrect assignment
+Warning bad1.c 11: Non-portable pointer conversion
+Warning bad1.c 12: 'unused' is declared but never used
+Warning bad1.c 13: Function should return a value
