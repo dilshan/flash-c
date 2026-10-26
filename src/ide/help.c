@@ -974,11 +974,17 @@ static void build_index(void)
 }
 
 static char ix_text[100], ix_last[100];
+static DItem *dlg_find_list(Dialog *d)      /* the labelled input adds a label item, so the list is not at a fixed index */
+{
+    for (int i = 0; i < d->n; i++) if (d->it[i].type == D_LIST) return &d->it[i];
+    return NULL;
+}
 static void ix_change(Dialog *d)
 {
     if (!strcmp(ix_text, ix_last)) return;
     snprintf(ix_last, sizeof ix_last, "%s", ix_text);
-    DItem *l = &d->it[1];
+    DItem *l = dlg_find_list(d);
+    if (!l) return;
     size_t n = strlen(ix_text);
     for (int i = 0; i < nient; i++) if (!strncasecmp(ient[i].name, ix_text, n)) {
         l->sel = i;
@@ -999,14 +1005,14 @@ static int index_dialog(const char *initial)
     Dialog d; dlg_init(&d, " Index ");
     d.w = 44; d.h = SH > 22 ? 20 : 16; d.on_change = ix_change;
     dlg_input(&d, 3, 1, 36, "~S~earch for", ix_text, sizeof ix_text, "Type the first letters of a topic name");
-    int lh = d.h - 7;
+    int lh = d.h - 9;                                           /* two free rows between the list and the buttons */
     dlg_list(&d, 3, 4, 36, lh, items, nient, "Use cursor keys to examine the list; Enter shows the topic");
-    d.it[1].link = 0;
     dlg_button(&d, 3, d.h - 3, 10, "~S~how", cmOK, 1, NULL);
     dlg_button(&d, 15, d.h - 3, 10, "Cancel", cmCancel, 0, NULL);
     ix_change(&d);
     int r = dlg_run(&d);
-    int t = (r == cmOK && d.it[1].sel < nient) ? ient[d.it[1].sel].topic : -1;
+    DItem *list = dlg_find_list(&d);
+    int t = (r == cmOK && list && list->sel < nient) ? ient[list->sel].topic : -1;
     free(items);
     return t;
 }
@@ -1042,8 +1048,8 @@ void help_topic_search(const char *word)
             char **items = malloc(n * sizeof *items);
             for (int i = 0; i < n; i++) items[i] = tps[cand[i]].title;
             Dialog d; dlg_init(&d, " Topic search ");
-            d.w = 44; d.h = n + 8 > 18 ? 18 : n + 8;
-            dlg_list(&d, 3, 1, 36, d.h - 5, items, n, "Choose the topic to display");
+            d.w = 44; d.h = n + 6 > 18 ? 18 : n + 6;
+            dlg_list(&d, 3, 1, 36, d.h - 6, items, n, "Choose the topic to display");
             dlg_button(&d, 3, d.h - 3, 10, "~S~how", cmOK, 1, NULL);
             dlg_button(&d, 15, d.h - 3, 10, "Cancel", cmCancel, 0, NULL);
             int r = dlg_run(&d), sel = d.it[0].sel;
