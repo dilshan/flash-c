@@ -277,6 +277,8 @@ void help_topic_search(const char *word);
 void help_prev(void);
 void help_draw(Win *w, int active);
 void help_free(Win *w);
+void help_scroll(Win *w, int delta);
+void help_bar_click(Win *w, int y);
 char *help_example_text(void);     /* program text of the current help topic (malloc'd) or NULL */
 int  help_key(Win *w, int key);
 void help_click(Win *w, int x, int y);

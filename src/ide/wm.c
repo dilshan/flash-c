@@ -470,6 +470,7 @@ void wm_mouse(void)
         Win *w = win_at(ms.x, ms.y);
         if (!w) return;
         if (w->kind == W_EDIT || w->kind == W_CLIP || w->kind == W_NOTES) ed_mouse(w);
+        else if (w->kind == W_HELP) help_scroll(w, ms.ev == MS_WHEEL_UP ? -3 : 3);
         else list_win_key(w, ms.ev == MS_WHEEL_UP ? KEY_UP : KEY_DOWN);
         return;
     }
@@ -503,6 +504,7 @@ void wm_mouse(void)
     if (ms.y == w->y + w->h - 1 && ms.x == w->x + w->w - 1) { drag_mode = 2; return; }
     int isedit = w->kind == W_EDIT || w->kind == W_CLIP || w->kind == W_NOTES;
     if (ms.x == w->x + w->w - 1) {   /* vertical scroll bar */
+        if (w->kind == W_HELP) { help_bar_click(w, ms.y); return; }
         if (isedit) {
             int key = 0;
             if (ms.y == w->y + 1) key = KEY_UP; else if (ms.y == w->y + w->h - 2) key = KEY_DOWN;

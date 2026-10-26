@@ -683,6 +683,32 @@ char *help_example_text(void)
     return r;
 }
 
+/* scroll the text by delta lines (mouse wheel, scroll bar); the selected link follows the view */
+void help_scroll(Win *w, int delta)
+{
+    HS *h = w->data;
+    int hh = w->h - 2, max = h->nlines - hh;
+    if (max < 0) max = 0;
+    h->top += delta;
+    if (h->top > max) h->top = max;
+    if (h->top < 0) h->top = 0;
+    if (!h->nlinks) return;
+    int k = h->link;
+    while (k < h->nlinks - 1 && h->links[k].row < h->top) k++;
+    while (k > 0 && h->links[k].row >= h->top + hh) k--;
+    h->link = k;
+}
+
+/* click on the vertical scroll bar */
+void help_bar_click(Win *w, int y)
+{
+    int hh = w->h - 2;
+    if (y <= w->y + 1) help_scroll(w, -1);
+    else if (y >= w->y + w->h - 2) help_scroll(w, 1);
+    else if (y < w->y + w->h / 2) help_scroll(w, -(hh - 1));
+    else help_scroll(w, hh - 1);
+}
+
 void help_draw(Win *w, int active)
 {
     HS *h = w->data;
@@ -703,6 +729,13 @@ void help_draw(Win *w, int active)
         int y = w->y + 1 + r;
         if (L->example) scr_fill(w->x + 1, y, wd, 1, ' ', pal[P_HELP_EXAMPLE]);
         scr_strn(w->x + 1, y, L->s, wd, L->example ? pal[P_HELP_EXAMPLE] : norm);
+    }
+    if (w->h > 4) {                                              /* scroll bar */
+        int sx = w->x + w->w - 1;
+        scr_put(sx, w->y + 1, 0x25B2, pal[P_ED_ARROWS]); scr_put(sx, w->y + w->h - 2, 0x25BC, pal[P_ED_ARROWS]);
+        for (int yy = w->y + 2; yy < w->y + w->h - 2; yy++) scr_put(sx, yy, 0x2592, pal[P_ED_SCROLL]);
+        int span = w->h - 5, max = h->nlines - hh;
+        if (span > 0) scr_put(sx, w->y + 2 + (max > 0 ? (int)((long)h->top * span / max) : 0), 0x25A0, pal[P_ED_THUMB]);
     }
     for (int i = 0; i < h->nlinks; i++) {
         PLink *k = &h->links[i];
