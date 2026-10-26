@@ -15,7 +15,7 @@ static const MItem file_items[] = {
     SEP,
     IT("~C~hange dir...", NULL, cmChangeDir, "Change the current working directory"),
     IT("~P~rint", NULL, cmPrint, "Print the contents of the active window"),
-    IT("~D~OS shell", NULL, cmDosShell, "Temporarily exit to the shell"),
+    IT("S~h~ell", NULL, cmShell, "Temporarily exit to the shell; type exit to return"),
     SEP,
     IT("~Q~uit", "Alt+X", cmQuit, "Exit Flash C"),
 };

@@ -25,10 +25,10 @@ try:
 
     s.send('\x1bf')
     t = text(s)
-    check('File menu items', all(x in t for x in ['New', 'Open...', 'Save as...', 'DOS shell', 'Quit']), s)
+    check('File menu items', all(x in t for x in ['New', 'Open...', 'Save as...', 'Shell', 'Quit']), s)
     check('menu hint on status line', 'Create a new file' in t.split('\n')[-1], s)
     s.send('ESC'); s.send('\x1bf', 'n')
-    check('File|New opens NONAME00.C', 'NONAME00.C' in text(s), s)
+    check('File|New opens noname00.c', 'noname00.c' in text(s), s)
 
     s.type('#include <stdio.h>\rint main()\r{\rint i, sum = 0;\rfor (i = 1; i <= 10; i++)\rsum += i;\rprintf("sum=%d\\n", sum);\rreturn 0;\r}\r')
     s.send('F2'); s.type('sum.c'); s.send('ENTER')

@@ -286,7 +286,7 @@ int ide_build(int mode)
         }
         if (fresh) {
             for (int i = 0; i < nf; i++) free(owned[i]);
-            if (mode == 1) show_build_status(mainfile, 0, 0, 0, 1, "Making EXE: is up to date.");
+            if (mode == 1) show_build_status(mainfile, 0, 0, 0, 1, "Make: the program is up to date.");
             return 0;
         }
     }
@@ -382,7 +382,7 @@ static void run_program(void)
     term_resume();
 }
 
-static void dos_shell(void)
+static void run_shell(void)
 {
     term_suspend();
     printf("Type exit to return to Flash C . . .\n"); fflush(stdout);
@@ -753,7 +753,7 @@ void ide_command(int cmd)
     case cmSaveAll: for (int i = 0; i < nwins; i++) if (wins[i]->kind == W_EDIT && wins[i]->buf->modified) save_window(wins[i]); break;
     case cmChangeDir: {
         char cwd[512] = ""; if (!getcwd(cwd, sizeof cwd)) cwd[0] = 0;
-        if (inputbox(" Change Directory ", "~D~irectory Name", cwd, sizeof cwd, "Enter drive and/or directory path")) {
+        if (inputbox(" Change Directory ", "~D~irectory Name", cwd, sizeof cwd, "Enter the directory path")) {
             if (chdir(cwd)) msgbox(" Error ", "Invalid directory", MB_OK | MB_ERROR);
         }
         break;
@@ -765,7 +765,7 @@ void ide_command(int cmd)
         if (pclose(p)) msgbox(" Print ", "The print command failed", MB_OK);
         break;
     }
-    case cmDosShell: dos_shell(); break;
+    case cmShell: run_shell(); break;
     case cmQuit: quit_ide(); break;
     case cmUndo: if (e) { int l = e->cy, c = e->cx; if (buf_undo(e->buf, &l, &c)) { e->sel_on = 0; e->blk_on = 0; ed_goto(e, l, c); } } break;
     case cmRedo: if (e) { int l = e->cy, c = e->cx; if (buf_redo(e->buf, &l, &c)) { e->sel_on = 0; ed_goto(e, l, c); } } break;

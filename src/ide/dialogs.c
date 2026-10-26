@@ -196,7 +196,7 @@ void opt_command(int cmd)
     case cmOptEditor: {
         db_start(&d, " Editor Options ", 66); d.bw = 46;
         db_group(&d, "Editor Options", 9);
-        db_check(&d, "Create backup ~f~iles", &cfg.backup, 0, "Create a backup (.BAK) file whenever you save");
+        db_check(&d, "Create backup ~f~iles", &cfg.backup, 0, "Keep the previous version as file~ whenever you save");
         db_check(&d, "~I~nsert mode", &cfg.insert, 0, "Characters typed are inserted into edit text");
         db_check(&d, "~A~utoindent mode", &cfg.autoindent, 0, "Auto-indent to previous indentation level on each new line");
         db_check(&d, "~U~se tab character", &cfg.use_tab, 0, "Insert actual tab characters into file");

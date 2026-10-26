@@ -222,7 +222,7 @@ void status_hint(const char *s);
 enum {
     cmNone = 100,
     cmAbout, cmClearDesktop, cmRepaint, cmTransfer0,
-    cmNewFile = 130, cmOpenFile, cmSaveFile, cmSaveAs, cmSaveAll, cmChangeDir, cmPrint, cmDosShell, cmQuit,
+    cmNewFile = 130, cmOpenFile, cmSaveFile, cmSaveAs, cmSaveAll, cmChangeDir, cmPrint, cmShell, cmQuit,
     cmUndo, cmRedo, cmCut, cmCopy, cmPaste, cmClear, cmCopyExample, cmShowClip,
     cmFind, cmReplaceText, cmSearchAgain, cmGotoLine, cmPrevError, cmNextError, cmLocateFn,
     cmRun, cmProgReset, cmGotoCursor, cmTraceInto, cmStepOver, cmArguments,

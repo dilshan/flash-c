@@ -19,7 +19,7 @@ static const char *usage =
 "  -v      Record source-level debug information (for the IDE debugger)\n"
 "  -ln     Do not search the standard libraries\n"
 "  -lnm    Do not link the math library\n"
-"  wildargs.obj  as a file name links the wildcard argument expander\n"
+"  wildargs      as a file name links the wildcard argument expander\n"
 "  -h      This help\n";
 
 static const char *progname = "fcc";
@@ -48,7 +48,7 @@ int main(int argc, char **argv)
         char *a = argv[i];
         if (a[0] != '-') {
             const char *b = strrchr(a, '/'); b = b ? b + 1 : a;
-            if (!strcasecmp(b, "wildargs.obj")) { ctx.opt.wildargs = 1; continue; }
+            if (!strcasecmp(b, "wildargs") || !strcasecmp(b, "wildargs.obj")) { ctx.opt.wildargs = 1; continue; }
             if (nf < 64) files[nf++] = a;
             continue;
         }

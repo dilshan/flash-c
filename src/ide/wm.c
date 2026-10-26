@@ -88,7 +88,7 @@ Win *win_new_edit(const char *name)
     if (name) { snprintf(w->buf->name, sizeof w->buf->name, "%s", name); w->buf->named = 1; }
     else {
         for (int i = 0; i < 100; i++) {
-            char t[64]; snprintf(t, sizeof t, "NONAME%02d%s", i, cfg.defext);
+            char t[64]; snprintf(t, sizeof t, "noname%02d%s", i, cfg.defext);
             int used = 0;
             for (int k = 0; k < nwins; k++) if (wins[k]->kind == W_EDIT && !strcmp(wins[k]->buf->name, t)) used = 1;
             if (!used && !file_exists(t)) { snprintf(w->buf->name, sizeof w->buf->name, "%s", t); break; }

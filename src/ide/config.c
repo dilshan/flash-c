@@ -95,7 +95,7 @@ void cfg_defaults(void)
     cfg.cmdset = 1;
     cfg.as_editor = 1; cfg.backup = 1; cfg.insert = 1; cfg.autoindent = 1; cfg.use_tab = 1;
     cfg.syntax = 1; cfg.bs_unindent = 1; cfg.group_undo = 1; cfg.persist_blocks = 0; cfg.overwrite_blocks = 1;
-    cfg.tabsize = 8; strcpy(cfg.defext, ".C");
+    cfg.tabsize = 8; strcpy(cfg.defext, ".c");
     cfg.sv_watch = 1; cfg.sv_bp = 1; cfg.sv_open = 1;
     cfg.pause_after_run = 1;
     cfg.nxfer = 1;

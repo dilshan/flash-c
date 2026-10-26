@@ -90,9 +90,8 @@ int buf_save(Buf *b, const char *path, int backup)
 {
     if (backup && file_exists(path)) {
         char bak[620]; snprintf(bak, sizeof bak, "%s", path);
-        char *dot = strrchr(bak, '.'), *sl = strrchr(bak, '/');
-        if (dot && (!sl || dot > sl)) strcpy(dot, ".BAK"); else strcat(bak, ".BAK");
-        if (strcmp(bak, path)) rename(path, bak);
+        strcat(bak, "~");                       /* file.c -> file.c~ */
+        rename(path, bak);
     }
     FILE *f = fopen(path, "wb");
     if (!f) return 1;
