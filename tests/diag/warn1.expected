@@ -1,0 +1,8 @@
+Warning warn1.c 7: Unreachable code
+Warning warn1.c 16: Mixing pointers to signed and unsigned char
+Warning warn1.c 17: Condition is always true
+Warning warn1.c 18: Condition is always false
+Warning warn1.c 19: Structure passed by value
+Warning warn1.c 20: Ambiguous operators need parentheses
+Warning warn1.c 21: Ambiguous operators need parentheses
+Warning warn1.c 22: Ambiguous operators need parentheses

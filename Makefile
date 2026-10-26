@@ -44,6 +44,7 @@ $(BUILD)/fc: $(COMP_OBJ) $(IDE_OBJ)
 test: $(BUILD)/fcc $(BUILD)/fc
 	sh tests/run.sh
 	sh tests/diag.sh
+	sh tests/options.sh
 	sh tests/libtest.sh
 	python3 tests/ide_smoke.py
 	python3 tests/debug_smoke.py

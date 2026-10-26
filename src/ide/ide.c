@@ -125,7 +125,18 @@ void ide_fill_options(FcOptions *o)
     o->max_errors = cfg.max_errors; o->max_warnings = cfg.max_warnings;
     o->warn_level = cfg.warn_display == 0 ? 0 : 1;
     int all = cfg.warn_display == 2;
-    o->w_pointer = all || cfg.warn[0] || cfg.warn[8];
+    o->w_pointer = all || cfg.warn[0];
+    o->w_susp = all || cfg.warn[8];
+    o->w_cpt = all || cfg.warn[1];
+    o->w_ucp = all || cfg.warn[2];
+    o->w_unreach = all || cfg.warn[40];
+    o->w_amb = all || cfg.warn[41];
+    o->w_structval = all || cfg.warn[42];
+    o->w_cond = all || cfg.warn[44];
+    o->enum_int = cfg.enum_int; o->merge_strings = cfg.merge_strings; o->align_struct = cfg.align_struct;
+    o->stack_check = cfg.stack_check; o->ansi_keywords = cfg.ansi_kw;
+    o->jump_opt = cfg.jump_opt; o->redundant_loads = cfg.red_loads;
+    o->stack_kb = cfg.stack_kb > 0 ? cfg.stack_kb : 0; o->elf_symtab = cfg.elf_symtab; o->wx = cfg.wx_segments;
     o->w_noreturn = all || cfg.warn[32];
     o->w_unused = all || cfg.warn[37] || cfg.warn[48];
     o->w_noproto = all || cfg.warn[43];
@@ -145,6 +156,10 @@ void ide_fill_options(FcOptions *o)
     snprintf(defbuf, sizeof defbuf, "%s", cfg.defines);
     o->ndefine = 0;
     for (char *t = strtok(defbuf, ";, "); t && o->ndefine < 16; t = strtok(NULL, ";, ")) { o->defines[o->ndefine++] = t; }
+    static char undefbuf[124];
+    snprintf(undefbuf, sizeof undefbuf, "%s", cfg.undefs);
+    o->nundef = 0;
+    for (char *t = strtok(undefbuf, ";, "); t && o->nundef < 16; t = strtok(NULL, ";, ")) { o->undefs[o->nundef++] = t; }
 }
 
 typedef struct { const char *cur_file; int hdr_added; } BuildCtx;

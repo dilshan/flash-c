@@ -55,20 +55,40 @@ void opt_command(int cmd)
     switch (cmd) {
     case cmOptCodeGen: {
         db_start(&d, " Code Generation ", 74);
+        db_check(&d, "T~r~eat enums as ints", &cfg.enum_int, 0, "Treat enums as int; off = use the smallest integer type that holds all values");
+        db_check(&d, "Duplicate strings ~m~erged", &cfg.merge_strings, 0, "Store identical string literals only once in the executable");
+        db_check(&d, "~A~lign structure members", &cfg.align_struct, 0, "Pad structure members to their natural alignment; off = pack them without padding");
         db_check(&d, "~U~nsigned characters", &cfg.unsigned_char, 0, "Treat all char declarations as if they were unsigned char type");
+        db_check(&d, "Test stack o~v~erflow", &cfg.stack_check, 0, "Check for a stack overflow at function entry and stop with 'Stack overflow!'");
         db_gap(&d);
         db_group(&d, "Floating Point", 2);
         db_radio(&d, "No~n~e", &cfg.fp, 0, "Don't use floating-point numbers (the math library is not linked)");
         db_radio(&d, "~F~loating point", &cfg.fp, 1, "Generate code for floating-point numbers");
         db_end_group(&d);
         db_input(&d, "~D~efines", cfg.defines, sizeof cfg.defines, 60, "Pass macro definitions to the preprocessor (NAME or NAME=VALUE, separated by semicolons)");
+        db_input(&d, "Undefine ~s~ymbols", cfg.undefs, sizeof cfg.undefs, 60, "Remove predefined or defined macros (names separated by semicolons)");
         db_finish(&d, 1);
-        opt_run(&d, NULL);
+        opt_run(&d, "Code generation options");
+        break;
+    }
+    case cmOptOptimize: {
+        db_start(&d, " Optimization Options ", 56);
+        db_group(&d, "Optimizations", 2);
+        db_check(&d, "~S~uppress redundant loads", &cfg.red_loads, 0, "Keep constant operands in a register instead of saving and restoring the left operand");
+        db_check(&d, "~J~ump optimization", &cfg.jump_opt, 0, "Remove jumps to the next instruction and use short jumps where the target is near");
+        db_end_group(&d);
+        db_finish(&d, 1);
+        opt_run(&d, "Code generation options");
         break;
     }
     case cmOptSource: {
         db_start(&d, " Source Options ", 60);
         db_check(&d, "~N~ested comments", &cfg.nested_comments, 0, "Allow nested comments in source files");
+        db_gap(&d);
+        db_group(&d, "Keywords", 2);
+        db_radio(&d, "~F~lash C", &cfg.ansi_kw, 0, "Allow // comments and recognise near, far, huge, cdecl, pascal and interrupt");
+        db_radio(&d, "~A~NSI", &cfg.ansi_kw, 1, "Recognise only ANSI C: no // comments, the extended keywords are ordinary identifiers");
+        db_end_group(&d);
         db_gap(&d);
         db_num(&d, "~I~dentifier Length", &cfg.ident_len, 6, "Enter significant length of identifiers");
         db_finish(&d, 1);
@@ -77,9 +97,9 @@ void opt_command(int cmd)
     }
     case cmOptMsgDisplay: msg_dialog_display(); break;
     case cmOptMsgPortability: {
-        const char *n[] = { "~N~on-portable pointer conversion" };
-        int idx[] = { 0 };
-        warn_dialog(" Portability Warnings ", n, idx, 1, 66);
+        const char *n[] = { "~N~on-portable pointer conversion", "Non-portable pointer ~c~omparison", "~M~ixing pointers to signed and unsigned char" };
+        int idx[] = { 0, 1, 2 };
+        warn_dialog(" Portability Warnings ", n, idx, 3, 66);
         break;
     }
     case cmOptMsgAnsi: {
@@ -89,15 +109,15 @@ void opt_command(int cmd)
         break;
     }
     case cmOptMsgFrequent: {
-        const char *n[] = { "~F~unction should return a value","~C~ode has no effect","Parameter 'ident' is ~n~ever used","Possibly incorrect ~a~ssignment" };
-        int idx[] = { 32,34,37,38 };
-        warn_dialog(" Frequent Errors ", n, idx, 4, 66);
+        const char *n[] = { "~F~unction should return a value","~U~nreachable code","~C~ode has no effect","Parameter 'ident' is ~n~ever used","Possibly incorrect ~a~ssignment" };
+        int idx[] = { 32,40,34,37,38 };
+        warn_dialog(" Frequent Errors ", n, idx, 5, 66);
         break;
     }
     case cmOptMsgLess: {
-        const char *n[] = { "Call to function with no ~p~rototype","'~i~dent' declared but never used" };
-        int idx[] = { 43,48 };
-        warn_dialog(" Less Frequent Errors ", n, idx, 2, 66);
+        const char *n[] = { "~A~mbiguous operators need parentheses","Structure passed by ~v~alue","Call to function with no ~p~rototype","C~o~ndition is always true/false","'~i~dent' declared but never used" };
+        int idx[] = { 41,42,43,44,48 };
+        warn_dialog(" Less Frequent Errors ", n, idx, 5, 66);
         break;
     }
     case cmOptMake: {
@@ -108,12 +128,18 @@ void opt_command(int cmd)
         break;
     }
     case cmOptLinkSettings: {
-        db_start(&d, " Linker ", 50);
+        db_start(&d, " Linker ", 56);
         db_group(&d, "Map File", 4);
         const char *mn[] = { "O~f~f", "~S~egments", "~P~ublics", "~D~etailed" };
         radios(&d, &cfg.map_file, mn, 4, NULL);
         db_end_group(&d);
         db_check(&d, "Default ~l~ibraries", &cfg.lnk_default_libs, 0, "Link the run-time libraries selected under Linker|Libraries");
+        db_gap(&d);
+        db_group(&d, "Options", 2);
+        db_check(&d, "~E~LF symbol table", &cfg.elf_symtab, 0, "Add .symtab/.strtab so nm, gdb, objdump and perf can show function and variable names");
+        db_check(&d, "~P~rotect code (W^X)", &cfg.wx_segments, 0, "Put code in a read+execute segment and data in a separate read+write segment");
+        db_end_group(&d);
+        db_num(&d, "S~t~ack size (KB, 0 = system)", &cfg.stack_kb, 8, "Limit for the program stack in kilobytes; 0 keeps the system default (ulimit -s)");
         db_finish(&d, 1);
         opt_run(&d, NULL);
         break;

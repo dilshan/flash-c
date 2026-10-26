@@ -8,7 +8,7 @@ static uint8_t *code; static int ncode, capcode;
 typedef struct CFix { int pos; Sym *sym; long long add; int kind; } CFix;   /* kind 0 data off, 1 var, 2 func, 3 rel32 func */
 static CFix *cfix; static int ncfix, capcfix;
 static int *lpos; static int nlabels, caplabels;
-typedef struct JFix { int pos, label; } JFix;
+typedef struct JFix { int pos, label, rel8; } JFix;   /* pos: offset of the displacement field; rel8: shortened by -O */
 static JFix *jfix; static int njfix, capjfix;
 typedef struct GL { char *name; int label; } GL;
 static GL *gls; static int ngl, capgl;
@@ -18,7 +18,7 @@ static Sym *gen_fn;
 static char gerr[256]; static int gerr_set;
 
 #define BASE 0x400000
-#define HDRSZ 120
+#define HDRSZ 176            /* ELF header + two program headers */
 
 static void b1(int x) { if (ncode == capcode) { capcode = capcode ? capcode * 2 : 65536; code = realloc(code, capcode); } code[ncode++] = (uint8_t)x; }
 static void b2(int x, int y) { b1(x); b1(y); }
@@ -39,20 +39,46 @@ static int newlabel(void)
     if (nlabels == caplabels) { caplabels = caplabels ? caplabels * 2 : 256; lpos = realloc(lpos, caplabels * sizeof(int)); }
     lpos[nlabels] = -1; return nlabels++;
 }
-static void place(int l) { lpos[l] = ncode; }
+static int ndln;
+static uint32_t dln_last_pos(void);
+static void dln_set_last_pos(int pos);
+/* -O / -Z bookkeeping: what was emitted last, and where a label or debug line mark pins the code */
+static int mark_pos = -1;                        /* ncode at the last label placement or line mark */
+static int last_push = -1;                       /* ncode right after the last 'push rax' */
+static int pl_pos = -1, pl_n, pl_list[32];       /* labels placed at pl_pos */
+static void place(int l)
+{
+    if (CX->opt.jump_opt && njfix && jfix[njfix - 1].label == l && jfix[njfix - 1].pos == ncode - 4 && ncode >= 5 && code[ncode - 5] == 0xE9
+        && !(pl_pos == ncode && pl_n >= 32)) {
+        /* the previous instruction is 'jmp l' and l is placed right behind it: drop the jump */
+        if (pl_pos == ncode) for (int i = 0; i < pl_n; i++) lpos[pl_list[i]] = ncode - 5;
+        if (ndln && dln_last_pos() == (uint32_t)ncode) dln_set_last_pos(ncode - 5);
+        ncode -= 5; njfix--;
+        pl_pos = -1; last_push = -1;
+    }
+    if (pl_pos != ncode) { pl_pos = ncode; pl_n = 0; }
+    if (pl_n < 32) pl_list[pl_n++] = l;
+    lpos[l] = ncode; mark_pos = ncode;
+}
 static void jump_to(int l, int cond)   /* cond < 0: jmp; else 0F 8x */
 {
     if (cond < 0) b1(0xE9); else b2(0x0F, 0x80 + cond);
     if (njfix == capjfix) { capjfix = capjfix ? capjfix * 2 : 256; jfix = realloc(jfix, capjfix * sizeof *jfix); }
-    jfix[njfix].pos = ncode; jfix[njfix].label = l; njfix++;
+    jfix[njfix].pos = ncode; jfix[njfix].label = l; jfix[njfix].rel8 = 0; njfix++;
     d32(0);
 }
 enum { CC_E = 4, CC_NE = 5, CC_B = 2, CC_AE = 3, CC_BE = 6, CC_A = 7, CC_L = 0xC, CC_GE = 0xD, CC_LE = 0xE, CC_G = 0xF };
 
 /* ---------- basic emitters ---------- */
-static void push_rax(void) { b1(0x50); }
-static void pop_rax(void) { b1(0x58); }
-static void pop_rcx(void) { b1(0x59); }
+static void push_rax(void) { b1(0x50); last_push = ncode; }
+static int peep_push(void)       /* -Z: the previous instruction is 'push rax' and nothing is pinned to the code behind it */
+{
+    if (!CX->opt.redundant_loads || last_push != ncode || mark_pos == ncode) return 0;
+    ncode--; last_push = -1;
+    return 1;
+}
+static void pop_rax(void) { if (!peep_push()) b1(0x58); }
+static void pop_rcx(void) { if (peep_push()) b3(0x48, 0x89, 0xC1); else b1(0x59); }   /* push rax; pop rcx  ->  mov rcx, rax */
 static void mov_rcx_rax(void) { b3(0x48, 0x89, 0xC1); }
 static void test_rax(void) { b3(0x48, 0x85, 0xC0); }
 
@@ -62,6 +88,14 @@ static void load_imm(long long v)
     else if (v > 0 && v <= 0xffffffffLL) { b1(0xB8); d32((int)v); }
     else if (v >= -0x80000000LL && v < 0) { b3(0x48, 0xC7, 0xC0); d32((int)v); }
     else { b2(0x48, 0xB8); d64(v); }
+}
+
+static void load_imm_rcx(long long v)
+{
+    if (v == 0) b2(0x31, 0xC9);                         /* xor ecx,ecx */
+    else if (v > 0 && v <= 0xffffffffLL) { b1(0xB9); d32((int)v); }
+    else if (v >= -0x80000000LL && v < 0) { b3(0x48, 0xC7, 0xC1); d32((int)v); }
+    else { b2(0x48, 0xB9); d64(v); }
 }
 
 /* ---- SSE2 helpers: a floating value lives in rax as its double bit pattern ---- */
@@ -238,11 +272,19 @@ static void gen_addr(Node *n)
 
 static void gen_bin(Node *n)
 {
-    gen_expr(n->l);
-    push_rax();
-    gen_expr(n->r);
-    mov_rcx_rax();
-    pop_rax();
+    if (CX->opt.redundant_loads && (n->r->k == N_NUM || n->r->k == N_FNUM)) {
+        /* -Z: a constant right operand goes straight into rcx; no save/restore of the left value */
+        long long bits = n->r->val;
+        if (n->r->k == N_FNUM) { double dv = n->r->fval; memcpy(&bits, &dv, 8); }
+        gen_expr(n->l);
+        load_imm_rcx(bits);
+    } else {
+        gen_expr(n->l);
+        push_rax();
+        gen_expr(n->r);
+        mov_rcx_rax();
+        pop_rax();
+    }
     int u = n->cmpty_uns;
     if (is_flt(n->l->ty)) {
         if (n->op >= B_EQ) { gen_fcmp(n->op); return; }
@@ -479,9 +521,12 @@ static int fid_class(int fid);
 
 /* ---------- debug line table ---------- */
 static struct DLn { uint32_t pos; int line; Sym *fn; } *dln;
-static int ndln, capdln, dbg_rec;
+static int capdln, dbg_rec;
+static uint32_t dln_last_pos(void) { return dln[ndln - 1].pos; }
+static void dln_set_last_pos(int pos) { dln[ndln - 1].pos = pos; }
 static void note_line(int line)
 {
+    mark_pos = ncode;
     if (!dbg_rec || !gen_fn || line <= 0) return;
     if (ndln && dln[ndln - 1].pos == (uint32_t)ncode && dln[ndln - 1].fn == gen_fn) { dln[ndln - 1].line = line; return; }
     if (ndln && dln[ndln - 1].fn == gen_fn && dln[ndln - 1].line == line) return;
@@ -595,8 +640,66 @@ static void gen_stmt(Node *n)
     }
 }
 
+/* -O: branch relaxation.  Every jump is first emitted with a 32-bit displacement (jmp = 5 bytes, jcc = 6 bytes);
+ * the ones whose target lies within +-127 bytes are rewritten to the 2-byte form and the function body is
+ * compacted.  Shrinking only ever brings targets closer, so the decision is iterated to a fixed point. */
+static int relax_newpos(const int *start, const int *saved, int n, int x)    /* new offset of old offset x */
+{
+    int lo = 0, hi = n;                          /* count jumps starting before x */
+    while (lo < hi) { int m = (lo + hi) / 2; if (start[m] < x) lo = m + 1; else hi = m; }
+    return x - (lo ? saved[lo - 1] : 0);
+}
+
+static void relax_jumps(int base, int cfix0, int dln0)
+{
+    if (!njfix) return;
+    int *start = malloc(njfix * sizeof(int)), *size = malloc(njfix * sizeof(int)), *saved = malloc(njfix * sizeof(int));
+    for (int i = 0; i < njfix; i++) {
+        int jmp = code[jfix[i].pos - 1] == 0xE9;
+        start[i] = jfix[i].pos - (jmp ? 1 : 2); size[i] = jmp ? 5 : 6;
+    }
+    for (int changed = 1; changed;) {
+        changed = 0;
+        int acc = 0;
+        for (int i = 0; i < njfix; i++) { if (jfix[i].rel8) acc += size[i] - 2; saved[i] = acc; }
+        for (int i = 0; i < njfix; i++) {
+            if (jfix[i].rel8) continue;
+            int disp = relax_newpos(start, saved, njfix, lpos[jfix[i].label]) - (relax_newpos(start, saved, njfix, start[i]) + 2);
+            if (disp >= -128 && disp <= 127) { jfix[i].rel8 = 1; changed = 1; }
+        }
+    }
+    int acc = 0, any = 0;
+    for (int i = 0; i < njfix; i++) { if (jfix[i].rel8) { acc += size[i] - 2; any = 1; } saved[i] = acc; }
+    if (any) {
+        int w = start[0], r = start[0], j = 0;
+        while (r < ncode) {
+            if (j < njfix && r == start[j]) {
+                if (jfix[j].rel8) {
+                    int jmp = size[j] == 5;
+                    code[w++] = jmp ? 0xEB : (uint8_t)(0x70 + (code[r + 1] - 0x80));
+                    code[w++] = 0;
+                    r += size[j];
+                    jfix[j].pos = w - 1;                      /* the new displacement byte, patched with the labels */
+                } else {
+                    int len = size[j];
+                    memmove(code + w, code + r, len);
+                    jfix[j].pos = w + len - 4; w += len; r += len;
+                }
+                j++;
+            } else code[w++] = code[r++];
+        }
+        for (int i = 0; i < nlabels; i++) if (lpos[i] >= 0) lpos[i] = relax_newpos(start, saved, njfix, lpos[i]);
+        for (int i = cfix0; i < ncfix; i++) cfix[i].pos = relax_newpos(start, saved, njfix, cfix[i].pos);
+        for (int i = dln0; i < ndln; i++) dln[i].pos = relax_newpos(start, saved, njfix, dln[i].pos);
+        ncode = w;
+    }
+    free(start); free(size); free(saved);
+    (void)base;
+}
+
 static void gen_function(Sym *f)
 {
+    int cfix0 = ncfix, dln0 = ndln;
     f->codepos = ncode;
     gen_fn = f; ngl = 0; ctl_sp = 0; nlabels = 0; njfix = 0;
     dbg_rec = CX->opt.debug && fid_class(f->fileid) == FC_USER;
@@ -604,6 +707,14 @@ static void gen_function(Sym *f)
     b1(0x55); b3(0x48, 0x89, 0xE5);
     b3(0x48, 0x81, 0xEC);
     int framepos = ncode; d32(0);
+    if (CX->opt.stack_check && fid_class(f->fileid) == FC_USER) {      /* -N:  if (rsp < __fc_stklimit) __fc_stkover(); */
+        Sym *lim = global_lookup("__fc_stklimit"), *over = global_lookup("__fc_stkover");
+        if (lim && over) {
+            b4(0x48, 0x3B, 0x24, 0x25); add_cfix(1, lim, 0);       /* cmp rsp, [__fc_stklimit] */
+            b2(0x73, 0x05);                                          /* jae +5 */
+            b1(0xE8); add_cfix(3, over, 0);                          /* call __fc_stkover */
+        }
+    }
     ret_label = newlabel();
     gen_stmt(f->body);
     b2(0x31, 0xC0);                           /* falling off the end returns 0 */
@@ -611,10 +722,12 @@ static void gen_function(Sym *f)
     note_line(f->body->cmpty_uns);            /* the closing brace */
     if (f->ty->ret && f->ty->ret->kind == TY_VOID && !strcmp(f->name, "main")) b2(0x31, 0xC0);  /* void main exits with 0 */
     b2(0xC9, 0xC3);                           /* leave; ret */
+    if (CX->opt.jump_opt) relax_jumps(f->codepos, cfix0, dln0);
     f->codelen = ncode - f->codepos;
     int fs = (f->frame + 15) & ~15;
     for (int i = 0; i < 4; i++) code[framepos + i] = (fs >> (8 * i)) & 0xff;
     for (int i = 0; i < njfix; i++) {
+        if (jfix[i].rel8) { code[jfix[i].pos] = (uint8_t)(lpos[jfix[i].label] - (jfix[i].pos + 1)); continue; }
         int rel = lpos[jfix[i].label] - (jfix[i].pos + 4);
         for (int k = 0; k < 4; k++) code[jfix[i].pos + k] = (rel >> (8 * k)) & 0xff;
     }
@@ -925,6 +1038,33 @@ static void dbg_build(uint32_t dataaddr, uint32_t bssaddr)
     dbg_have = 1;
 }
 
+/* -lt: .symtab/.strtab with every function and variable that was linked (for nm, gdb, objdump, perf) */
+static void build_symtab(uint8_t **symtab, int *symsz, uint8_t **strtab, int *strsz, uint32_t dataaddr, uint32_t bssaddr)
+{
+    int n = 1, strcap = 256, nstr = 1;
+    for (int i = 0; i < PG.nfuncs; i++) { Sym *f = PG.funcs[i]; if ((f->reach & 1) && f->defined && !f->is_builtin) n++; }
+    for (Sym *y = global_syms(); y; y = y->next) if (y->kind == SY_VAR && y->defined && (y->reach & 1)) n++;
+    uint8_t *st = calloc(n, 24), *str = calloc(strcap, 1);
+    int k = 1;
+    #define ADDSYM(nm, val, size, info, shndx) do { \
+        int l = (int)strlen(nm) + 1; \
+        while (nstr + l > strcap) { strcap *= 2; str = realloc(str, strcap); } \
+        memcpy(str + nstr, nm, l); \
+        uint8_t *e = st + k * 24; put32(e, nstr); e[4] = (info); e[5] = 0; e[6] = (shndx) & 0xff; e[7] = ((shndx) >> 8) & 0xff; \
+        put64(e + 8, (val)); put64(e + 16, (size)); nstr += l; k++; } while (0)
+    for (int i = 0; i < PG.nfuncs; i++) {
+        Sym *f = PG.funcs[i];
+        if (!((f->reach & 1) && f->defined && !f->is_builtin)) continue;
+        ADDSYM(f->name, BASE + HDRSZ + f->codepos, f->codelen, 0x12, 1);              /* GLOBAL FUNC in .text */
+    }
+    for (Sym *y = global_syms(); y; y = y->next) {
+        if (!(y->kind == SY_VAR && y->defined && (y->reach & 1))) continue;
+        ADDSYM(y->name, y->bss ? bssaddr + y->off : dataaddr + y->off, y->ty->size > 0 ? y->ty->size : 0, 0x11, y->bss ? 3 : 2);   /* GLOBAL OBJECT */
+    }
+    #undef ADDSYM
+    *symtab = st; *symsz = k * 24; *strtab = str; *strsz = nstr;
+}
+
 int gen_program(const char *outpath, char *err, int errlen, int mapmode)
 {
     Sym *mainf = global_lookup("main"), *startf = global_lookup("_fc_start");
@@ -936,6 +1076,7 @@ int gen_program(const char *outpath, char *err, int errlen, int mapmode)
     for (int i = 0; i < PG.ndrel; i++) if (PG.drel[i].kind == 2 && PG.drel[i].fn->kind == SY_FUNC) mark(PG.drel[i].fn);
     if (PG.uses_fp && CX->opt.fp_mode) { Sym *r = global_lookup("__fpused"); if (r) mark(r); }   /* pulls in the floating-point run-time */
     mark_pragma_fns();
+    if (CX->opt.stack_check) { Sym *a = global_lookup("__fc_stklimit"), *b = global_lookup("__fc_stkover"); if (a) mark(a); if (b) mark(b); }
     { Sym *t = global_lookup("__sigtramp"), *d = global_lookup("__sig_dispatch"); if (t && (t->reach & 1) && d) mark(d); }
 
     /* entry stub */
@@ -954,7 +1095,9 @@ int gen_program(const char *outpath, char *err, int errlen, int mapmode)
     if (gerr_set) { snprintf(err, errlen, "%s", gerr); return 1; }
 
     int codeend = (ncode + 15) & ~15;
-    uint32_t dataaddr = BASE + HDRSZ + codeend;
+    int dataoff = HDRSZ + codeend;
+    if (CX->opt.wx) dataoff = (dataoff + 0xFFF) & ~0xFFF;      /* data on its own pages: the code segment can be R+X only */
+    uint32_t dataaddr = BASE + dataoff;
     int dataend = (PG.ndata + 15) & ~15;
     uint32_t bssaddr = dataaddr + dataend;
     int bad = 0;
@@ -991,27 +1134,72 @@ int gen_program(const char *outpath, char *err, int errlen, int mapmode)
         if (y->kind == SY_VAR && y->defined && (y->reach & 1)) note_module(y->fileid, y->ty->size > 0 ? y->ty->size : 0);
     if (mapmode > 0) write_map(outpath, mapmode, BASE + HDRSZ, ncode, dataaddr, PG.ndata, bssaddr, PG.bss, BASE + HDRSZ);
 
-    int filesz = HDRSZ + codeend + dataend;
+    int filesz = dataoff + dataend;
     uint64_t memsz = filesz + PG.bss + 16;
-    uint8_t *img = calloc(1, filesz);
+    int symoff = 0, symsz = 0, stroff = 0, strsz = 0, shoff = 0, nsec = 0;
+    uint8_t *symtab = NULL, *strtab = NULL;
+    static const char shstr[] = "\0.text\0.data\0.bss\0.symtab\0.strtab\0.shstrtab";
+    if (CX->opt.elf_symtab) build_symtab(&symtab, &symsz, &strtab, &strsz, dataaddr, bssaddr);
+    int total = filesz;
+    if (symtab) {
+        symoff = (total + 7) & ~7; total = symoff + symsz;
+        stroff = total; total += strsz;
+        total += (int)sizeof shstr;
+        shoff = (total + 7) & ~7; nsec = 7; total = shoff + nsec * 64;
+    }
+    uint8_t *img = calloc(1, total);
     memcpy(img + HDRSZ, code, ncode);
-    memcpy(img + HDRSZ + codeend, PG.data, PG.ndata);
+    memcpy(img + dataoff, PG.data, PG.ndata);
     uint8_t *h = img;
     memcpy(h, "\x7f" "ELF\2\1\1\0", 8);
     put32(h + 16, 0); h[16] = 2; h[18] = 0x3E; h[20] = 1;      /* ET_EXEC, x86-64, version */
     put64(h + 24, BASE + HDRSZ);                               /* entry */
     put64(h + 32, 64);                                         /* phoff */
-    put32(h + 52, 0); h[52] = 64; h[54] = 56; h[56] = 1;       /* ehsize, phentsize, phnum */
+    put32(h + 52, 0); h[52] = 64; h[54] = 56; h[56] = CX->opt.wx ? 2 : 1;   /* ehsize, phentsize, phnum */
     uint8_t *p = h + 64;
-    put32(p, 1); put32(p + 4, 7);                              /* PT_LOAD, RWX */
-    put64(p + 8, 0); put64(p + 16, BASE); put64(p + 24, BASE);
-    put64(p + 32, filesz); put64(p + 40, memsz); put64(p + 48, 0x1000);
+    if (CX->opt.wx) {
+        put32(p, 1); put32(p + 4, 5);                          /* PT_LOAD, R+X: header and code */
+        put64(p + 8, 0); put64(p + 16, BASE); put64(p + 24, BASE);
+        put64(p + 32, HDRSZ + codeend); put64(p + 40, HDRSZ + codeend); put64(p + 48, 0x1000);
+        p += 56;
+        put32(p, 1); put32(p + 4, 6);                          /* PT_LOAD, R+W: data and bss */
+        put64(p + 8, dataoff); put64(p + 16, dataaddr); put64(p + 24, dataaddr);
+        put64(p + 32, dataend); put64(p + 40, (uint64_t)dataend + PG.bss + 16); put64(p + 48, 0x1000);
+    } else {
+        put32(p, 1); put32(p + 4, 7);                          /* PT_LOAD, RWX */
+        put64(p + 8, 0); put64(p + 16, BASE); put64(p + 24, BASE);
+        put64(p + 32, filesz); put64(p + 40, memsz); put64(p + 48, 0x1000);
+    }
+    if (symtab) {
+        memcpy(img + symoff, symtab, symsz);
+        memcpy(img + stroff, strtab, strsz);
+        int shstroff = stroff + strsz;
+        memcpy(img + shstroff, shstr, sizeof shstr);
+        put64(h + 40, shoff);                                  /* e_shoff */
+        h[58] = 64; h[60] = (uint8_t)nsec; h[62] = 6;          /* shentsize, shnum, shstrndx */
+        struct { int name, type; uint64_t flags, addr, off, size; int link, info; uint64_t align, entsize; } sh[7] = {
+            { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+            { 1, 1, 6, BASE + HDRSZ, HDRSZ, (uint64_t)ncode, 0, 0, 16, 0 },                                  /* .text   AX */
+            { 7, 1, 3, dataaddr, dataoff, (uint64_t)dataend, 0, 0, 16, 0 },                                  /* .data   WA */
+            { 13, 8, 3, bssaddr, filesz, (uint64_t)PG.bss, 0, 0, 16, 0 },                                    /* .bss    WA */
+            { 18, 2, 0, 0, symoff, (uint64_t)symsz, 5, 1, 8, 24 },                                           /* .symtab */
+            { 26, 3, 0, 0, stroff, (uint64_t)strsz, 0, 0, 1, 0 },                                            /* .strtab */
+            { 34, 3, 0, 0, shstroff, sizeof shstr, 0, 0, 1, 0 },                                             /* .shstrtab */
+        };
+        for (int i = 0; i < 7; i++) {
+            uint8_t *q = img + shoff + i * 64;
+            put32(q, sh[i].name); put32(q + 4, sh[i].type); put64(q + 8, sh[i].flags); put64(q + 16, sh[i].addr);
+            put64(q + 24, sh[i].off); put64(q + 32, sh[i].size); put32(q + 40, sh[i].link); put32(q + 44, sh[i].info);
+            put64(q + 48, sh[i].align); put64(q + 56, sh[i].entsize);
+        }
+        free(symtab); free(strtab);
+    }
     unlink(outpath);
     int fd = open(outpath, O_WRONLY | O_CREAT | O_TRUNC, 0755);
     if (fd < 0) { snprintf(err, errlen, "Cannot create '%s'", outpath); free(img); return 1; }
-    ssize_t w = write(fd, img, filesz);
+    ssize_t w = write(fd, img, total);
     close(fd); free(img);
-    if (w != filesz) { snprintf(err, errlen, "Error writing output file"); return 1; }
+    if (w != total) { snprintf(err, errlen, "Error writing output file"); return 1; }
     chmod(outpath, 0755);
     return 0;
 }
@@ -1024,5 +1212,6 @@ void gen_reset(void)
     free(jfix); jfix = NULL; njfix = capjfix = 0;
     free(gls); gls = NULL; ngl = capgl = 0;
     gerr_set = 0; ctl_sp = 0;
+    mark_pos = last_push = pl_pos = -1; pl_n = 0;
     free(dln); dln = NULL; ndln = capdln = 0;
 }

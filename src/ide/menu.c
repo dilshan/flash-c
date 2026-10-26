@@ -91,13 +91,14 @@ static const MItem msg_items[] = {
 };
 static const MMenu msg_menu = { "Messages", msg_items, 5 };
 static const MItem comp_opt_items[] = {
-    IT("~C~ode generation...", NULL, cmOptCodeGen, "Specify character type, floating point and predefined macros"),
+    IT("~C~ode generation...", NULL, cmOptCodeGen, "Specify enums, strings, structure layout, stack test, floating point and macros"),
+    IT("~O~ptimizations...", NULL, cmOptOptimize, "Specify jump optimization and redundant-load removal"),
     IT("~S~ource...", NULL, cmOptSource, "Specify source code related options"),
     SUB("~M~essages", msg_menu, "Specify how the IDE handles errors and warnings"),
 };
-static const MMenu comp_opt_menu = { "Compiler", comp_opt_items, 3 };
+static const MMenu comp_opt_menu = { "Compiler", comp_opt_items, 4 };
 static const MItem linker_items[] = {
-    IT("~S~ettings...", NULL, cmOptLinkSettings, "Set linker options (map file, default libraries)"),
+    IT("~S~ettings...", NULL, cmOptLinkSettings, "Set linker options (map file, stack size, symbol table, segment protection)"),
     IT("~L~ibraries...", NULL, cmOptLinkLibs, "Set libraries to be included in link"),
 };
 static const MMenu linker_menu = { "Linker", linker_items, 2 };

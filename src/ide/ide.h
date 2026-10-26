@@ -40,6 +40,10 @@ typedef struct TransferItem { char title[64], path[128], cmd[160]; int hotkey; }
 typedef struct Config {
     /* compiler / source */
     int nested_comments, unsigned_char, ident_len;
+    int enum_int, merge_strings, align_struct, stack_check, ansi_kw;   /* code generation / source */
+    int jump_opt, red_loads;                                           /* optimizations */
+    int stack_kb, elf_symtab, wx_segments;                             /* linker */
+    char undefs[120];
     int max_errors, max_warnings, warn_display;   /* 0 none, 1 selected, 2 all */
     int warn[NWARN];                              /* only the entries used by ide_fill_options() */
     int fp;                                       /* 0 no floating point, 1 floating point */
@@ -229,7 +233,7 @@ enum {
     cmCompile, cmMake, cmLink, cmBuildAll, cmInformation, cmRemoveMsgs,
     cmInspect, cmEvalMod, cmCallStack, cmAddWatch, cmDelWatch, cmEditWatch, cmRemoveWatches, cmToggleBP, cmBreakpoints,
     cmOpenProject, cmCloseProject, cmAddItem, cmDelItem, cmLocalOpts, cmIncludeFiles,
-    cmOptCodeGen, cmOptSource,
+    cmOptCodeGen, cmOptOptimize, cmOptSource,
     cmOptMsgDisplay, cmOptMsgPortability, cmOptMsgAnsi, cmOptMsgFrequent, cmOptMsgLess,
     cmOptTransfer, cmOptMake, cmOptLinkSettings, cmOptLinkLibs, cmOptDebugger,
     cmOptDirs, cmOptPrefs, cmOptEditor, cmOptMouse, cmOptDesktop, cmOptColors, cmOptSave,

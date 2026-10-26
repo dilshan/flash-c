@@ -16,7 +16,8 @@ typedef struct FcOptions {
     int w_unused;            /* warn about unused variables              */
     int w_noproto;           /* warn about calls without prototype       */
     int w_noreturn;          /* warn when a function returns no value    */
-    int w_pointer;           /* pointer conversion warnings              */
+    int w_pointer;           /* non-portable pointer conversion          */
+    int w_susp;              /* suspicious pointer conversion            */
     int w_noeffect;          /* code has no effect                       */
     int w_assign;            /* possibly incorrect assignment            */
     int w_divzero;           /* division by zero                         */
@@ -27,6 +28,24 @@ typedef struct FcOptions {
     int nomath;              /* do not link the math library (-lnm) */
     int wildargs;            /* link the wildcard argument expander (wildargs.obj) */
     int debug;               /* record source-level debug information (-v) */
+    int enum_int;            /* enums are always int (-b, default); off: smallest integer type that fits */
+    int merge_strings;       /* identical string literals share one copy (-d) */
+    int align_struct;        /* pad structure members to their natural alignment (-a, default); off: packed */
+    int stack_check;         /* test for stack overflow at function entry (-N) */
+    int ansi_keywords;       /* ANSI only: no // comments, near/far/huge/cdecl/pascal/interrupt are identifiers (-A) */
+    int jump_opt;            /* remove jumps to the next instruction (-O) */
+    int redundant_loads;     /* peephole: remove redundant push/pop pairs (-Z) */
+    int stack_kb;            /* stack size in KB applied at start-up, 0 = system default (-ls) */
+    int elf_symtab;          /* write section headers with .symtab/.strtab (-lt) */
+    int wx;                  /* separate R+X code and R+W data segments (-lw) */
+    int w_unreach;           /* unreachable code                         */
+    int w_amb;               /* ambiguous operators need parentheses     */
+    int w_structval;         /* structure passed by value                */
+    int w_cond;              /* condition is always true/false           */
+    int w_ucp;               /* mixing pointers to signed and unsigned char */
+    int w_cpt;               /* non-portable pointer comparison          */
+    const char *undefs[16];  /* macros to undefine (-U)                  */
+    int nundef;
     const char *incdirs[16]; /* include search path                      */
     int nincdir;
     const char *defines[16]; /* NAME or NAME=VALUE */

@@ -2,7 +2,7 @@
 # Compiles every tests/cases/*.c with Flash C and with the host compiler, and compares the output.
 cd "$(dirname "$0")/cases" || exit 1
 TZ=UTC; export TZ
-FCC=../../build/fcc
+FCC="../../build/fcc $FCC_FLAGS"
 TMP=${TMPDIR:-/tmp}/fc-tests.$$
 mkdir -p "$TMP"
 pass=0; fail=0

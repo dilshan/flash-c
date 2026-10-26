@@ -71,6 +71,7 @@ static void kw_convert(TokVec *tv, int from)
         Tok *t = &tv->v[i];
         if (t->k != TK_ID) continue;
         for (int j = 0; j < nk; j++) if (t->s == k2[j]) { t->k = K_AUTO + j; goto next; }
+        if (CX->opt.ansi_keywords && !file_is_builtin(t->fileid)) continue;   /* ANSI only: the extended keywords are plain identifiers */
         for (int j = 0; j < ni; j++) if (t->s == i2[j]) { t->k = K_IGNORE; goto next; }
     next:;
     }
@@ -144,6 +145,7 @@ static int lex_raw(const char *b, int len, int fileid, TokVec *out)
             spc = 1; continue;
         }
         if (c == '/' && i + 1 < len && b[i + 1] == '/') {
+            if (CX->opt.ansi_keywords && !file_is_builtin(fileid)) { fc_error_nj(fileid, line, "// comments are not allowed with ANSI keywords"); bad = 1; }
             while (i < len && b[i] != '\n') i++;
             spc = 1; continue;
         }
@@ -306,6 +308,8 @@ void pp_init(void)
 static Macro *msnap[MBUCK];
 void pp_snapshot(void) { memcpy(msnap, mtab, sizeof mtab); }
 void pp_restore(void) { memcpy(mtab, msnap, sizeof mtab); }
+
+void pp_undef_cmdline(const char *name) { mundef(intern(name, (int)strlen(name))); }
 
 void pp_define_cmdline(const char *name, const char *val)
 {

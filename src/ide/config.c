@@ -84,8 +84,9 @@ void cfg_defaults(void)
 {
     memset(&cfg, 0, sizeof cfg);
     cfg.ident_len = 32;
+    cfg.enum_int = 1; cfg.align_struct = 1;
     cfg.max_errors = 25; cfg.max_warnings = 100; cfg.warn_display = 1;
-    static const int on[] = {0, 6, 8, 15, 32, 34, 37, 38, 43, 48};      /* the warnings the compiler can switch */
+    static const int on[] = {0, 1, 2, 6, 8, 15, 32, 34, 37, 38, 40, 43, 44, 48};      /* the warnings the compiler can switch */
     for (unsigned i = 0; i < sizeof on / sizeof on[0]; i++) cfg.warn[on[i]] = 1;
     cfg.fp = 1;
     cfg.check_autodep = 1;
@@ -108,7 +109,9 @@ typedef struct { const char *name; void *p; int kind, n; } CfgVar;   /* kind: 0 
 #define I(f) {#f, &cfg.f, 0, 0}
 #define S(f) {#f, cfg.f, 1, (int)sizeof cfg.f}
 static CfgVar vars[] = {
-    I(nested_comments), I(unsigned_char), I(ident_len), I(max_errors), I(max_warnings), I(warn_display),
+    I(nested_comments), I(unsigned_char), I(ident_len),
+    I(enum_int), I(merge_strings), I(align_struct), I(stack_check), I(ansi_kw), I(jump_opt), I(red_loads),
+    I(stack_kb), I(elf_symtab), I(wx_segments), S(undefs), I(max_errors), I(max_warnings), I(warn_display),
     {"warn", cfg.warn, 2, NWARN},
     I(fp), S(defines),
     I(check_autodep), I(map_file), I(lnk_default_libs),

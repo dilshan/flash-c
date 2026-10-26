@@ -172,3 +172,26 @@ cross-references. REA could not open the file as an executable. Only these struc
 one external file, a keyword index, hyper-linked topics, context lookup of the word at the cursor,
 Index, Previous topic and examples that can be copied into the editor. Flash C's help text is
 original; its file format (`.fch`, plain text) is unrelated to the reference format.
+
+
+## 10. Compiler options for Linux executables
+
+*Evidence.* REA cannot open `TCC.EXE`/`TC.EXE` (NE images), so the switch table (`TCC.EXE` usage text: `-A -C -D -N -O -U -Z -a -b -d
+-k -l -r -u -y -w…`) and the dialog captions/hints of `TC.EXE` (Code Generation, Entry/Exit Code, Optimization Options, Source Options,
+the five warning pages, Linker, Segment Names) are the source.
+
+| Reference option (switch) | Used? | Flash C |
+|---|---|---|
+| Treat enums as ints (`-b`) | yes | `Code generation`, `-b` / `-b-` |
+| Duplicate strings merged (`-d`) | yes | `Code generation`, `-d` |
+| Word alignment (`-a`) | adapted | "Align structure members" (default on); off packs structs, `-a-` |
+| Test stack overflow (`-N`) | yes | `Code generation`, `-N`, run-time check against the `RLIMIT_STACK` based limit |
+| Jump optimization (`-O`), Suppress redundant loads (`-Z`) | yes | new `Optimizations` dialog |
+| Keywords: Turbo C++ / ANSI (`-A`) | partly | `Source`: Flash C / ANSI (UNIX V and K&R keyword sets have no meaning here) |
+| Undefine macro (`-U`) | yes | `Code generation`, Undefine symbols |
+| Warnings `-rch -amb -stv -cln -ucp -cpt` | yes | the matching pages of `Messages` |
+| Linker "Initialize segments", segment names, "No stack" warning, case-sensitive link | no | no segments or linker exist |
+| Stack size (`_stklen`) | adapted | `Linker`: Stack size (KB), applied with `setrlimit` |
+| `-y`/`-v` debug info in OBJs | adapted | `Linker`: ELF symbol table (`.symtab`) for `nm`/`gdb`/`perf` |
+| (none in the reference) | new | `Linker`: Protect code (W^X) for the ELF output |
+| Memory models, instruction sets (`-1 -2`), Pascal calls (`-p`), standard stack frame (`-k`), register variables (`-r`), underscores (`-u`), overlays, assembler output (`-B -S`), C++ switches | no | meaningless for flat x86-64 Linux code |

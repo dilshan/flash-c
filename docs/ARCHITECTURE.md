@@ -28,10 +28,17 @@ source ──► lexer/preprocessor ──► parser + type checker ──► x8
   private: arguments pushed right-to-left (8 bytes each), caller pops, result in `rax`; this makes
   `va_arg` trivial (`stdarg.h` is three macros) and means no ABI compatibility with the host libc
   is needed or attempted.
-* **ELF writer**: one `PT_LOAD` segment (code, data, bss) at `0x400000`; absolute 32-bit
+* **ELF writer**: one `PT_LOAD` segment (code, data, bss) at `0x400000` (or, with `-lw`, an R+X segment for the
+  header and code and a page-aligned R+W segment for data and bss; with `-lt` also `.symtab`/`.strtab` and section
+  headers); absolute 32-bit
   addresses with fixups resolved after layout; entry stub calls the runtime function `_fc_start`
   which calls `main` and `exit`. System calls are made through the intrinsic
   `__syscall(n, args…)`; `__sqrt(x)` is the other intrinsic.
+* **Optimizer (`-O`, `-Z`)**: `-Z` keeps a constant right operand in `rcx` instead of `push rax` / `pop rax` and
+  removes `push rax; pop` pairs that are not separated by a label or line mark; `-O` drops a `jmp` to the next
+  instruction and then relaxes the jumps of each function (rel32 to rel8 until a fixed point), remapping labels,
+  fix-ups and the debugger line table. `-N` emits `cmp rsp, [__fc_stklimit]; jae; call __fc_stkover` in user functions;
+  the limit is set by the start-up code from `RLIMIT_STACK` (`-ls` first applies the chosen size with `setrlimit`).
 * **Dead-code elimination**: every function records the globals/functions it references while
   being parsed; only what is reachable from `main` and `_fc_start` is emitted.
 

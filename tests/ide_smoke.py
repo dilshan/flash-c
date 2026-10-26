@@ -60,6 +60,19 @@ try:
     # options dialogs
     s.send('\x1bo', 'c', 'c')
     check('Code generation dialog', 'Code Generation' in text(s) and 'Unsigned characters' in text(s) and 'Floating Point' in text(s) and 'Model' not in text(s), s)
+    check('Code generation has the Linux options', all(x in text(s) for x in ['Treat enums as ints', 'Duplicate strings merged', 'Align structure members', 'Test stack overflow', 'Undefine symbols']), s)
+    s.send('ESC')
+    s.send('\x1bo', 'c', 'o')
+    check('Optimizations dialog', 'Optimization Options' in text(s) and 'Jump optimization' in text(s) and 'Suppress redundant loads' in text(s), s)
+    s.send('ESC')
+    s.send('\x1bo', 'c', 's')
+    check('Source dialog has Keywords', 'Keywords' in text(s) and 'ANSI' in text(s) and 'Nested comments' in text(s), s)
+    s.send('ESC')
+    s.send('\x1bo', 'c', 'm', 'f')
+    check('Frequent errors has Unreachable code', 'Unreachable code' in text(s), s)
+    s.send('ESC')
+    s.send('\x1bo', 'c', 'm', 'l')
+    check('Less frequent errors has the new warnings', 'Ambiguous operators' in text(s) and 'Structure passed by value' in text(s) and 'always true/false' in text(s), s)
     s.send('ESC')
     s.send('\x1bo')
     t = text(s)
@@ -75,7 +88,7 @@ try:
     check('Libraries dialog', 'Standard run-time library' in text(s) and 'Math library' in text(s) and 'Wildcard arguments' in text(s), s)
     s.send('ESC')
     s.send('\x1bo', 'l', 's')
-    check('Linker dialog', 'Map File' in text(s) and 'Default libraries' in text(s), s)
+    check('Linker dialog', 'Map File' in text(s) and 'Default libraries' in text(s) and 'ELF symbol table' in text(s) and 'Protect code' in text(s) and 'Stack size' in text(s), s)
     s.send('ESC')
 
     # search & replace

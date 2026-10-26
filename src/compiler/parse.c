@@ -353,8 +353,9 @@ static void ptr_compat_check(Type *to, Type *from, Node *src, const char *ctx_fu
     } else if (is_ptr(to) && is_ptr(from)) {
         if (to->base->kind == TY_VOID || from->base->kind == TY_VOID) return;
         if (!same_type(to->base, from->base)) {
-            /* signedness-only difference still counts, like the reference compiler */
-            WARN(CX->opt.w_pointer, "Suspicious pointer conversion");
+            if (to->base->kind == TY_CHAR && from->base->kind == TY_CHAR && to->base->uns != from->base->uns)
+                WARN(CX->opt.w_ucp, "Mixing pointers to signed and unsigned char");
+            else WARN(CX->opt.w_susp, "Suspicious pointer conversion");
         }
     }
 }
@@ -623,6 +624,8 @@ static Node *mkvar(Sym *y)
     return n;
 }
 
+static struct { int off, len; } *strpool; static int nstrpool, capstrpool;   /* string literals already placed (-d) */
+
 static Node *parse_string(void)
 {
     Tok *t = next();
@@ -650,8 +653,19 @@ static Node *parse_string(void)
         Tok *u = next(); char *nb = xalloc(n + u->slen + 1);
         memcpy(nb, buf, n); memcpy(nb + n, u->s, u->slen); n += u->slen; buf = nb;
     }
-    int off = data_alloc(n + 1, 1);
-    memcpy(PG.data + off, buf, n);
+    int off = -1;
+    if (CX->opt.merge_strings && !in_rt) {            /* -d: reuse an identical literal that is already in the data segment */
+        for (int i = 0; i < nstrpool; i++)
+            if (strpool[i].len == n && !memcmp(PG.data + strpool[i].off, buf, n)) { off = strpool[i].off; break; }
+    }
+    if (off < 0) {
+        off = data_alloc(n + 1, 1);
+        memcpy(PG.data + off, buf, n);
+        if (CX->opt.merge_strings && !in_rt) {
+            if (nstrpool == capstrpool) { capstrpool = capstrpool ? capstrpool * 2 : 64; strpool = realloc(strpool, capstrpool * sizeof *strpool); }
+            strpool[nstrpool].off = off; strpool[nstrpool].len = n; nstrpool++;
+        }
+    }
     Node *s = mk(N_STR, array_of(ty_char, n + 1)); s->val = off; s->str = buf; s->slen = n;
     return s;
 }
@@ -689,6 +703,7 @@ static Node *parse_call(Node *fn)
             Node *a = parse_assign();
             a = rv(a);
             argc++;
+            if (is_agg(a->ty)) WARN(CX->opt.w_structval, "Structure passed by value");
             if (!ft->noproto && pp) {
                 a = coerce(a, pp->ty, argc, fname);
                 pp = pp->next;
@@ -800,6 +815,7 @@ static Node *parse_primary(void)
         tp++;
         Node *e = parse_expr();
         expect(P_RPAR, "Expression syntax");
+        e->paren = 1;
         return e;
     }
     case TK_ID: {
@@ -972,7 +988,7 @@ static Node *new_binary(int op, Node *l, Node *r, Tok *t)
     }
     if (op == B_SUB) {
         if (lp && rp) {
-            if (!same_type(l->ty->base, r->ty->base) && l->ty->base->kind != TY_VOID && r->ty->base->kind != TY_VOID) WARN(CX->opt.w_pointer, "Suspicious pointer conversion");
+            if (!same_type(l->ty->base, r->ty->base) && l->ty->base->kind != TY_VOID && r->ty->base->kind != TY_VOID) WARN(CX->opt.w_susp, "Suspicious pointer conversion");
             int sz = l->ty->base->size ? l->ty->base->size : 1;
             Node *d = mkbin(B_SUB, conv(l, ty_long), conv(r, ty_long), ty_long, 0);
             return mkbin(B_DIV, d, mknum(sz, ty_long), ty_long, 0);
@@ -986,9 +1002,9 @@ static Node *new_binary(int op, Node *l, Node *r, Tok *t)
     if (op >= B_EQ) {
         if (lp || rp) {
             if (lp && rp && !same_type(l->ty->base, r->ty->base) && l->ty->base->kind != TY_VOID && r->ty->base->kind != TY_VOID)
-                WARN(CX->opt.w_pointer, "Suspicious pointer conversion");
+                WARN(CX->opt.w_susp, "Suspicious pointer conversion");
             else if ((lp && is_int(r->ty) && !is_null_const(r)) || (rp && is_int(l->ty) && !is_null_const(l)))
-                WARN(CX->opt.w_pointer, "Non-portable pointer comparison");
+                WARN(CX->opt.w_cpt, "Non-portable pointer comparison");
             return mkbin(op, conv(l, ty_ulong), conv(r, ty_ulong), ty_int, 1);
         }
         Type *ct = arith_type(promote(l)->ty, promote(r)->ty);
@@ -1007,6 +1023,23 @@ static Node *new_binary(int op, Node *l, Node *r, Tok *t)
     return mkbin(op, conv(l, ct), conv(r, ct), ct, ct->uns);
 }
 
+/* -wamb: operators of different families mixed without parentheses */
+static int is_bitop(int op) { return op == B_AND || op == B_OR || op == B_XOR; }
+static void check_ambiguous(Tok *t, Node *l, Node *r)
+{
+    int bad = 0;
+    for (int i = 0; i < 2 && !bad; i++) {
+        Node *o = i ? r : l;
+        if (o->paren) continue;
+        if (t->k == P_OROR) bad = o->k == N_LOGAND;
+        else if (o->k != N_BIN) continue;
+        else if (t->k == P_AMP || t->k == P_BAR || t->k == P_CARET) { int op = tk_to_bop(t->k); bad = is_bitop(o->op) && o->op != op; }
+        else if (t->k == P_SHL || t->k == P_SHR) bad = o->op == B_ADD || o->op == B_SUB;
+        else if (t->k == P_PLUS || t->k == P_MINUS) bad = o->op == B_SHL || o->op == B_SHR;
+    }
+    if (bad) WARNAT(CX->opt.w_amb, t->line, "Ambiguous operators need parentheses");
+}
+
 static Node *parse_binary(int minp)
 {
     Node *l = parse_unary();
@@ -1016,6 +1049,7 @@ static Node *parse_binary(int minp)
         if (!p || p < minp) return l;
         tp++;
         Node *r = parse_binary(p + 1);
+        if (CX->opt.w_amb && !in_rt) check_ambiguous(t, l, r);
         if (t->k == P_ANDAND || t->k == P_OROR) {
             l = rv(l); r = rv(r);
             if (!is_scalar(l->ty) || !is_scalar(r->ty)) ERRAT(t, "Illegal use of structure");
@@ -1130,6 +1164,7 @@ static Type *parse_struct(int is_union)
     if (ty->complete) ERRAT(kw, "Type mismatch in redeclaration of '%s'", tag ? tag : "");
     Member *head = NULL, **tail = &head;
     int off = 0, align = 1, size = 0;
+    int packed = !CX->opt.align_struct && !in_rt && !file_is_builtin(cur_file());   /* -a-: no padding between members */
     int unit = 0, bu = 0;          /* open bit-field unit: its offset and the bits already used (0 = none open) */
     while (toks[tp].k != P_RBRC) {
         if (toks[tp].k == TK_EOF) ERR("Declaration terminated incorrectly");
@@ -1143,7 +1178,7 @@ static Type *parse_struct(int is_union)
                 if (bt->align > align) align = bt->align;
                 bu = 0;
                 if (is_union) { m->off = 0; if (bt->size > size) size = bt->size; }
-                else { off = (off + bt->align - 1) & ~(bt->align - 1); m->off = off; off += bt->size; size = off; }
+                else { if (!packed) off = (off + bt->align - 1) & ~(bt->align - 1); m->off = off; off += bt->size; size = off; }
                 *tail = m; tail = &m->next;
             }
             continue;
@@ -1167,7 +1202,7 @@ static Type *parse_struct(int is_union)
                     m->ty = (mt->uns && w == 32) ? ty_uint : ty_int;      /* narrower unsigned fields promote to int */
                     if (is_union) { m->off = 0; m->bsh = 0; if (size < 4) size = 4; }
                     else {
-                        if (bu == 0 || bu + (int)w > 32) { off = (off + 3) & ~3; unit = off; off += 4; size = off; bu = 0; }
+                        if (bu == 0 || bu + (int)w > 32) { if (!packed) off = (off + 3) & ~3; unit = off; off += 4; size = off; bu = 0; }
                         m->off = unit; m->bsh = bu; bu += (int)w;
                     }
                     if (name) { *tail = m; tail = &m->next; }
@@ -1184,17 +1219,20 @@ static Type *parse_struct(int is_union)
             if (mt->align > align) align = mt->align;
             bu = 0;
             if (is_union) { m->off = 0; if (mt->size > size) size = mt->size; }
-            else { off = (off + mt->align - 1) & ~(mt->align - 1); m->off = off; off += mt->size; size = off; }
+            else { if (!packed) off = (off + mt->align - 1) & ~(mt->align - 1); m->off = off; off += mt->size; size = off; }
             *tail = m; tail = &m->next;
             if (!accept(P_COMMA)) break;
         }
         expect(P_SEMI, "Declaration missing ;");
     }
     tp++;
+    if (packed) align = 1;
     ty->members = head; ty->align = align; ty->size = (size + align - 1) & ~(align - 1); ty->complete = 1;
     if (!head) ty->size = 0;
     return ty;
 }
+
+static int narrow_enums(void) { return !CX->opt.enum_int && !in_rt && !file_is_builtin(cur_file()); }
 
 static Type *parse_enum(void)
 {
@@ -1202,10 +1240,12 @@ static Type *parse_enum(void)
     if (toks[tp].k == TK_ID) tag = next()->s;
     if (toks[tp].k != P_LBRC) {
         if (!tag) ERR("Declaration syntax error");
+        if (narrow_enums()) { Tag *tg = find_tag(tag, 0); if (tg) return tg->ty; }
         return ty_int;
     }
     tp++;
-    long long v = 0;
+    long long v = 0, lo = 0, hi = 0;
+    int any = 0;
     while (toks[tp].k != P_RBRC) {
         Tok *nm = next();
         if (nm->k != TK_ID) ERRAT(nm, "Identifier expected");
@@ -1213,11 +1253,21 @@ static Type *parse_enum(void)
         Sym *e = find_in(scope, nm->s);
         if (e) ERRAT(nm, "Multiple declaration for '%s'", nm->s);
         e = add_sym(scope, nm->s, ty_int, SY_ENUM); e->val = v; e->used = 1;
+        if (!any || v < lo) lo = v;
+        if (!any || v > hi) hi = v;
+        any = 1;
         v++;
         if (!accept(P_COMMA)) break;
     }
     expect(P_RBRC, "Compound statement missing }");
-    return ty_int;
+    if (!narrow_enums() || !any) return ty_int;
+    /* -b-: the smallest integer type that holds every enumerator */
+    Type *ty = ty_int;
+    if (lo >= 0) ty = hi <= 255 ? ty_uchar : hi <= 65535 ? ty_ushort : ty_int;
+    else if (lo >= -128 && hi <= 127) ty = ty_char;
+    else if (lo >= -32768 && hi <= 32767) ty = ty_short;
+    if (tag) { Tag *tg = xalloc(sizeof *tg); tg->name = tag; tg->ty = ty; tg->next = scope->tags; scope->tags = tg; }
+    return ty;
 }
 
 static Type *parse_declspec_inner(int *storage, int *is_typedef, int *got_type, int *isconst);
@@ -1565,16 +1615,18 @@ Node *pending_init;
 
 static int cond_has_assign(Node *n) { return n && n->k == N_ASSIGN; }
 
-static Node *cond_expr(void)
+static Node *cond_expr_w(int warn_const)
 {
     expect(P_LPAR, "Statement missing (");
     Node *c = parse_expr();
     c = rv(c);
+    if (warn_const && c->k == N_NUM) WARN(CX->opt.w_cond, c->val ? "Condition is always true" : "Condition is always false");
     if (!is_scalar(c->ty)) ERR("Illegal use of structure");
     if (cond_has_assign(c)) WARN(CX->opt.w_assign, "Possibly incorrect assignment");
     expect(P_RPAR, "Statement missing )");
     return c;
 }
+static Node *cond_expr(void) { return cond_expr_w(0); }
 
 static int has_side_effect(Node *n)
 {
@@ -1598,7 +1650,7 @@ static Node *parse_stmt(void)
     case P_LBRC: tp++; return parse_block(1);
     case P_SEMI: tp++; return new_stmt(S_NOP);
     case K_IF: {
-        tp++; n = new_stmt(S_IF); n->c = cond_expr();
+        tp++; n = new_stmt(S_IF); n->c = cond_expr_w(1);
         n->l = parse_stmt();
         if (accept(K_ELSE)) n->r = parse_stmt();
         return n;
@@ -1727,9 +1779,15 @@ static Node *parse_block(int newscope)
     if (newscope) push_scope();
     jmp_buf jb, *saved = recover_jb;
     Scope *sc_at = scope; int bd = brk_depth, cd = cont_depth; Node *sw = cur_switch;
+    volatile int dead = 0;     /* the previous statement transfers control away (return/break/continue/goto) */
     while (toks[tp].k != P_RBRC) {
         if (toks[tp].k == TK_EOF) { ERR("Compound statement missing }"); }
         recover_jb = &jb;
+        {
+            Tok *st = peek();
+            if (st->k == K_CASE || st->k == K_DEFAULT || (st->k == TK_ID && toks[tp + 1].k == P_COLON)) dead = 0;
+            else if (dead && st->k != P_SEMI) { WARNAT(CX->opt.w_unreach, st->line, "Unreachable code"); dead = 0; }
+        }
         if (setjmp(jb)) {
             scope = sc_at; brk_depth = bd; cont_depth = cd; cur_switch = sw; pending_init = NULL;
             if (noskip) noskip = 0; else sync_to_stmt_end();
@@ -1743,6 +1801,7 @@ static Node *parse_block(int newscope)
         } else {
             Node *s = parse_stmt();
             *tail = s; tail = &s->next;
+            dead = s->k == S_RETURN || s->k == S_BREAK || s->k == S_CONTINUE || s->k == S_GOTO;
         }
     }
     recover_jb = saved;
@@ -1880,6 +1939,7 @@ void parse_init(void)
     free(PG.funcs); free(PG.data); free(PG.drel);
     memset(&PG, 0, sizeof PG);
     memset(ghash, 0, sizeof ghash);
+    nstrpool = 0;
     ty_void = mkty(TY_VOID, 0, 0); ty_void->align = 1;
     ty_char = mkty(TY_CHAR, 1, 0); ty_uchar = mkty(TY_CHAR, 1, 1);
     ty_short = mkty(TY_SHORT, 2, 0); ty_ushort = mkty(TY_SHORT, 2, 1);

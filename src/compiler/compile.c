@@ -11,8 +11,11 @@ void fc_options_default(FcOptions *o)
     o->w_unused = 1;
     o->w_noproto = 1;
     o->w_noreturn = 1;
-    o->w_pointer = 1;
+    o->w_pointer = 1; o->w_susp = 1;
     o->w_noeffect = o->w_assign = o->w_divzero = o->w_voidret = 1;
+    o->enum_int = 1;
+    o->align_struct = 1;
+    o->w_unreach = o->w_cond = o->w_ucp = o->w_cpt = 1;
 }
 
 static const char *lib_dir(char kind)
@@ -43,7 +46,9 @@ int fc_compile(FcContext *c, const char **files, int nfiles, const char *outpath
         c->diag = rt_diag; c->user = c; c->progress = NULL;
         FcOptions so = c->opt;
         c->opt.warn_level = 0; c->opt.max_errors = 0;
+        c->opt.ansi_keywords = 0; c->opt.stack_check = 0; c->opt.align_struct = 1; c->opt.enum_int = 1;   /* the library is always compiled the same way */
         if (so.fp_mode == 0) pp_define_cmdline("_FC_NOFP", "1");
+        if (so.stack_kb > 0) { char kb[16]; snprintf(kb, sizeof kb, "%d", so.stack_kb); pp_define_cmdline("_FC_STKKB", kb); }
         TokVec rt = {0};
         for (const FcLibModule *m = fc_lib_modules; m->name; m++) {
             int want = m->kind == '0' || (m->kind == '1' && !so.nolibs) ||
@@ -66,6 +71,7 @@ int fc_compile(FcContext *c, const char **files, int nfiles, const char *outpath
         if (eq) { int n = (int)(eq - c->opt.defines[i]); if (n > 127) n = 127; memcpy(nm, c->opt.defines[i], n); nm[n] = 0; pp_define_cmdline(nm, eq + 1); }
         else pp_define_cmdline(c->opt.defines[i], "1");
     }
+    for (int i = 0; i < c->opt.nundef; i++) pp_undef_cmdline(c->opt.undefs[i]);
     for (int i = 0; i < nfiles; i++) {
         TokVec tv = {0};
         if (pp_run(files[i], &tv)) { free(tv.v); continue; }

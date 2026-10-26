@@ -187,7 +187,26 @@ fcc [options] file.c [file2.c ...]     * several files are compiled as one progr
   -M -Mp -Md      link map (segments / + publics / detailed)
   -ln  -lnm       no libraries / no math library      -f-  -f  -f87   floating-point mode
   wildargs.obj    (as a file name) link the wildcard argument expander
+
+  -b- / -b        enums use the smallest fitting integer type / always int (default)
+  -d              merge identical string literals     -a-  pack structure members (no padding)
+  -N              test for stack overflow on function entry ("Stack overflow!", exit code 1)
+  -O              jump optimization (short jumps, jumps to the next instruction removed)
+  -Z              suppress redundant loads (constant operands stay in a register)
+  -A              ANSI keywords only: no // comments, near/far/huge/cdecl/pascal/interrupt are identifiers
+  -Uname          undefine a macro
+  -ls<KB>         stack size (setrlimit at start-up; also the -N limit)   -lt  ELF symbol table
+  -lw             separate R+X code and R+W data segments (no RWX segment)
+  -wrch -wamb -wstv -wcln -wucp -wcpt -wsus   individual warnings (unreachable code, ambiguous
+                  operators, structure by value, constant condition, char pointer signedness,
+                  pointer comparison, suspicious pointer); -w-xxx turns one off
 ```
+
+Each switch has a matching check box in *Options → Compiler / Linker* (Code generation,
+Optimizations, Source, Messages, Linker). They are modelled on the switches of the reference
+compiler (`-b -d -a -N -O -Z -A -U`); the ones that only make sense for 16-bit DOS (memory models,
+Pascal calls, overlays, segment names, instruction sets, register variables) are not offered.
+`tests/options.sh` checks them.
 
 Diagnostics use the classic format: `Error hello.c 5: Undefined symbol 'x' in function main`,
 `Warning …`, `Linker Error: Undefined symbol _foo in module …`.
