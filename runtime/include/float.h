@@ -1,3 +1,10 @@
+/*
+ * File:    float.h
+ * Purpose: Limits and characteristics of the floating-point types.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef _FC_FLOAT_H
 #define _FC_FLOAT_H
 #define FLT_RADIX 2

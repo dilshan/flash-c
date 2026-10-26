@@ -1,4 +1,10 @@
-/* Flash C - x86-64 code generator and ELF64 writer */
+/*
+ * File:    gen.c
+ * Purpose: Flash C - x86-64 code generator and ELF64 writer
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include "fci.h"
 #include <sys/stat.h>
 #include <unistd.h>

@@ -1,3 +1,11 @@
+/*
+ * File:    stdlib.h
+ * Purpose: General utilities: memory, conversions, random numbers, sorting,
+ *          program control.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef _FC_STDLIB_H
 #define _FC_STDLIB_H
 #include <_defs.h>

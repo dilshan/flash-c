@@ -1,6 +1,13 @@
-/* fpcvt - floating-point conversion: the formatting behind %e %f %g and the parsing behind %lf and strtod.
- * Linking this module (any program that uses floating point does) registers the two conversion vectors
- * that printf and scanf call through. */
+/*
+ * File:    fpcvt.c
+ * Purpose: fpcvt - floating-point conversion: the formatting behind %e %f %g and
+ *          the parsing behind %lf and strtod. Linking this module (any program
+ *          that uses floating point does) registers the two conversion vectors
+ *          that printf and scanf call through.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>

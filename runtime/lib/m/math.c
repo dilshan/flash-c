@@ -1,5 +1,12 @@
-/* math - elementary functions.  Domain and range errors go through matherr(): the default handler prints
- * the reference library's  "name: DOMAIN error"  style message on stderr and sets errno. */
+/*
+ * File:    math.c
+ * Purpose: math - elementary functions. Domain and range errors go through
+ *          matherr(): the default handler prints the reference library's "name:
+ *          DOMAIN error" style message on stderr and sets errno.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <math.h>
 #include <errno.h>
 #include <stdio.h>

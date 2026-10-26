@@ -1,4 +1,10 @@
-/* Flash C IDE - Options dialogs, search dialogs and other dialog boxes */
+/*
+ * File:    dialogs.c
+ * Purpose: Flash C IDE - Options dialogs, search dialogs and other dialog boxes
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include "ide.h"
 #include <ctype.h>
 #include <unistd.h>

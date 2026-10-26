@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# File:    helpexamples.py
+# Purpose: Compiles and runs every example program of help/language.fch (they are
+#          what Edit|Copy example copies).
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 """Compiles and runs every example program of help/language.fch (they are what Edit|Copy example copies)."""
 import os, re, subprocess, sys, tempfile
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

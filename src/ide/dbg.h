@@ -1,9 +1,16 @@
-/* Flash C - source-level debugger core (ptrace on Linux x86-64)
- *
+/*
+ * File:    dbg.h
+ * Purpose: Flash C - source-level debugger core (ptrace on Linux x86-64)
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
+/*
  * The program is started under ptrace with its terminal on a pseudo terminal, so it behaves as if it
  * ran on a console while the IDE keeps its own screen. The compiler (option -v) supplies line tables,
  * function and variable descriptions (FcDebug in fc.h). Breakpoints are int3 instructions that are
- * inserted only while the program runs and removed whenever it stops. */
+ * inserted only while the program runs and removed whenever it stops.
+ */
 #ifndef DBG_H
 #define DBG_H
 #include "fc.h"

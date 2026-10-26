@@ -1,4 +1,11 @@
-/* scanf - formatted input.  %e %f %g use __ScanTodVector (installed by the floating-point run-time). */
+/*
+ * File:    scanf.c
+ * Purpose: scanf - formatted input. %e %f %g use __ScanTodVector (installed by
+ *          the floating-point run-time).
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>

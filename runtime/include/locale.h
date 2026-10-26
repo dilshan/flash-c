@@ -1,3 +1,10 @@
+/*
+ * File:    locale.h
+ * Purpose: Locale control (only the "C" locale is provided).
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef _FC_LOCALE_H
 #define _FC_LOCALE_H
 #include <_defs.h>

@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# File:    ide_smoke.py
+# Purpose: End-to-end smoke test of the Flash C IDE: drives the real binary
+#          through a pty.
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 """End-to-end smoke test of the Flash C IDE: drives the real binary through a pty."""
 import os, sys, shutil, tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

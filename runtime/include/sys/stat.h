@@ -1,3 +1,10 @@
+/*
+ * File:    stat.h
+ * Purpose: File status information (stat, fstat) and the file mode bits.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef _FC_SYS_STAT_H
 #define _FC_SYS_STAT_H
 #include <sys/types.h>

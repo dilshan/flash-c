@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+# File:    gen_libdoc.py
+# Purpose: Generates docs/LIBRARY.md: for every public header the functions it
+#          declares and the library module (source file) that implements each of
+#          them. Usage: python3 tools/gen_libdoc.py > docs/LIBRARY.md
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 """Generates docs/LIBRARY.md: for every public header the functions it declares and the library module (source file)
 that implements each of them.  Usage: python3 tools/gen_libdoc.py > docs/LIBRARY.md"""
 import re, glob, os

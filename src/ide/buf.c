@@ -1,4 +1,10 @@
-/* Flash C IDE - text buffers, undo, syntax highlighting, search */
+/*
+ * File:    buf.c
+ * Purpose: Flash C IDE - text buffers, undo, syntax highlighting, search
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include "ide.h"
 #include <ctype.h>
 #include <unistd.h>

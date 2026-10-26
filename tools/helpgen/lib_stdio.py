@@ -1,4 +1,9 @@
-# (name, proto, summary, detail, returns, see, example)
+# File:    lib_stdio.py
+# Purpose: (name, proto, summary, detail, returns, see, example)
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 H = "stdio.h"
 F = [
 ("clearerr","void clearerr(FILE *stream);","Clears the end-of-file and error indicators of a stream.","After an error or end of file the indicators of a stream stay set until they are cleared with clearerr, rewind or by reopening the stream.","Nothing.","feof ferror rewind",None),

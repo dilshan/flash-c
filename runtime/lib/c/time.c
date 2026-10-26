@@ -1,6 +1,13 @@
-/* time - calendar time, time zones, and the DOS-flavoured date/time calls
- * The time zone comes from the TZ variable (POSIX form such as  EST5EDT  or  CET-1CEST, US daylight-saving
- * rules); without TZ the local time is UTC. */
+/*
+ * File:    time.c
+ * Purpose: time - calendar time, time zones, and the DOS-flavoured date/time
+ *          calls The time zone comes from the TZ variable (POSIX form such as
+ *          EST5EDT or CET-1CEST, US daylight-saving rules); without TZ the local
+ *          time is UTC.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <time.h>
 #include <stdlib.h>
 #include <string.h>

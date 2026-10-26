@@ -1,3 +1,10 @@
+/*
+ * File:    stdio.h
+ * Purpose: Standard input and output: streams, files and formatted I/O.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef _FC_STDIO_H
 #define _FC_STDIO_H
 #include <_defs.h>

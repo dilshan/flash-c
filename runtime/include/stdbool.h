@@ -1,3 +1,10 @@
+/*
+ * File:    stdbool.h
+ * Purpose: The bool type and the true/false constants.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef _FC_STDBOOL_H
 #define _FC_STDBOOL_H
 #define bool int

@@ -1,4 +1,11 @@
-/* Flash C IDE - source-level debugger user interface (commands, dialogs, execution marker) */
+/*
+ * File:    debugger.c
+ * Purpose: Flash C IDE - source-level debugger user interface (commands, dialogs,
+ *          execution marker)
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include "ide.h"
 #include "dbg.h"
 #include <ctype.h>

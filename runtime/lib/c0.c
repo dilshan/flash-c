@@ -1,7 +1,15 @@
-/* c0 - start-up module.  Always linked first: it receives control from the kernel's entry stub,
- * builds argc/argv/environ, runs the #pragma startup procedures, calls main() and leaves through
- * exit(), which runs atexit() handlers and the #pragma exit procedures.  It uses only system calls,
- * so programs that are linked without the standard library still start and finish properly. */
+/*
+ * File:    c0.c
+ * Purpose: c0 - start-up module. Always linked first: it receives control from
+ *          the kernel's entry stub, builds argc/argv/environ, runs the #pragma
+ *          startup procedures, calls main() and leaves through exit(), which runs
+ *          atexit() handlers and the #pragma exit procedures. It uses only system
+ *          calls, so programs that are linked without the standard library still
+ *          start and finish properly.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <_fcrt.h>
 #include <stdlib.h>
 

@@ -1,4 +1,10 @@
-/* Flash C IDE - online help */
+/*
+ * File:    help.c
+ * Purpose: Flash C IDE - online help
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include "ide.h"
 #include <ctype.h>
 #include <dirent.h>

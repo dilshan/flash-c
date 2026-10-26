@@ -1,4 +1,11 @@
-/* Flash C - debugger expression evaluator, value formatting, frame descriptions and registers */
+/*
+ * File:    dbgeval.c
+ * Purpose: Flash C - debugger expression evaluator, value formatting, frame
+ *          descriptions and registers
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include "dbg.h"
 #include <stdio.h>
 #include <stdlib.h>

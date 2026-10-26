@@ -1,4 +1,10 @@
-/* stringx - string functions that are extensions of the ANSI set */
+/*
+ * File:    stringx.c
+ * Purpose: stringx - string functions that are extensions of the ANSI set
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>

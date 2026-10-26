@@ -1,3 +1,9 @@
+# File:    lib_bios.py
+# Purpose: Help text for the functions of <bios.h>, used by gen.py.
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 H = "bios.h"
 F = [
 ("biosequip","int biosequip(void);","Returns the equipment list.","A fixed value (0x0021: a display and one floppy-style drive entry) is returned; the real hardware is not examined.","The equipment word.","biosmemory",None),

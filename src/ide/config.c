@@ -1,4 +1,10 @@
-/* Flash C IDE - palette and configuration persistence */
+/*
+ * File:    config.c
+ * Purpose: Flash C IDE - palette and configuration persistence
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include "ide.h"
 #include <unistd.h>
 #include <ctype.h>

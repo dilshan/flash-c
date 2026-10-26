@@ -1,3 +1,10 @@
+# File:    lib_misc.py
+# Purpose: Help text for the functions of the smaller headers (assert, setjmp,
+#          signal and others), used by gen.py.
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 H = "misc"
 F = [
 ("assert","void assert(int expression);","Checks a condition while the program runs. (assert.h)","If the expression is 0 a message with the expression, file and line is written to stderr and abort is called. Define NDEBUG before including assert.h to remove the checks.","Nothing.","abort",None),

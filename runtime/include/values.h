@@ -1,3 +1,10 @@
+/*
+ * File:    values.h
+ * Purpose: Limits of the basic types in the older <values.h> style.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef _FC_VALUES_H
 #define _FC_VALUES_H
 #define MAXSHORT 0x7fff

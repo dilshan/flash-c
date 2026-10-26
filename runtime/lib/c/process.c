@@ -1,4 +1,10 @@
-/* process - running other programs: system, spawn*, exec*, getpid */
+/*
+ * File:    process.c
+ * Purpose: process - running other programs: system, spawn*, exec*, getpid
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <process.h>
 #include <stdlib.h>
 #include <string.h>

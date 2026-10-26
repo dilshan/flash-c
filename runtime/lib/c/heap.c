@@ -1,4 +1,10 @@
-/* heap - dynamic memory: a first-fit allocator on top of brk */
+/*
+ * File:    heap.c
+ * Purpose: heap - dynamic memory: a first-fit allocator on top of brk
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <stdlib.h>
 #include <string.h>
 #include <alloc.h>

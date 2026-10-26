@@ -1,4 +1,10 @@
-/* Flash C IDE - dialog engine, message boxes, file dialog */
+/*
+ * File:    dialog.c
+ * Purpose: Flash C IDE - dialog engine, message boxes, file dialog
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include "ide.h"
 #include <ctype.h>
 #include <stdarg.h>

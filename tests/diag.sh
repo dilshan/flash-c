@@ -1,5 +1,11 @@
 #!/bin/sh
-# Checks the text of the diagnostics produced by fcc for known-bad programs.
+# File:    diag.sh
+# Purpose: Checks the text of the diagnostics produced by fcc for known-bad
+#          programs.
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 cd "$(dirname "$0")/diag" || exit 1
 FCC=../../build/fcc
 fail=0

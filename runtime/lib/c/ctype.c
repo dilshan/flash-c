@@ -1,4 +1,10 @@
-/* ctype - character classification and conversion */
+/*
+ * File:    ctype.c
+ * Purpose: ctype - character classification and conversion
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <ctype.h>
 
 int isdigit(int c) { return c >= '0' && c <= '9'; }

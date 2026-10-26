@@ -1,6 +1,14 @@
-/* printf - formatted output.  Floating-point conversions are done through __RealCvtVector, which the
- * floating-point run-time (libm/fpcvt) installs when a program uses floating point; without it %e %f %g
- * stop the program with "floating point formats not linked", as the reference run-time does. */
+/*
+ * File:    printf.c
+ * Purpose: printf - formatted output. Floating-point conversions are done through
+ *          __RealCvtVector, which the floating-point run-time (libm/fpcvt)
+ *          installs when a program uses floating point; without it %e %f %g stop
+ *          the program with "floating point formats not linked", as the reference
+ *          run-time does.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>

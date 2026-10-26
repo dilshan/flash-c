@@ -1,3 +1,10 @@
+/*
+ * File:    math.h
+ * Purpose: Mathematical functions and constants.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef _FC_MATH_H
 #define _FC_MATH_H
 #define M_E 2.7182818284590452354

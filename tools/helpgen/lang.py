@@ -1,5 +1,11 @@
-# Language reference topics for the extended help (help/language.fch).
-# K(title, summary, syntax, detail, see, example, keys)   -- see gen.py for how they are laid out.
+# File:    lang.py
+# Purpose: Language reference topics for the extended help (help/language.fch).
+#          K(title, summary, syntax, detail, see, example, keys) -- see gen.py
+#          for how they are laid out.
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 def K(title, summary, syntax, detail, see="", example=None, keys=None):
     return dict(title=title, summary=summary, syntax=syntax, detail=detail, see=see, example=example, keys=title if keys is None else keys)
 

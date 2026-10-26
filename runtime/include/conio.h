@@ -1,3 +1,11 @@
+/*
+ * File:    conio.h
+ * Purpose: Console I/O: windows, colours, cursor control and unbuffered keyboard
+ *          input.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef _FC_CONIO_H
 #define _FC_CONIO_H
 #include <_defs.h>

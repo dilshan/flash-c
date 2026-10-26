@@ -1,4 +1,10 @@
-/* conv - string to number and number to string conversions */
+/*
+ * File:    conv.c
+ * Purpose: conv - string to number and number to string conversions
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>

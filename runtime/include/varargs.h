@@ -1,3 +1,11 @@
+/*
+ * File:    varargs.h
+ * Purpose: Old-style variable argument lists (compatibility header, see
+ *          stdarg.h).
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef _FC_VARARGS_H
 #define _FC_VARARGS_H
 #include <_defs.h>

@@ -1,3 +1,9 @@
+# File:    lib_math.py
+# Purpose: Help text for the functions of <math.h>, used by gen.py.
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 H = "math.h"
 def m1(n, what, extra="", ex=None):
     return (n,"double %s(double x);"%n,what,extra,"The result. A domain error sets errno to EDOM; a range error sets it to ERANGE.","",ex)

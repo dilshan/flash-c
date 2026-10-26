@@ -1,4 +1,10 @@
-/* Flash C IDE - terminal layer */
+/*
+ * File:    term.c
+ * Purpose: Flash C IDE - terminal layer
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include "term.h"
 #include <stdio.h>
 #include <stdlib.h>

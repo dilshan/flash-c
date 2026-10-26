@@ -1,4 +1,10 @@
-/* io - low-level (descriptor) file access, file status and attributes */
+/*
+ * File:    io.c
+ * Purpose: io - low-level (descriptor) file access, file status and attributes
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <io.h>
 #include <fcntl.h>
 #include <stdarg.h>

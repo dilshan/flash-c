@@ -1,3 +1,9 @@
+# File:    lib_conio.py
+# Purpose: Help text for the functions of <conio.h>, used by gen.py.
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 H = "conio.h"
 R0 = "Nothing."
 F = [

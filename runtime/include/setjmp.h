@@ -1,3 +1,10 @@
+/*
+ * File:    setjmp.h
+ * Purpose: Non-local jumps: setjmp and longjmp.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef _FC_SETJMP_H
 #define _FC_SETJMP_H
 /* frame pointer, stack pointer and resume address of the setjmp call */

@@ -1,5 +1,12 @@
-/* signal - signal handling.  Handlers are called by the kernel through a small stub written by the
- * linker (__sigtramp), which converts the system's register convention to the one used by compiled code. */
+/*
+ * File:    signal.c
+ * Purpose: signal - signal handling. Handlers are called by the kernel through a
+ *          small stub written by the linker (__sigtramp), which converts the
+ *          system's register convention to the one used by compiled code.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <signal.h>
 #include <errno.h>
 #include <_fcrt.h>

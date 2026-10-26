@@ -1,3 +1,10 @@
+/*
+ * File:    signal.h
+ * Purpose: Signal handling: signal, raise and the signal numbers.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef _FC_SIGNAL_H
 #define _FC_SIGNAL_H
 typedef int sig_atomic_t;

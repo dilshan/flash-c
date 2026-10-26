@@ -1,4 +1,11 @@
-/* file - stream management: opening, closing, buffering, positioning, temporary files */
+/*
+ * File:    file.c
+ * Purpose: file - stream management: opening, closing, buffering, positioning,
+ *          temporary files
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

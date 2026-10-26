@@ -1,4 +1,10 @@
-/* rw - block input and output */
+/*
+ * File:    rw.c
+ * Purpose: rw - block input and output
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <stdio.h>
 #include <string.h>
 #include <_fcrt.h>

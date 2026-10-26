@@ -1,4 +1,11 @@
-/* dir - directories, wildcard searches (findfirst/findnext), and path name handling */
+/*
+ * File:    dir.c
+ * Purpose: dir - directories, wildcard searches (findfirst/findnext), and path
+ *          name handling
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <dir.h>
 #include <direct.h>
 #include <dirent.h>

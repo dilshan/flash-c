@@ -1,4 +1,10 @@
-/* Flash C - arena allocator, string interning, diagnostics */
+/*
+ * File:    util.c
+ * Purpose: Flash C - arena allocator, string interning, diagnostics
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include "fci.h"
 
 typedef struct Chunk { struct Chunk *next; size_t used, cap; } Chunk;

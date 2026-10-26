@@ -1,3 +1,11 @@
+/*
+ * File:    io.h
+ * Purpose: Low-level file access through descriptors (open, read, write, lseek
+ *          and so on).
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef _FC_IO_H
 #define _FC_IO_H
 #include <_defs.h>

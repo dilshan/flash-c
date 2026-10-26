@@ -1,4 +1,11 @@
-/* Flash C - source-level debugger core: process control, breakpoints, stepping, frames */
+/*
+ * File:    dbgcore.c
+ * Purpose: Flash C - source-level debugger core: process control, breakpoints,
+ *          stepping, frames
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include "dbg.h"
 #include <stdio.h>
 #include <stdlib.h>

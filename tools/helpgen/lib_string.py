@@ -1,3 +1,9 @@
+# File:    lib_string.py
+# Purpose: Help text for the functions of <string.h>, used by gen.py.
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 H = "string.h"
 F = [
 ("memchr","void *memchr(const void *s, int c, size_t n);","Searches memory for a byte.","Looks at the first n bytes of s for the first byte equal to (unsigned char)c.","A pointer to the byte, or NULL if it is not found.","strchr memcmp",None),

@@ -1,4 +1,10 @@
-/* internal declarations of the stdio modules */
+/*
+ * File:    _fcio.h
+ * Purpose: internal declarations of the stdio modules
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef __FCIO_H
 #define __FCIO_H
 #include <stdio.h>

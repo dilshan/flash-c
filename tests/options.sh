@@ -1,5 +1,11 @@
 #!/bin/sh
-# Checks the code-generation / linker options of fcc by compiling one program with different switches.
+# File:    options.sh
+# Purpose: Checks the code-generation / linker options of fcc by compiling one
+#          program with different switches.
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 cd "$(dirname "$0")/options" || exit 1
 FCC=../../build/fcc
 TMP=${TMPDIR:-/tmp}/fc-opt.$$

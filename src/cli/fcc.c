@@ -1,4 +1,10 @@
-/* fcc - Flash C command-line compiler */
+/*
+ * File:    fcc.c
+ * Purpose: fcc - Flash C command-line compiler
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

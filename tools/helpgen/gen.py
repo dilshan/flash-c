@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# File:    gen.py
+# Purpose: Generates help/*.fch (the extended Flash C help) from the tables in
+#          lib_*.py and pages.py. Usage: gen.py <output-dir>
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 """Generates help/*.fch (the extended Flash C help) from the tables in lib_*.py and pages.py.
 Usage: gen.py <output-dir>"""
 import sys, os, re, textwrap, importlib

@@ -1,3 +1,10 @@
+/*
+ * File:    dos.h
+ * Purpose: DOS-style date, time, delay and file-attribute services.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef _FC_DOS_H
 #define _FC_DOS_H
 #include <_defs.h>

@@ -1,4 +1,11 @@
-/* fpenv - floating-point control: status and control words as seen through the SSE control register */
+/*
+ * File:    fpenv.c
+ * Purpose: fpenv - floating-point control: status and control words as seen
+ *          through the SSE control register
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <float.h>
 
 

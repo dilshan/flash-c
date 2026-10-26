@@ -1,4 +1,10 @@
-/* Flash C - parser, type checker, AST builder */
+/*
+ * File:    parse.c
+ * Purpose: Flash C - parser, type checker, AST builder
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include "fci.h"
 #include <ctype.h>
 

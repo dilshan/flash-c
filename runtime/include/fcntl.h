@@ -1,3 +1,10 @@
+/*
+ * File:    fcntl.h
+ * Purpose: File access mode and creation flags for open().
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef _FC_FCNTL_H
 #define _FC_FCNTL_H
 #define O_RDONLY 0x0000

@@ -1,5 +1,11 @@
 #!/bin/sh
-# Tests of the run-time library build options: link map, library selection, start-up/exit pragmas, wildcard arguments.
+# File:    libtest.sh
+# Purpose: Tests of the run-time library build options: link map, library
+#          selection, start-up/exit pragmas, wildcard arguments.
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 cd "$(dirname "$0")" || exit 1
 FCC=$(pwd)/../build/fcc
 T=${TMPDIR:-/tmp}/fc-lib.$$

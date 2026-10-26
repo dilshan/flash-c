@@ -1,5 +1,12 @@
-/* build-time helper: turns the run-time library sources and headers into C string tables (embedded.c)
- *
+/*
+ * File:    embed.c
+ * Purpose: build-time helper: turns the run-time library sources and headers into
+ *          C string tables (embedded.c)
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
+/*
  * usage: embed <out.c> kind:path ...
  *   kind  0  start-up module (always linked)             path = runtime/lib/c0.c
  *         1  standard library module                     path = runtime/lib/c/<name>.c

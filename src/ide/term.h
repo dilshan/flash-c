@@ -1,4 +1,10 @@
-/* Flash C IDE - terminal layer: screen buffer, keyboard, mouse */
+/*
+ * File:    term.h
+ * Purpose: Flash C IDE - terminal layer: screen buffer, keyboard, mouse
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef TERM_H
 #define TERM_H
 #include <stdint.h>

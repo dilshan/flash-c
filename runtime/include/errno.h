@@ -1,3 +1,10 @@
+/*
+ * File:    errno.h
+ * Purpose: The errno variable and the error number constants.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef _FC_ERRNO_H
 #define _FC_ERRNO_H
 extern int errno;

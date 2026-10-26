@@ -1,4 +1,10 @@
-/* misc - assert, locale, multibyte, BIOS-style and DOS-style helpers */
+/*
+ * File:    misc.c
+ * Purpose: misc - assert, locale, multibyte, BIOS-style and DOS-style helpers
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <assert.h>
 #include <locale.h>
 #include <stdlib.h>

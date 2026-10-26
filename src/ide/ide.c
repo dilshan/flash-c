@@ -1,4 +1,10 @@
-/* Flash C IDE - commands, build/run integration, main loop */
+/*
+ * File:    ide.c
+ * Purpose: Flash C IDE - commands, build/run integration, main loop
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <pty.h>
 #include <poll.h>
 #include <errno.h>

@@ -1,3 +1,9 @@
+# File:    lib_stdlib.py
+# Purpose: Help text for the functions of <stdlib.h>, used by gen.py.
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 H = "stdlib.h"
 F = [
 ("abort","void abort(void);","Ends the program abnormally.","Raises SIGABRT. If the signal is not caught or ignored, the program ends at once without calling the functions registered with atexit; buffered output is not flushed.","Does not return.","exit signal assert",None),

@@ -1,4 +1,10 @@
-/* fc - Flash C IDE */
+/*
+ * File:    main.c
+ * Purpose: fc - Flash C IDE
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include "ide.h"
 #include <string.h>
 

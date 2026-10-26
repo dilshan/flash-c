@@ -1,3 +1,9 @@
+# File:    lib_ctype.py
+# Purpose: Help text for the functions of <ctype.h>, used by gen.py.
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 H = "ctype.h"
 def cf(name, what, cls):
     return (name,"int %s(int c);"%name,"Tests whether a character is %s."%what,"The argument must be an unsigned char value or EOF. %s"%cls,"Nonzero if the test is true, otherwise 0.","tolower toupper",None)

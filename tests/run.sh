@@ -1,5 +1,11 @@
 #!/bin/sh
-# Compiles every tests/cases/*.c with Flash C and with the host compiler, and compares the output.
+# File:    run.sh
+# Purpose: Compiles every tests/cases/*.c with Flash C and with the host
+#          compiler, and compares the output.
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 cd "$(dirname "$0")/cases" || exit 1
 TZ=UTC; export TZ
 FCC="../../build/fcc $FCC_FLAGS"

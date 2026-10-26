@@ -1,4 +1,10 @@
-/* Flash C IDE - shared declarations */
+/*
+ * File:    ide.h
+ * Purpose: Flash C IDE - shared declarations
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef IDE_H
 #define IDE_H
 #include <stdio.h>

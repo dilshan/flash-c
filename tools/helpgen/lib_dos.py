@@ -1,3 +1,9 @@
+# File:    lib_dos.py
+# Purpose: Help text for the functions of <dos.h>, used by gen.py.
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 H = "dos.h"
 F = [
 ("delay","void delay(unsigned milliseconds);","Waits for a number of milliseconds.","Uses the system sleep, so the processor is not kept busy.","Nothing.","sleep sound","#include <dos.h>\n#include <stdio.h>\n\nint main(void)\n{\n    int i;\n    for (i = 3; i > 0; i--) {\n        printf(\"%d\\n\", i);\n        delay(1000);\n    }\n    return 0;\n}"),

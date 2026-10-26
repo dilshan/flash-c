@@ -1,4 +1,10 @@
-/* Flash C - compiler internals */
+/*
+ * File:    fci.h
+ * Purpose: Flash C - compiler internals
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef FCI_H
 #define FCI_H
 #include <stdio.h>

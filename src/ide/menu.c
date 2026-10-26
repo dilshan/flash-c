@@ -1,4 +1,11 @@
-/* Flash C IDE - menu bar and pulldown menus (structure recovered from the reference IDE) */
+/*
+ * File:    menu.c
+ * Purpose: Flash C IDE - menu bar and pulldown menus (structure recovered from
+ *          the reference IDE)
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include "ide.h"
 #include <ctype.h>
 

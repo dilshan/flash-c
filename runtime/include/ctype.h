@@ -1,3 +1,10 @@
+/*
+ * File:    ctype.h
+ * Purpose: Character classification and conversion functions.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef _FC_CTYPE_H
 #define _FC_CTYPE_H
 int isalnum(int c);

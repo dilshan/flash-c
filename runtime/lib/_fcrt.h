@@ -1,4 +1,11 @@
-/* internal declarations shared by the run-time library modules (not part of the public headers) */
+/*
+ * File:    _fcrt.h
+ * Purpose: internal declarations shared by the run-time library modules (not part
+ *          of the public headers)
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #ifndef __FCRT_H
 #define __FCRT_H
 #include <_defs.h>

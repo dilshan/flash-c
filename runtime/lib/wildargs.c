@@ -1,5 +1,12 @@
-/* wildargs - optional start-up object.  When it is linked, command-line arguments that contain the
- * wildcards  *  ?  [set]  are replaced by the sorted list of matching file names (before main runs). */
+/*
+ * File:    wildargs.c
+ * Purpose: wildargs - optional start-up object. When it is linked, command-line
+ *          arguments that contain the wildcards * ? [set] are replaced by the
+ *          sorted list of matching file names (before main runs).
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <_fcrt.h>
 #include <stdlib.h>
 

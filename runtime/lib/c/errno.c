@@ -1,4 +1,10 @@
-/* errno - error numbers, messages and the system-call result helpers */
+/*
+ * File:    errno.c
+ * Purpose: errno - error numbers, messages and the system-call result helpers
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <errno.h>
 #include <string.h>
 #include <_fcrt.h>

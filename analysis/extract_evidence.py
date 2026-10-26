@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# File:    extract_evidence.py
+# Purpose: Reproducible evidence extraction from the reference IDE binaries.
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 """Reproducible evidence extraction from the reference IDE binaries.
 
 Usage:  python3 -I extract_evidence.py /path/to/TC/BIN  [outdir]

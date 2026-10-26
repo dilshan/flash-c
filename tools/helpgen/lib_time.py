@@ -1,3 +1,9 @@
+# File:    lib_time.py
+# Purpose: Help text for the functions of <time.h>, used by gen.py.
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 H = "time.h"
 F = [
 ("asctime","char *asctime(const struct tm *timeptr);","Converts broken-down time to a string.","The format is \"Sun Sep 16 01:03:52 1973\\n\". A static buffer is used.","A pointer to the string.","ctime strftime",None),

@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# File:    extract_libs.py
+# Purpose: Static study of the reference run-time libraries (OMF .LIB archives
+#          and .OBJ start-up files).
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 """Static study of the reference run-time libraries (OMF .LIB archives and .OBJ start-up files).
 
 Usage:  python3 -I extract_libs.py /path/to/TC  [outdir]

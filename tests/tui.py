@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# File:    tui.py
+# Purpose: Tiny pty driver + VT emulator used to test the Flash C IDE headlessly.
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 """Tiny pty driver + VT emulator used to test the Flash C IDE headlessly."""
 import os, pty, sys, time, select, fcntl, termios, struct, re, signal
 

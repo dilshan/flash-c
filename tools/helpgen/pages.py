@@ -1,3 +1,10 @@
+# File:    pages.py
+# Purpose: Hand-written help pages (printf/scanf formats, keywords, preprocessor)
+#          used by gen.py.
+# Author:  Dilshan R Jayakody
+# License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+# Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+
 HEADERS = {
 "stdio.h":"Input and output: streams, files, formatted input and output, character and block transfer.",
 "stdlib.h":"General utilities: memory allocation, string conversion, random numbers, sorting, searching, program control, integer arithmetic and multibyte conversion.",

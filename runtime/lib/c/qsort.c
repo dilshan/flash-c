@@ -1,4 +1,11 @@
-/* qsort - sorting and searching: quicksort with insertion sort for short runs, binary search */
+/*
+ * File:    qsort.c
+ * Purpose: qsort - sorting and searching: quicksort with insertion sort for short
+ *          runs, binary search
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <stdlib.h>
 #include <string.h>
 

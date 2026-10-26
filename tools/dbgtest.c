@@ -1,5 +1,12 @@
-/* Headless driver for the debugger core. usage: dbgtest file.c < script
- * script commands: b LINE | tb LINE | go | s | t | u LINE | e EXPR | set EXPR=VAL | bt | quit */
+/*
+ * File:    dbgtest.c
+ * Purpose: Headless driver for the debugger core. usage: dbgtest file.c < script
+ *          script commands: b LINE | tb LINE | go | s | t | u LINE | e EXPR | set
+ *          EXPR=VAL | bt | quit
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include "dbg.h"
 #include <stdio.h>
 #include <string.h>

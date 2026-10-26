@@ -1,4 +1,10 @@
-/* string - ANSI string functions */
+/*
+ * File:    string.c
+ * Purpose: string - ANSI string functions
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <string.h>
 #include <stdlib.h>
 

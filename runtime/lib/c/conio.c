@@ -1,5 +1,12 @@
-/* conio - console I/O on an ANSI terminal: windows, colours, cursor control, unbuffered keyboard input.
- * Extended keys are returned the way the DOS console does: first 0, then the scan code. */
+/*
+ * File:    conio.c
+ * Purpose: conio - console I/O on an ANSI terminal: windows, colours, cursor
+ *          control, unbuffered keyboard input. Extended keys are returned the way
+ *          the DOS console does: first 0, then the scan code.
+ * Author:  Dilshan R Jayakody
+ * License: MIT (SPDX-License-Identifier: MIT); see the LICENSE file
+ * Project: Flash C, a C compiler and text-mode IDE for 64-bit Linux
+ */
 #include <conio.h>
 #include <stdio.h>
 #include <stdlib.h>
