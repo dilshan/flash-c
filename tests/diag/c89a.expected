@@ -1,0 +1,9 @@
+Error c89a.c 3: Multiple declaration for 'T'
+Error c89a.c 4: Storage class 'register' is not allowed here
+Error c89a.c 8: Size of 'obj' is unknown or zero
+Error c89a.c 14: Cannot modify a const object
+Error c89a.c 15: Cannot modify a const object
+Error c89a.c 16: Cannot modify a const object
+Error c89a.c 17: Cannot modify a const object
+Error c89a.c 18: Type mismatch in parameter 1 in call to 'f'
+Error c89a.c 19: Type mismatch in parameter 1 in call to 'h'

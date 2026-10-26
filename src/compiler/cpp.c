@@ -42,9 +42,11 @@ const char *tok_spell(Tok *t)
     case TK_ID: return t->s;
     case TK_NUM: case TK_CHR: return t->s ? t->s : "number";
     case TK_STR: {
-        int j = 0; b[j++] = '"';
+        int j = 0;
+        if (t->wide) b[j++] = 'L';
+        b[j++] = '"';
         for (int i = 0; i < t->slen && j < 590; i++) {
-            unsigned char c = t->s[i];
+            unsigned char c = t->wide ? (unsigned char)((int *)t->s)[i] : t->s[i];
             if (c == '"' || c == '\\') b[j++] = '\\';
             if (c == '\n') { b[j++] = '\\'; c = 'n'; }
             b[j++] = c;
@@ -98,7 +100,28 @@ static int esc_char(const char *b, int len, int *i, int fileid, int line)
     }
 }
 
+static int lex_raw(const char *b, int len, int fileid, TokVec *out);
+
+/* ANSI trigraph sequences are replaced before anything else is looked at */
 int lex_buffer(const char *b, int len, int fileid, TokVec *out)
+{
+    int has = 0;
+    for (int i = 0; i + 2 < len; i++) if (b[i] == '?' && b[i + 1] == '?') { has = 1; break; }
+    if (!has) return lex_raw(b, len, fileid, out);
+    char *c = malloc(len + 1); int n = 0;
+    for (int i = 0; i < len; i++) {
+        if (b[i] == '?' && i + 2 < len && b[i + 1] == '?') {
+            const char *p = strchr("=(/)'<!>-", b[i + 2]);
+            if (p && b[i + 2]) { c[n++] = "#[\\]^{|}~"[p - "=(/)'<!>-"]; i += 2; continue; }
+        }
+        c[n++] = b[i];
+    }
+    int r = lex_raw(c, n, fileid, out);
+    free(c);
+    return r;
+}
+
+static int lex_raw(const char *b, int len, int fileid, TokVec *out)
 {
     int i = 0, line = 1, bol = 1, spc = 0;
     int bad = 0;
@@ -127,7 +150,7 @@ int lex_buffer(const char *b, int len, int fileid, TokVec *out)
         Tok t; memset(&t, 0, sizeof t);
         t.line = line; t.fileid = fileid; t.bol = bol; t.spc = spc;
         bol = 0; spc = 0;
-        if (isalpha(c) || c == '_' || c == '$') {
+        if ((isalpha(c) || c == '_' || c == '$') && !(c == 'L' && i + 1 < len && (b[i + 1] == '\'' || b[i + 1] == '"'))) {
             int s = i;
             while (i < len && (isalnum((unsigned char)b[i]) || b[i] == '_' || b[i] == '$')) i++;
             int n = i - s;
@@ -162,6 +185,31 @@ int lex_buffer(const char *b, int len, int fileid, TokVec *out)
                 while (tl > 0 && (tmp[tl - 1] == 'f' || tmp[tl - 1] == 'F' || tmp[tl - 1] == 'l' || tmp[tl - 1] == 'L')) { if (tmp[tl - 1] == 'f' || tmp[tl - 1] == 'F') t.fsuf = 1; tmp[--tl] = 0; }
                 t.dval = strtod(tmp, NULL);
             }
+            tv_push(out, t); continue;
+        }
+        if (c == 'L' && i + 1 < len && (b[i + 1] == '\'' || b[i + 1] == '"')) {      /* wide character / string */
+            int q = b[i + 1], s = i; i += 2;
+            int *w = malloc((len - i + 2) * sizeof(int)); int n = 0;
+            while (i < len && b[i] != q && b[i] != '\n') {
+                int ch;
+                if (b[i] == '\\') {
+                    i++;
+                    if (i < len && b[i] == '\n') { i++; line++; continue; }
+                    ch = esc_char(b, len, &i, fileid, line);
+                    if (ch < 0) ch &= 0xff;
+                } else {
+                    unsigned char u = b[i++];
+                    ch = u;
+                    int extra = u >= 0xF0 ? 3 : u >= 0xE0 ? 2 : u >= 0xC0 ? 1 : 0;      /* UTF-8 source text */
+                    if (extra) { ch = u & (0x3F >> extra); while (extra-- && i < len && ((unsigned char)b[i] & 0xC0) == 0x80) ch = (ch << 6) | ((unsigned char)b[i++] & 0x3F); }
+                }
+                w[n++] = ch;
+            }
+            if (i >= len || b[i] != q) { fc_error_nj(fileid, line, "Unterminated string or character constant"); bad = 1; }
+            else i++;
+            t.wide = 1;
+            if (q == '\'') { t.k = TK_CHR; t.val = n ? w[n - 1] : 0; t.s = intern(b + s, i - s); t.slen = i - s; free(w); }
+            else { t.k = TK_STR; w[n] = 0; t.s = (char *)w; t.slen = n; }
             tv_push(out, t); continue;
         }
         if (c == '\'') {
@@ -214,7 +262,8 @@ typedef struct Macro {
 } Macro;
 #define MBUCK 1024
 static Macro *mtab[MBUCK];
-static char *s_FILE, *s_LINE, *s_defined, *s_VA_ARGS;
+static char *s_FILE, *s_LINE, *s_DATE, *s_TIME, *s_defined, *s_VA_ARGS;
+static char str_date[16], str_time[16];
 
 static unsigned mh(const char *n) { return (unsigned)(((uintptr_t)n >> 4) * 2654435761u) % MBUCK; }
 static Macro *mfind(const char *n)
@@ -239,6 +288,15 @@ void pp_init(void)
     Macro *m;
     m = xalloc(sizeof *m); m->name = s_FILE; m->builtin = 1; m->next = mtab[mh(m->name)]; mtab[mh(m->name)] = m;
     m = xalloc(sizeof *m); m->name = s_LINE; m->builtin = 1; m->next = mtab[mh(m->name)]; mtab[mh(m->name)] = m;
+    s_DATE = intern("__DATE__", 8); s_TIME = intern("__TIME__", 8);
+    m = xalloc(sizeof *m); m->name = s_DATE; m->builtin = 1; m->next = mtab[mh(m->name)]; mtab[mh(m->name)] = m;
+    m = xalloc(sizeof *m); m->name = s_TIME; m->builtin = 1; m->next = mtab[mh(m->name)]; mtab[mh(m->name)] = m;
+    {
+        static const char *mon[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+        time_t now = time(NULL); struct tm *lt = localtime(&now);
+        snprintf(str_date, sizeof str_date, "%s %2d %d", mon[lt->tm_mon], lt->tm_mday, lt->tm_year + 1900);
+        snprintf(str_time, sizeof str_time, "%02d:%02d:%02d", lt->tm_hour, lt->tm_min, lt->tm_sec);
+    }
     pp_define_cmdline("__FLASHC__", "0x0100");
     pp_define_cmdline("__STDC__", "1");
     pp_define_cmdline("__linux__", "1");
@@ -346,6 +404,8 @@ static void expand_seq(Tok *v, int n, int *pos, TokVec *out, int depth)
     if (m->builtin) {
         Tok r = *t; r.bol = 0;
         if (m->name == s_LINE) { char b[16]; snprintf(b, 16, "%d", t->line); r.k = TK_NUM; r.val = t->line; r.s = intern(b, (int)strlen(b)); }
+        else if (m->name == s_DATE) { r.k = TK_STR; r.s = xstrdup(str_date); r.slen = (int)strlen(r.s); }
+        else if (m->name == s_TIME) { r.k = TK_STR; r.s = xstrdup(str_time); r.slen = (int)strlen(r.s); }
         else { r.k = TK_STR; r.s = xstrdup(file_name(t->fileid)); r.slen = (int)strlen(r.s); }
         tv_push(out, r); (*pos)++; return;
     }
@@ -393,6 +453,7 @@ static long long ev_prim(EV *e)
 {
     if (e->p >= e->n) { fc_error_nj(e->fileid, e->line, "Expression syntax"); return 0; }
     Tok *t = &e->v[e->p++];
+    if (t->k == TK_NUM && t->isfloat) { fc_error_nj(e->fileid, e->line, "Illegal use of floating point"); return 0; }
     if (t->k == TK_NUM || t->k == TK_CHR) return t->val;
     if (t->k == TK_ID) return 0;
     if (t->k == P_LPAR) {
@@ -500,6 +561,14 @@ typedef struct Cond { int parent_skip, taken, seen_else; } Cond;
 static void do_include(Tok *dir, Tok *v, int n, TokVec *out, const char *cdir, int depth)
 {
     char name[512]; int angle = 0;
+    TokVec expanded = {0};
+    if (n >= 1 && v[0].k == TK_ID) {                  /* #include MACRO: expand it first */
+        TokVec raw = {0};
+        for (int k = 0; k < n; k++) tv_push(&raw, v[k]);
+        expand_all(&raw, &expanded, 0);
+        free(raw.v);
+        v = expanded.v; n = expanded.n;
+    }
     if (n >= 1 && v[0].k == TK_STR) snprintf(name, sizeof name, "%s", v[0].s);
     else if (n >= 1 && v[0].k == P_LT) {
         angle = 1; name[0] = 0; int j = 1;
@@ -534,7 +603,7 @@ static void do_include(Tok *dir, Tok *v, int n, TokVec *out, const char *cdir, i
     char d2[1024]; dirname_of(path, d2, sizeof d2);
     process(&sub, out, d2, depth + 1);
     CX->lines += 0;
-    free(sub.v);
+    free(sub.v); free(expanded.v);
 }
 
 PragmaFn pp_pragmas[64];

@@ -90,6 +90,15 @@ plain `int` field is signed. Fields can be read, assigned, used with `++`/`--`/`
 brace initialisers, copied with their struct and shown by the debugger. Taking their address or
 applying `sizeof` is an error, as are `char`, `short` and `long` fields.
 
+**Other C89 details.** Trigraphs (`??(` ...) are replaced before lexing; wide characters and strings
+(`L'a'`, `L"text"`, `wchar_t` is a 32-bit `int`) are supported; `__DATE__`, `__TIME__`, `__FILE__`,
+`__LINE__` and `__STDC__` are predefined; `#include` accepts a macro that expands to a header name.
+`const` is checked for scalars, pointers and arrays (`Cannot modify a const object`); it is not
+tracked for whole `struct`/`union` objects (their `const` members are). Calls through a prototype
+reject pointer/integer mismatches (`Type mismatch in parameter N in call to 'f'`), objects of an
+incomplete struct type, a repeated `typedef`, `register` at file scope and floating point in `#if`
+are errors.
+
 **Not implemented yet:** compound
 literals, variable-length arrays, `long long` as a distinct type (it is `long`), `long double`
 (it is `double`).

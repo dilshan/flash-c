@@ -49,7 +49,7 @@ typedef struct Tok {
     long long val;
     double dval;      /* floating literal */
     int uns, lng, fsuf; /* literal suffix flags */
-    unsigned bol:1, spc:1, noexp:1, isfloat:1;
+    unsigned bol:1, spc:1, noexp:1, isfloat:1, wide:1;   /* wide: L"..." / L'x' */
 } Tok;
 
 typedef struct TokVec { Tok *v; int n, cap; } TokVec;
@@ -70,6 +70,7 @@ typedef struct Param { char *name; Type *ty; struct Param *next; } Param;
 enum { TY_VOID, TY_CHAR, TY_SHORT, TY_INT, TY_LONG, TY_FLOAT, TY_DOUBLE, TY_PTR, TY_ARRAY, TY_STRUCT, TY_UNION, TY_FUNC };
 struct Type {
     int kind, size, align, uns;
+    int cq;               /* const-qualified (scalars, pointers, arrays' elements; not tracked for struct/union) */
     Type *base;           /* ptr, array element */
     int len;              /* array length, -1 = unknown */
     Member *members; int complete; char *tag;

@@ -14,6 +14,13 @@ static Type *mkty(int kind, int size, int uns)
     return t;
 }
 Type *ptr_to(Type *b) { Type *t = mkty(TY_PTR, 8, 1); t->base = b; return t; }
+static Type *qual_const(Type *t)
+{
+    if (t->cq || t->kind == TY_STRUCT || t->kind == TY_UNION || t->kind == TY_FUNC) return t;
+    Type *c = xalloc(sizeof *c); *c = *t; c->cq = 1;
+    return c;
+}
+
 Type *array_of(Type *b, int len)
 {
     Type *t = mkty(TY_ARRAY, len < 0 ? 0 : b->size * len, 0);
@@ -93,6 +100,10 @@ static int accept(int k) { if (toks[tp].k == k) { tp++; return 1; } return 0; }
 
 #define ERR(...) fc_error(cur_file(), cur_line(), __VA_ARGS__)
 #define ERRAT(t, ...) fc_error((t)->fileid, (t)->line, __VA_ARGS__)
+static void check_modifiable(Node *l, Tok *at)
+{
+    if (l->ty->cq) ERRAT(at, "Cannot modify a const object");
+}
 #define WARN(w, ...) do { if (!in_rt && (w)) fc_warn(cur_file(), cur_line(), __VA_ARGS__); } while (0)
 #define WARNAT(w, ln, ...) do { if (!in_rt && (w)) fc_warn(cur_file(), (ln), __VA_ARGS__); } while (0)
 
@@ -333,7 +344,8 @@ nofold:
 
 static void ptr_compat_check(Type *to, Type *from, Node *src, const char *ctx_func, int pnum)
 {
-    (void)ctx_func; (void)pnum;
+    if (pnum && ((is_ptr(to) && is_int(from) && !is_null_const(src)) || (is_int(to) && is_ptr(from))))
+        ERR("Type mismatch in parameter %d in call to '%s'", pnum, ctx_func);
     if (is_ptr(to) && is_int(from)) {
         if (!is_null_const(src)) WARN(CX->opt.w_pointer, "Non-portable pointer conversion");
     } else if (is_int(to) && is_ptr(from)) {
@@ -371,6 +383,7 @@ static Node *parse_expr(void);
 static Node *parse_cond(void);
 static Node *parse_unary(void);
 static Type *parse_declspec(int *storage, int *is_typedef, int *got_type);
+static int decl_register;      /* the last declaration specifier list contained "register" */
 static Type *parse_declarator(Type *base, char **name);
 static Type *parse_typename(void);
 static Node *parse_stmt(void);
@@ -433,6 +446,7 @@ static void sink_add(Sink *s, long long off, Type *ty, Node *e)
     if (off + ty->size > s->maxend) s->maxend = off + ty->size;
 }
 
+static Node *parse_string(void);
 static void init_object(Type *ty, long long off, Sink *sk);
 
 static Member *find_member(Type *st, const char *name, long long *off)
@@ -505,6 +519,15 @@ static void init_object(Type *ty, long long off, Sink *sk)
             accept(P_COMMA);
         }
         expect(P_RBRC, "Compound statement missing }");
+        return;
+    }
+    if (ty->kind == TY_ARRAY && ty->base->kind == TY_INT && ty->base->size == 4 && toks[tp].k == TK_STR && toks[tp].wide) {
+        Node *sn = parse_string();                    /* wide string initialising a wchar_t array */
+        int n = sn->slen / 4; int *w = (int *)sn->str;
+        if (ty->len < 0) { ty->len = n + 1; ty->size = (n + 1) * 4; }
+        if (n > ty->len) ERR("Too many initializers");
+        for (int i = 0; i < n; i++) sink_add(sk, off + i * 4, ty_int, mknum(w[i], ty_int));
+        if (n < ty->len) sink_add(sk, off + n * 4, ty_int, mknum(0, ty_int));
         return;
     }
     if (ty->kind == TY_ARRAY && ty->base->kind == TY_CHAR && toks[tp].k == TK_STR) {
@@ -604,6 +627,24 @@ static Node *parse_string(void)
 {
     Tok *t = next();
     int n = t->slen;
+    int wide = t->wide;
+    for (int k = tp; toks[k].k == TK_STR; k++) if (toks[k].wide) wide = 1;
+    if (wide) {                                   /* L"..." : an array of wchar_t (int) */
+        int cap = 0, *w;
+        Tok *p = t;
+        for (int k = tp - 1; toks[k].k == TK_STR; k++) cap += toks[k].slen;
+        w = xalloc((cap + 1) * sizeof(int));
+        n = 0;
+        for (int k = tp - 1; toks[k].k == TK_STR; k++) {
+            p = &toks[k];
+            for (int j = 0; j < p->slen; j++) w[n++] = p->wide ? ((int *)p->s)[j] : (unsigned char)p->s[j];
+        }
+        tp = (int)(p - toks) + 1;
+        int off = data_alloc((n + 1) * 4, 4);
+        memcpy(PG.data + off, w, (n + 1) * 4);
+        Node *s = mk(N_STR, array_of(ty_int, n + 1)); s->val = off; s->str = (char *)w; s->slen = n * 4;
+        return s;
+    }
     char *buf = xalloc(n + 1); memcpy(buf, t->s, n);
     while (toks[tp].k == TK_STR) {
         Tok *u = next(); char *nb = xalloc(n + u->slen + 1);
@@ -698,6 +739,7 @@ static Node *member_access(Node *base, Tok *nm, int arrow)
 static Node *incdec(int kind, Node *lv)
 {
     if (!is_lvalue(lv) || lv->ty->kind == TY_ARRAY) ERR("Lvalue required");
+    if (lv->ty->cq) ERR("Cannot modify a const object");
     if (!is_scalar(lv->ty)) ERR("Invalid use of %s", kind == N_PREINC || kind == N_POSTINC ? "++" : "--");
     Node *n = mk(kind, lv->ty); n->l = lv;
     n->val = is_ptr(lv->ty) ? (lv->ty->base->size ? lv->ty->base->size : 1) : 1;
@@ -1014,6 +1056,7 @@ static Node *parse_assign(void)
         tp++;
         if (!is_lvalue(l)) ERRAT(t, "Lvalue required");
         if (l->ty->kind == TY_ARRAY) ERRAT(t, "Lvalue required");
+        check_modifiable(l, t);
         Node *r = parse_assign();
         r = coerce(r, l->ty, 0, NULL);
         Node *n = mk(N_ASSIGN, l->ty); n->l = l; n->r = r;
@@ -1024,6 +1067,7 @@ static Node *parse_assign(void)
     if (op >= 0 && t->k >= P_MULA && t->k <= P_ORA) {
         tp++;
         if (!is_lvalue(l) || l->ty->kind == TY_ARRAY) ERRAT(t, "Lvalue required");
+        check_modifiable(l, t);
         Node *r = rv(parse_assign());
         Node *n = mk(N_ASSIGNOP, l->ty); n->op = op; n->l = l;
         if (is_ptr(l->ty)) {
@@ -1176,8 +1220,17 @@ static Type *parse_enum(void)
     return ty_int;
 }
 
+static Type *parse_declspec_inner(int *storage, int *is_typedef, int *got_type, int *isconst);
 static Type *parse_declspec(int *storage, int *is_typedef, int *got_type)
 {
+    int c = 0;
+    Type *t = parse_declspec_inner(storage, is_typedef, got_type, &c);
+    return c ? qual_const(t) : t;
+}
+
+static Type *parse_declspec_inner(int *storage, int *is_typedef, int *got_type, int *isconst)
+{
+    int reg = 0;
     int sc = SC_NONE, td = 0;
     int nshort = 0, nlong = 0, nsigned = 0, nunsigned = 0, nchar = 0, nint = 0, nvoid = 0, nfloat = 0, ndouble = 0;
     Type *named = NULL;
@@ -1188,8 +1241,10 @@ static Type *parse_declspec(int *storage, int *is_typedef, int *got_type)
         case K_TYPEDEF: td = 1; tp++; continue;
         case K_STATIC: sc = SC_STATIC; tp++; continue;
         case K_EXTERN: sc = SC_EXTERN; tp++; continue;
-        case K_AUTO: case K_REGISTER: tp++; continue;
-        case K_CONST: case K_VOLATILE: case K_IGNORE: tp++; continue;
+        case K_AUTO: tp++; continue;
+        case K_REGISTER: reg = 1; tp++; continue;
+        case K_CONST: *isconst = 1; tp++; continue;
+        case K_VOLATILE: case K_IGNORE: tp++; continue;
         case K_SHORT: nshort++; any = 1; tp++; continue;
         case K_LONG: nlong++; any = 1; tp++; continue;
         case K_SIGNED: nsigned++; any = 1; tp++; continue;
@@ -1215,7 +1270,7 @@ static Type *parse_declspec(int *storage, int *is_typedef, int *got_type)
         }
         break;
     }
-    *storage = sc; *is_typedef = td; *got_type = any;
+    *storage = sc; *is_typedef = td; *got_type = any; decl_register = reg;
     if (named) return named;
     if (!any) return ty_int;
     if (nvoid) return ty_void;
@@ -1315,7 +1370,7 @@ static Type *parse_declarator(Type *base, char **name)
 {
     while (toks[tp].k == P_STAR) {
         tp++; base = ptr_to(base);
-        while (toks[tp].k == K_CONST || toks[tp].k == K_VOLATILE || toks[tp].k == K_IGNORE) tp++;
+        while (toks[tp].k == K_CONST || toks[tp].k == K_VOLATILE || toks[tp].k == K_IGNORE) { if (toks[tp].k == K_CONST) base = qual_const(base); tp++; }
     }
     while (toks[tp].k == K_IGNORE) tp++;
     if (nested_decl_ahead()) {
@@ -1449,6 +1504,7 @@ static void parse_local_decl(void)
         if (!name) ERR("Declaration syntax error");
         nm = &toks[tp > 0 ? tp - 1 : 0];
         if (td) {
+            if (find_in(scope, name)) ERRAT(nm, "Multiple declaration for '%s'", name);
             Sym *y = add_sym(scope, name, ty, SY_TYPEDEF); y->used = 1;
         } else if (ty->kind == TY_FUNC) {
             declare_global(nm, name, ty, SY_FUNC, SC_EXTERN);
@@ -1461,6 +1517,7 @@ static void parse_local_decl(void)
         } else {
             if (find_in(scope, name)) ERRAT(nm, "Multiple declaration for '%s'", name);
             if (ty->kind == TY_VOID) ERRAT(nm, "Size of the type is unknown or zero");
+            if ((ty->kind == TY_STRUCT || ty->kind == TY_UNION) && !ty->complete) ERRAT(nm, "Size of '%s' is unknown or zero", name);
             if (st == SC_STATIC) {
                 char mn[200]; snprintf(mn, sizeof mn, "%s.%d", name, tp);
                 Sym *y = add_sym(scope, name, ty, SY_VAR); (void)mn;
@@ -1740,6 +1797,7 @@ static void parse_external_decl(void)
     int st, td, gt;
     Tok *start = peek();
     Type *bt = parse_declspec(&st, &td, &gt);
+    if (decl_register && !in_rt) ERRAT(start, "Storage class 'register' is not allowed here");
     if (toks[tp].k == P_SEMI) { tp++; return; }
     if (!gt && !td && toks[tp].k != TK_ID && toks[tp].k != P_STAR && toks[tp].k != P_LPAR) ERRAT(start, "Declaration was expected");
     for (;;) {
@@ -1755,9 +1813,9 @@ static void parse_external_decl(void)
                 if (old->kind == SY_TYPEDEF && same_type(old->ty, ty)) old->hidden = 0;
                 else { old->name = intern("<hidden>", 8); old = NULL; }
             }
-            if (old && old->kind == SY_TYPEDEF && same_type(old->ty, ty)) { }
+            if (old && old->kind == SY_TYPEDEF && same_type(old->ty, ty) && (in_rt || file_is_builtin(old->fileid) || file_is_builtin(nm->fileid))) { }
             else if (old) ERRAT(nm, "Multiple declaration for '%s'", name);
-            else { Sym *y = add_sym(gscope, name, ty, SY_TYPEDEF); y->used = 1; }
+            else { Sym *y = add_sym(gscope, name, ty, SY_TYPEDEF); y->used = 1; y->fileid = nm->fileid; }
         } else if (ty->kind == TY_FUNC) {
             Sym *f = declare_global(nm, name, ty, SY_FUNC, st == SC_STATIC ? SC_STATIC : SC_EXTERN);
             if (!strcmp(name, "__syscall") || !strcmp(name, "__sqrt") || !strcmp(name, "__setjmp") || !strcmp(name, "__longjmp")) f->is_builtin = 1;
@@ -1789,6 +1847,7 @@ static void parse_external_decl(void)
             (void)0;
         } else {
             if (ty->kind == TY_VOID) ERRAT(nm, "Size of the type is unknown or zero");
+            if ((ty->kind == TY_STRUCT || ty->kind == TY_UNION) && !ty->complete && st != SC_EXTERN) ERRAT(nm, "Size of '%s' is unknown or zero", name);
             Sym *y = declare_global(nm, name, ty, SY_VAR, st);
             if (toks[tp].k == P_ASSIGN) {
                 tp++;
