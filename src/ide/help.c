@@ -99,15 +99,20 @@ static const Topic basic[] = {
 
 { "Compiler options", "options warnings directories names optimization",
 " Compiler options\n\n"
-" Options|Compiler|Source        nested comments, identifier length\n"
-" Options|Compiler|Messages      which warnings are shown\n"
-" Options|Compiler|Optimizations constant folding and jump optimisation\n"
-" Options|Directories            include search path and output directory\n"
-" Options|Save                   writes the settings to fcconfig.fc\n\n"
-" Several dialog boxes (memory model, floating point, overlays, segment\n"
-" names ...) keep the layout of the classic DOS tools, so existing\n"
-" configuration habits still apply. The settings that make sense for a\n"
-" 64-bit Linux target take effect; the others are stored but ignored.\n\n"
+" Options|Compiler|Code generation  unsigned char, floating point on/off,\n"
+"                                   predefined macros (Defines)\n"
+" Options|Compiler|Source           nested comments, identifier length\n"
+" Options|Compiler|Messages         which warnings are shown\n"
+" Options|Linker                    map file, default libraries, which\n"
+"                                   run-time libraries are linked\n"
+" Options|Make                      check auto-dependencies\n"
+" Options|Debugger                  source debugging, display swapping,\n"
+"                                   number format\n"
+" Options|Directories               include search path and output directory\n"
+" Options|Save                      writes the settings to fcconfig.fc\n\n"
+" Every option in these dialogs is used by the compiler or the IDE. The\n"
+" classic memory models, overlays, segment names, librarian and C++\n"
+" options do not exist because they do not apply to this compiler.\n\n"
 " See also: {Differences from classic compilers}\n" },
 
 { "Messages and errors", "message error warning fatal linker",

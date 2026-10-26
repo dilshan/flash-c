@@ -83,27 +83,21 @@ Config cfg;
 void cfg_defaults(void)
 {
     memset(&cfg, 0, sizeof cfg);
-    cfg.ident_len = 32; cfg.keywords = 0;
+    cfg.ident_len = 32;
     cfg.max_errors = 25; cfg.max_warnings = 100; cfg.warn_display = 1;
-    int on[] = {0, 8, 15, 32, 34, 35, 37, 38, 41, 42, 43, 48, 6, 7, 9, 10, 14, 16, 17, 40, 44, 45, 46, 47, 36, 33};
+    static const int on[] = {0, 6, 8, 15, 32, 34, 37, 38, 43, 48};      /* the warnings the compiler can switch */
     for (unsigned i = 0; i < sizeof on / sizeof on[0]; i++) cfg.warn[on[i]] = 1;
-    cfg.warn[1] = 1; cfg.warn[4] = 1; cfg.warn[5] = 1; cfg.warn[3] = 0; cfg.warn[2] = 1; cfg.warn[36] = 0;
-    cfg.opt_redundant = 1; cfg.opt_jump = 1; cfg.regvars = 1;
-    cfg.model = 0; cfg.fp = 1; cfg.instr = 0; cfg.enums_as_ints = 1; cfg.under_scores = 1; cfg.assume_ss = 0;
-    cfg.far_threshold = 32767; cfg.debug_info = 1; cfg.line_numbers = 0;
-    static const char *sn[12] = {"*", "", "", "*", "", "", "*", "", "", "*", "", ""};
-    for (int i = 0; i < 12; i++) strcpy(cfg.seg_names[i], sn[i]);
-    cfg.brk_err = 1; cfg.check_autodep = 1; cfg.after_compile = 0; cfg.out_kind = 0;
-    cfg.lnk_default_libs = 1; cfg.lnk_warn_dup = 1; cfg.lnk_nostack = 1; cfg.lib_stdrt = 1; cfg.lib_math = 1;
-    cfg.lib_pagesize = 16; cfg.dbg_source = 0; cfg.dbg_swap = 1; cfg.dbg_inherited = 1; cfg.dbg_methods = 1; cfg.dbg_heap = 8192;
+    cfg.fp = 1;
+    cfg.check_autodep = 1;
+    cfg.lnk_default_libs = 1; cfg.lib_stdrt = 1; cfg.lib_math = 1;
+    cfg.dbg_source = 0; cfg.dbg_swap = 1;
     cfg.screen_lines = 0; cfg.src_tracking = 1;
     cfg.cmdset = 1;
-    cfg.as_editor = 1; cfg.backup = 1; cfg.insert = 1; cfg.autoindent = 1; cfg.use_tab = 1; cfg.optimal_fill = 1;
+    cfg.as_editor = 1; cfg.backup = 1; cfg.insert = 1; cfg.autoindent = 1; cfg.use_tab = 1;
     cfg.syntax = 1; cfg.bs_unindent = 1; cfg.group_undo = 1; cfg.persist_blocks = 0; cfg.overwrite_blocks = 1;
     cfg.tabsize = 8; strcpy(cfg.defext, ".C");
-    cfg.mouse_dbl = 4;
-    cfg.sv_history = 1; cfg.sv_clip = 1; cfg.sv_watch = 1; cfg.sv_bp = 1; cfg.sv_open = 1;
-    cfg.pause_after_run = 1; cfg.ext_kb = 2048; cfg.ems_pages = 128;
+    cfg.sv_watch = 1; cfg.sv_bp = 1; cfg.sv_open = 1;
+    cfg.pause_after_run = 1;
     cfg.nxfer = 1;
     snprintf(cfg.xfer[0].title, 64, "~Grep"); snprintf(cfg.xfer[0].path, 128, "grep");
     snprintf(cfg.xfer[0].cmd, 160, "-n $PROMPT $EDNAME"); cfg.xfer[0].hotkey = 0;
@@ -114,25 +108,18 @@ typedef struct { const char *name; void *p; int kind, n; } CfgVar;   /* kind: 0 
 #define I(f) {#f, &cfg.f, 0, 0}
 #define S(f) {#f, cfg.f, 1, (int)sizeof cfg.f}
 static CfgVar vars[] = {
-    I(nested_comments), I(unsigned_char), I(ident_len), I(keywords), I(max_errors), I(max_warnings), I(warn_display),
+    I(nested_comments), I(unsigned_char), I(ident_len), I(max_errors), I(max_warnings), I(warn_display),
     {"warn", cfg.warn, 2, NWARN},
-    I(opt_redundant), I(opt_jump), I(opt_for_speed), I(regvars),
-    I(model), I(fp), I(instr), I(c_calls), I(std_frame), I(stack_check), I(word_align), I(merge_strings), I(enums_as_ints),
-    I(under_scores), I(line_numbers), I(debug_info), I(fast_fp), I(fast_huge), I(comdefs), I(auto_far), I(far_threshold),
-    I(precompiled), I(assume_ss), I(entry_code),
-    S(defines),
-    I(brk_warn), I(brk_err), I(brk_fatal), I(brk_all), I(after_compile), I(check_autodep),
-    I(map_file), I(out_kind), I(lnk_init_seg), I(lnk_default_libs), I(lnk_warn_dup), I(lnk_nostack), I(lnk_case),
+    I(fp), S(defines),
+    I(check_autodep), I(map_file), I(lnk_default_libs),
     I(lib_stdrt), I(lib_math), I(lib_wild),
-    I(lib_listing), I(lib_case), I(lib_purge), I(lib_extdict), I(lib_pagesize),
-    I(dbg_source), I(dbg_swap), I(dbg_inherited), I(dbg_methods), I(dbg_radix), I(dbg_heap), I(app_target),
-    S(incdir), S(libdir), S(outdir), S(srcdir), S(run_args),
+    I(dbg_source), I(dbg_swap), I(dbg_radix),
+    S(incdir), S(outdir), S(run_args),
     I(screen_lines), I(src_tracking), I(cmdset), I(as_editor), I(as_env), I(as_desktop), I(as_project), I(save_old_msgs),
-    I(backup), I(insert), I(autoindent), I(use_tab), I(optimal_fill), I(syntax), I(bs_unindent), I(cursor_tabs),
+    I(backup), I(insert), I(autoindent), I(use_tab), I(syntax), I(bs_unindent),
     I(group_undo), I(persist_blocks), I(overwrite_blocks), I(tabsize), S(defext),
-    I(mouse_right), I(mouse_dbl), I(mouse_reverse),
-    I(sv_history), I(sv_clip), I(sv_watch), I(sv_bp), I(sv_open), I(sv_closed),
-    I(video_mode), I(save_palette), I(dual_monitor), I(snow), I(swap_drive), I(use_ext), I(use_ems), I(ext_kb), I(ems_pages),
+    I(mouse_right),
+    I(sv_watch), I(sv_bp), I(sv_open),
     I(pause_after_run), S(last_project),
 };
 

@@ -91,17 +91,13 @@ static const MItem msg_items[] = {
 };
 static const MMenu msg_menu = { "Messages", msg_items, 5 };
 static const MItem comp_opt_items[] = {
-    IT("~C~ode generation...", NULL, cmOptCodeGen, "Specify how the compiler prepares object code (memory models, etc.)"),
-    IT("~A~dvanced code generation...", NULL, cmOptAdvCodeGen, "View further code generation options"),
-    IT("~E~ntry/Exit Code...", NULL, cmOptEntryExit, "Change the entry/exit code generated for functions"),
-    IT("~O~ptimizations...", NULL, cmOptOptimize, "Specify compiler optimizations"),
+    IT("~C~ode generation...", NULL, cmOptCodeGen, "Specify character type, floating point and predefined macros"),
     IT("~S~ource...", NULL, cmOptSource, "Specify source code related options"),
     SUB("~M~essages", msg_menu, "Specify how the IDE handles errors and warnings"),
-    IT("~N~ames...", NULL, cmOptNames, "Change the default segment, group, and class names"),
 };
-static const MMenu comp_opt_menu = { "Compiler", comp_opt_items, 7 };
+static const MMenu comp_opt_menu = { "Compiler", comp_opt_items, 3 };
 static const MItem linker_items[] = {
-    IT("~S~ettings...", NULL, cmOptLinkSettings, "Set linker options (map files, overlays, etc.)"),
+    IT("~S~ettings...", NULL, cmOptLinkSettings, "Set linker options (map file, default libraries)"),
     IT("~L~ibraries...", NULL, cmOptLinkLibs, "Set libraries to be included in link"),
 };
 static const MMenu linker_menu = { "Linker", linker_items, 2 };
@@ -110,19 +106,16 @@ static const MItem env_items[] = {
     IT("~E~ditor...", NULL, cmOptEditor, "Specify editor settings"),
     IT("~M~ouse...", NULL, cmOptMouse, "Specify mouse settings"),
     IT("~D~esktop...", NULL, cmOptDesktop, "Specify desktop settings"),
-    IT("~S~tartup...", NULL, cmOptStartup, "Specify environment startup settings"),
     IT("~C~olors...", NULL, cmOptColors, "Set environment colors"),
 };
-static const MMenu env_menu = { "Environment", env_items, 6 };
+static const MMenu env_menu = { "Environment", env_items, 5 };
 static const MItem options_items[] = {
-    IT("~A~pplication...", NULL, cmOptApplication, "Set application options"),
-    SUB("~C~ompiler", comp_opt_menu, "Set compiler defaults for code generation, error messages, and names"),
+    SUB("~C~ompiler", comp_opt_menu, "Set compiler defaults for code generation, source and error messages"),
     IT("~T~ransfer...", NULL, cmOptTransfer, "Create or change Transfer programs"),
     IT("~M~ake...", NULL, cmOptMake, "Set make options"),
     SUB("~L~inker", linker_menu, "Set linker settings and libraries to be linked"),
-    IT("Li~b~rarian...", NULL, cmOptLibrarian, "Set librarian options"),
-    IT("~D~ebugger...", NULL, cmOptDebugger, "Set debugging options (display swapping, inspector options, etc.)"),
-    IT("Directo~r~ies...", NULL, cmOptDirs, "Set paths for include files, libraries, and binary output files"),
+    IT("~D~ebugger...", NULL, cmOptDebugger, "Set debugging options (source debugging, display swapping, number format)"),
+    IT("Directo~r~ies...", NULL, cmOptDirs, "Set paths for include files and the output directory"),
     SUB("~E~nvironment", env_menu, "Set environment, editor, mouse, and desktop preferences"),
     IT("~S~ave...", NULL, cmOptSave, "Save all the options"),
 };

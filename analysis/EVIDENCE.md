@@ -58,7 +58,7 @@ The pulldown strings are stored in one contiguous table (`menus_items.txt`, in o
 * **Window**: Size/Move Ctrl+F5 · Zoom F5 · Tile · Cascade · Next F6 · Close Alt+F3 · Close all · — · Message · Output · Watch · User screen Alt+F5 · Register · Project · Project notes · — · List all… Alt+0
 * **Help**: Contents · Index Shift+F1 · Topic search Ctrl+F1 · Previous topic Alt+F1 · Help on help
 
-The bar itself is stored as ` File `, ` Edit `, … ` Help ` (space-padded titles). Flash C's `src/ide/menu.c` reproduces this table one-to-one (Alt+F4 is kept as shown; it is a terminal/WM shortcut on many systems, every command is also reachable through the menus).
+The bar itself is stored as ` File `, ` Edit `, … ` Help ` (space-padded titles). Flash C's `src/ide/menu.c` reproduces this table, except that Options items and settings that have no effect for this compiler (application, advanced code generation, entry/exit code, optimizations, names, librarian, startup, C++ options, memory models, overlays and similar) were removed (Alt+F4 is kept as shown; it is a terminal/WM shortcut on many systems, every command is also reachable through the menus).
 
 ### 3.2 Status line and per-item help
 * Default key bar: `F1 Help  F2 Save  F3 Open  Alt-F9 Compile  F9 Make  F10 Menu` (strings ` Help `, ` Save `, ` Open `, `Alt-F9`, ` Compile `, ` Make `, ` Menu`).

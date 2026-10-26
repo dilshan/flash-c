@@ -10,7 +10,6 @@ static const char *usage =
 "Syntax is: fcc [ options ] file[s]     * = default; -x- = turn switch x off\n"
 "  -C      Allow nested comments     -Dxxx   Define macro (-Dname[=value])\n"
 "  -Ixxx   Include files directory   -K      Default char is unsigned\n"
-"  -O      Optimize                  -S      (reserved)\n"
 "  -exxx   Executable file name      -w      Display all warnings\n"
 "  -w-     Suppress all warnings     -jN     Stop after N errors\n"
 "  -gN     Stop after N warnings     -iN     Max. identifier length\n"
@@ -58,7 +57,6 @@ int main(int argc, char **argv)
         case 'D': if (ctx.opt.ndefine < 16) ctx.opt.defines[ctx.opt.ndefine++] = a + 2; break;
         case 'I': if (ctx.opt.nincdir < 16) ctx.opt.incdirs[ctx.opt.nincdir++] = a + 2; break;
         case 'K': ctx.opt.unsigned_char = a[2] != '-'; break;
-        case 'O': ctx.opt.optimize = a[2] != '-'; break;
         case 'e': out = a + 2; break;
         case 'f': ctx.opt.fp_mode = !strcmp(a + 2, "-") ? 0 : !strcmp(a + 2, "87") ? 2 : 1; break;
         case 'v': ctx.opt.debug = 1; break;

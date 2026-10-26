@@ -124,7 +124,6 @@ void ide_fill_options(FcOptions *o)
     o->ident_len = cfg.ident_len >= 32 ? 0 : cfg.ident_len;
     o->max_errors = cfg.max_errors; o->max_warnings = cfg.max_warnings;
     o->warn_level = cfg.warn_display == 0 ? 0 : 1;
-    o->optimize = cfg.opt_jump;
     int all = cfg.warn_display == 2;
     o->w_pointer = all || cfg.warn[0] || cfg.warn[8];
     o->w_noreturn = all || cfg.warn[32];
@@ -134,13 +133,11 @@ void ide_fill_options(FcOptions *o)
     o->w_assign = all || cfg.warn[38];
     o->w_divzero = all || cfg.warn[15];
     o->w_voidret = all || cfg.warn[6];
-    o->fp_mode = cfg.fp == 0 ? 0 : cfg.fp == 1 ? 1 : 2;
+    o->fp_mode = cfg.fp ? 1 : 0;
     o->map = cfg.map_file < 0 ? 0 : cfg.map_file > 3 ? 3 : cfg.map_file;
     o->nolibs = !cfg.lnk_default_libs || !cfg.lib_stdrt;
     o->nomath = !cfg.lib_math;
     o->wildargs = cfg.lib_wild;
-    o->warn_dup = cfg.lnk_warn_dup;
-    o->stack_warn = cfg.lnk_nostack;
     static char incbuf[260]; snprintf(incbuf, sizeof incbuf, "%s", cfg.incdir);
     o->nincdir = 0;
     for (char *t = strtok(incbuf, ";:"); t && o->nincdir < 15; t = strtok(NULL, ";:")) if (*t) o->incdirs[o->nincdir++] = t;
@@ -731,7 +728,7 @@ void ide_command(int cmd)
     Win *e = cur_edit();
     if (cmd >= cmWinNum1 && cmd < cmWinNum1 + 10) { Win *w = win_by_num(cmd - cmWinNum1); if (w) win_activate(w); return; }
     if (cmd >= cmTransfer0 && cmd < cmTransfer0 + 12) { run_transfer(cmd - cmTransfer0); return; }
-    if (cmd >= cmOptApplication && cmd <= cmOptSave) { opt_command(cmd); return; }
+    if (cmd >= cmOptCodeGen && cmd <= cmOptSave) { opt_command(cmd); return; }
     if (!cmd_enabled(cmd)) return;
     switch (cmd) {
     case cmAbout: dlg_about(); break;

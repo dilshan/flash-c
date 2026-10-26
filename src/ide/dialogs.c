@@ -53,105 +53,15 @@ void opt_command(int cmd)
 {
     Dialog d;
     switch (cmd) {
-    case cmOptApplication: {
-        db_start(&d, " Set Application Options ", 56);
-        db_group(&d, "Target", 2);
-        db_radio(&d, "~C~onsole executable (ELF)", &cfg.app_target, 0, "Generate a native Linux executable");
-        db_radio(&d, "~L~ibrary", &cfg.app_target, 1, "Generate a library (not supported yet)");
-        db_end_group(&d);
-        db_finish(&d, 1);
-        opt_run(&d, NULL);
-        break;
-    }
     case cmOptCodeGen: {
-        db_start(&d, " Code Generation ", 80);
-        db_at(&d, 2, 2, 32);
-        db_group(&d, "Model", 6);
-        const char *mn[] = { "~T~iny", "~S~mall", "~M~edium", "Co~m~pact", "~L~arge", "~H~uge" };
-        const char *mh[] = { "Use smallest memory model (64K available for code + data)", "Use small memory model (64K for code, 64K for static data)", "Use medium memory model", "Use compact memory model", "Use large memory model", "Use largest memory model" };
-        radios(&d, &cfg.model, mn, 6, mh);
-        db_end_group(&d);
-        db_group(&d, "Options", 5);
-        db_check(&d, "Treat ~e~nums as ints", &cfg.enums_as_ints, 0, "Treat enums as int - i.e. don't shorten to char when possible");
-        db_check(&d, "~W~ord alignment", &cfg.word_align, 0, "Align noncharacter data at even addresses");
-        db_check(&d, "Du~p~licate strings merged", &cfg.merge_strings, 0, "Merge two strings when one matches another");
+        db_start(&d, " Code Generation ", 74);
         db_check(&d, "~U~nsigned characters", &cfg.unsigned_char, 0, "Treat all char declarations as if they were unsigned char type");
-        db_check(&d, "Pre-c~o~mpiled headers", &cfg.precompiled, 0, "Generate and use pre-compiled headers");
+        db_gap(&d);
+        db_group(&d, "Floating Point", 2);
+        db_radio(&d, "No~n~e", &cfg.fp, 0, "Don't use floating-point numbers (the math library is not linked)");
+        db_radio(&d, "~F~loating point", &cfg.fp, 1, "Generate code for floating-point numbers");
         db_end_group(&d);
-        int ly = d.cur_y;
-        db_at(&d, 35, 2, 30);
-        db_group(&d, "Assume SS Equals DS", 3);
-        db_radio(&d, "De~f~ault for memory model", &cfg.assume_ss, 0, "Memory model determines whether to assume SS and DS are equal");
-        db_radio(&d, "~N~ever", &cfg.assume_ss, 1, "Generate code that doesn't assume SS and DS are equal");
-        db_radio(&d, "Alwa~y~s", &cfg.assume_ss, 2, "Generate code that assumes SS and DS are equal");
-        db_end_group(&d);
-        db_group(&d, "Floating Point", 4);
-        const char *fn[] = { "No~n~e", "~E~mulation", "~8~087", "8028~7~" };
-        const char *fh[] = { "Don't use floating-point numbers", "Detect and use coprocessor, otherwise emulate", "Generate direct 8087 inline code", "Generate direct 80287 inline code" };
-        radios(&d, &cfg.fp, fn, 4, fh);
-        db_end_group(&d);
-        db_group(&d, "Instruction Set", 3);
-        const char *in[] = { "8088/808~6~", "80~1~86", "80~2~86" };
-        const char *ih[] = { "Generate code for the 8088/8086 instruction set only", "Use 80188/186 enhanced instructions", "Use 80286 enhanced instructions" };
-        radios(&d, &cfg.instr, in, 3, ih);
-        db_end_group(&d);
-        if (d.cur_y < ly) d.cur_y = ly;
-        db_at(&d, 2, d.cur_y, 74);
         db_input(&d, "~D~efines", cfg.defines, sizeof cfg.defines, 60, "Pass macro definitions to the preprocessor (NAME or NAME=VALUE, separated by semicolons)");
-        db_finish(&d, 1);
-        opt_run(&d, NULL);
-        break;
-    }
-    case cmOptAdvCodeGen: {
-        db_start(&d, " Advanced Code Generation ", 54); d.bw = 32;
-        db_at(&d, 2, 2, 32);
-        db_group(&d, "Options", 7);
-        db_check(&d, "Generate ~u~nderbars", &cfg.under_scores, 0, "Add underscore character to start of global identifiers");
-        db_check(&d, "~L~ine numbers debug info", &cfg.line_numbers, 0, "Include line numbers in the object map file");
-        db_check(&d, "~D~ebug info in OBJs", &cfg.debug_info, 0, "Include debugging information in object files");
-        db_check(&d, "~F~ast floating point", &cfg.fast_fp, 0, "Generate code for fast floating-point operations");
-        db_check(&d, "Fast huge po~i~nters", &cfg.fast_huge, 0, "Use fast huge pointer arithmetic");
-        db_check(&d, "Generate CO~M~DEFs", &cfg.comdefs, 0, "Generate COMDEFs for uninitialized global data");
-        db_check(&d, "~A~utomatic far data", &cfg.auto_far, 0, "Place data objects exceeding the threshold in far data segments");
-        db_end_group(&d);
-        db_num(&d, "Far Data ~T~hreshold", &cfg.far_threshold, 8, "Automatic far data generation minimum size");
-        db_finish(&d, 1);
-        opt_run(&d, NULL);
-        break;
-    }
-    case cmOptEntryExit: {
-        db_start(&d, " Entry/Exit Code Generation ", 60);
-        db_group(&d, "Prolog/Epilog Code Generation", 2);
-        db_radio(&d, "~S~tandard", &cfg.entry_code, 0, "Generate standard prolog/epilog code");
-        db_radio(&d, "~O~verlay", &cfg.entry_code, 1, "Generate prolog/epilog code that can be overlaid");
-        db_end_group(&d);
-        db_group(&d, "Calling Convention", 2);
-        db_radio(&d, "~C~", &cfg.c_calls, 0, "Use C calling convention by default");
-        db_radio(&d, "~P~ascal", &cfg.c_calls, 1, "Use Pascal calling convention by default");
-        db_end_group(&d);
-        db_group(&d, "Stack Options", 2);
-        db_check(&d, "Standard stack ~f~rame", &cfg.std_frame, 0, "Generate standard stack frame entry and exit code on each function");
-        db_check(&d, "Test stack o~v~erflow", &cfg.stack_check, 0, "Check for a stack overflow at run time");
-        db_end_group(&d);
-        db_finish(&d, 1);
-        opt_run(&d, NULL);
-        break;
-    }
-    case cmOptOptimize: {
-        db_start(&d, " Optimization Options ", 60);
-        db_group(&d, "Optimizations", 2);
-        db_check(&d, "~S~uppress Redundant Loads", &cfg.opt_redundant, 0, "Fold constants at compile time");
-        db_check(&d, "~J~ump optimization", &cfg.opt_jump, 0, "Eliminate redundant jumps and optimize branches");
-        db_end_group(&d);
-        db_group(&d, "Optimize For", 2);
-        db_radio(&d, "Si~z~e", &cfg.opt_for_speed, 0, "Optimize code to favor smaller size");
-        db_radio(&d, "S~p~eed", &cfg.opt_for_speed, 1, "Optimize code to favor faster execution speed");
-        db_end_group(&d);
-        db_group(&d, "Register Variables", 3);
-        db_radio(&d, "~N~one", &cfg.regvars, 0, "Don't use register variables");
-        db_radio(&d, "Register key~w~ord", &cfg.regvars, 1, "Allocate register variables only when explicitly requested");
-        db_radio(&d, "~A~utomatic", &cfg.regvars, 2, "Let the compiler automatically determine when to use registers");
-        db_end_group(&d);
         db_finish(&d, 1);
         opt_run(&d, NULL);
         break;
@@ -159,12 +69,6 @@ void opt_command(int cmd)
     case cmOptSource: {
         db_start(&d, " Source Options ", 60);
         db_check(&d, "~N~ested comments", &cfg.nested_comments, 0, "Allow nested comments in source files");
-        db_gap(&d);
-        db_group(&d, "Keywords", 4);
-        const char *kn[] = { "~E~xtended (near, far ...)", "~A~NSI", "~U~NIX V", "Kernighan and ~R~itchie" };
-        const char *kh[] = { "Recognize the extended keywords", "Recognize only ANSI keywords", "Recognize UNIX System V keywords", "Recognize keywords from the original K & R definition of C" };
-        radios(&d, &cfg.keywords, kn, 4, kh);
-        db_end_group(&d);
         db_num(&d, "~I~dentifier Length", &cfg.ident_len, 6, "Enter significant length of identifiers");
         db_finish(&d, 1);
         opt_run(&d, NULL);
@@ -172,79 +76,43 @@ void opt_command(int cmd)
     }
     case cmOptMsgDisplay: msg_dialog_display(); break;
     case cmOptMsgPortability: {
-        const char *n[] = { "~N~on-portable pointer conversion", "Non-portable pointer ~c~omparison", "Constant out of ~r~ange in comparison", "Constant is ~l~ong", "Conversion may lose ~s~ignificant digits", "~M~ixing pointers to signed and unsigned char" };
-        int idx[] = { 0, 1, 2, 3, 4, 5 };
-        warn_dialog(" Portability Warnings ", n, idx, 6, 66);
+        const char *n[] = { "~N~on-portable pointer conversion" };
+        int idx[] = { 0 };
+        warn_dialog(" Portability Warnings ", n, idx, 1, 66);
         break;
     }
     case cmOptMsgAnsi: {
-        const char *n[] = { "~V~oid functions may not return a value", "~B~oth return and return of a value used", "~S~uspicious pointer conversion", "~U~ndefined structure 'ident'", "~R~edefinition of 'ident' is not identical", "~H~exadecimal value more than three digits", "Bit ~f~ields must be signed or unsigned int", "'ident' declared as both e~x~ternal and static", "~D~eclare 'ident' prior to use in prototype", "Division by ~z~ero", "~I~nitializing 'ident' with 'ident'", "Initialization is only ~p~artially bracketed" };
-        int idx[] = { 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 };
-        warn_dialog(" ANSI Violations ", n, idx, 12, 66);
+        const char *n[] = { "~V~oid functions may not return a value","~S~uspicious pointer conversion","Division by ~z~ero" };
+        int idx[] = { 6,8,15 };
+        warn_dialog(" ANSI Violations ", n, idx, 3, 66);
         break;
     }
     case cmOptMsgFrequent: {
-        const char *n[] = { "~F~unction should return a value", "~U~nreachable code", "~C~ode has no effect", "~P~ossible use of 'ident' before definition", "'~i~dent' is assigned a value which is never used", "Parameter 'ident' is ~n~ever used", "Possibly incorrect ~a~ssignment" };
-        int idx[] = { 32, 33, 34, 35, 36, 37, 38 };
-        warn_dialog(" Frequent Errors ", n, idx, 7, 66);
+        const char *n[] = { "~F~unction should return a value","~C~ode has no effect","Parameter 'ident' is ~n~ever used","Possibly incorrect ~a~ssignment" };
+        int idx[] = { 32,34,37,38 };
+        warn_dialog(" Frequent Errors ", n, idx, 4, 66);
         break;
     }
     case cmOptMsgLess: {
-        const char *n[] = { "~S~uperfluous & with function", "~A~mbiguous operators need parentheses", "Structure passed by ~v~alue", "~N~o declaration for function 'ident'", "Call to function with no ~p~rototype", "~U~nknown assembler instruction", "I~l~l-formed pragma", "C~o~ndition is always (true/false)", "A~r~ray variable 'ident' is near", "'~i~dent' declared but never used" };
-        int idx[] = { 39, 40, 41, 42, 43, 44, 45, 46, 47, 48 };
-        warn_dialog(" Less Frequent Errors ", n, idx, 10, 66);
-        break;
-    }
-    case cmOptNames: {
-        static const char *lab[12] = { "~C~ode Segment", "Code ~G~roup", "Code C~l~ass", "~D~ata Segment", "D~a~ta Group", "Da~t~a Class", "~B~SS Segment", "BSS G~r~oup", "BSS C~l~ass", "Far Data Segme~n~t", "Far Data Grou~p~", "~F~ar Data Class" };
-        db_start(&d, " Segment Names ", 64);
-        db_at(&d, 2, 2, 24);
-        for (int i = 0; i < 12; i++) {
-            if (i == 6) db_at(&d, 30, 2, 24);
-            db_input(&d, lab[i], cfg.seg_names[i], 24, 20, "Change the default segment, group, or class name");
-        }
-        db_finish(&d, 1);
-        d.h = 24;
-        opt_run(&d, NULL);
+        const char *n[] = { "Call to function with no ~p~rototype","'~i~dent' declared but never used" };
+        int idx[] = { 43,48 };
+        warn_dialog(" Less Frequent Errors ", n, idx, 2, 66);
         break;
     }
     case cmOptMake: {
         db_start(&d, " Make ", 62);
-        db_group(&d, "Break Make On", 4);
-        db_check(&d, "~W~arnings", &cfg.brk_warn, 0, "Stop a project-make on any warning message");
-        db_check(&d, "~E~rrors", &cfg.brk_err, 0, "Stop a project-make on any error message");
-        db_check(&d, "~F~atal errors", &cfg.brk_fatal, 0, "Stop a project-make on any fatal error message");
-        db_check(&d, "~A~ll sources processed", &cfg.brk_all, 0, "Stop after all sources have been processed");
-        db_end_group(&d);
-        db_group(&d, "After Compiling", 3);
-        db_radio(&d, "~S~top", &cfg.after_compile, 0, "Stop after compiling");
-        db_radio(&d, "~R~un linker", &cfg.after_compile, 1, "Link project items into the executable");
-        db_radio(&d, "Run ~l~ibrarian", &cfg.after_compile, 2, "Put project items into a library");
-        db_end_group(&d);
         db_check(&d, "~C~heck auto-dependencies", &cfg.check_autodep, 0, "Rebuild when included files change");
         db_finish(&d, 1);
         opt_run(&d, NULL);
         break;
     }
     case cmOptLinkSettings: {
-        db_start(&d, " Linker ", 76); d.bw = 28;
-        db_at(&d, 2, 2, 26);
+        db_start(&d, " Linker ", 50);
         db_group(&d, "Map File", 4);
         const char *mn[] = { "O~f~f", "~S~egments", "~P~ublics", "~D~etailed" };
         radios(&d, &cfg.map_file, mn, 4, NULL);
         db_end_group(&d);
-        db_group(&d, "Output", 4);
-        const char *on[] = { "S~t~andard EXE", "O~v~erlaid EXE", "~S~tandard Library", "~O~verlaid Library" };
-        radios(&d, &cfg.out_kind, on, 4, NULL);
-        db_end_group(&d);
-        db_at(&d, 30, 2, 30);
-        db_group(&d, "Options", 5);
-        db_check(&d, "~I~nitialize segments", &cfg.lnk_init_seg, 0, NULL);
-        db_check(&d, "Default ~l~ibraries", &cfg.lnk_default_libs, 0, NULL);
-        db_check(&d, "~W~arn duplicate symbols", &cfg.lnk_warn_dup, 0, NULL);
-        db_check(&d, "\"~N~o stack\" warning", &cfg.lnk_nostack, 0, NULL);
-        db_check(&d, "~C~ase-sensitive link", &cfg.lnk_case, 0, NULL);
-        db_end_group(&d);
+        db_check(&d, "Default ~l~ibraries", &cfg.lnk_default_libs, 0, "Link the run-time libraries selected under Linker|Libraries");
         db_finish(&d, 1);
         opt_run(&d, NULL);
         break;
@@ -256,19 +124,6 @@ void opt_command(int cmd)
         db_check(&d, "~M~ath library", &cfg.lib_math, 0, "Link the math library and floating-point formatting (math.h, %f, atof)");
         db_check(&d, "~W~ildcard arguments", &cfg.lib_wild, 0, "Expand * and ? in command-line arguments (wildargs)");
         db_end_group(&d);
-        db_finish(&d, 1);
-        opt_run(&d, NULL);
-        break;
-    }
-    case cmOptLibrarian: {
-        db_start(&d, " Librarian Options ", 62);
-        db_group(&d, "Options", 4);
-        db_check(&d, "~G~enerate list file", &cfg.lib_listing, 0, NULL);
-        db_check(&d, "~C~ase sensitive library", &cfg.lib_case, 0, NULL);
-        db_check(&d, "~P~urge comment records", &cfg.lib_purge, 0, "Purge comment records from modules added to library");
-        db_check(&d, "Create ~e~xtended dictionary", &cfg.lib_extdict, 0, NULL);
-        db_end_group(&d);
-        db_num(&d, "~L~ibrary Page Size", &cfg.lib_pagesize, 6, NULL);
         db_finish(&d, 1);
         opt_run(&d, NULL);
         break;
@@ -285,14 +140,11 @@ void opt_command(int cmd)
         radios(&d, &cfg.dbg_swap, wn, 3, NULL);
         db_end_group(&d);
         db_at(&d, 28, 2, 22);
-        db_group(&d, "Inspectors", 5);
-        db_check(&d, "Show ~i~nherited", &cfg.dbg_inherited, 0, NULL);
-        db_check(&d, "Show ~m~ethods", &cfg.dbg_methods, 0, NULL);
+        db_group(&d, "Number Format", 3);
         db_radio(&d, "Show ~d~ecimal", &cfg.dbg_radix, 0, NULL);
         db_radio(&d, "Show ~h~ex", &cfg.dbg_radix, 1, NULL);
         db_radio(&d, "Show ~b~oth", &cfg.dbg_radix, 2, NULL);
         db_end_group(&d);
-        db_num(&d, "~P~rogram Heap Size", &cfg.dbg_heap, 8, NULL);
         db_finish(&d, 1);
         opt_run(&d, NULL);
         break;
@@ -301,9 +153,7 @@ void opt_command(int cmd)
         db_start(&d, " Directories ", 72);
         d.bw = 54;
         db_input(&d, "~I~nclude Directories", cfg.incdir, sizeof cfg.incdir, 52, "The directories to search for your include (.h) files");
-        db_input(&d, "~L~ibrary Directories", cfg.libdir, sizeof cfg.libdir, 52, "The directories to search for your library files");
         db_input(&d, "~O~utput Directory", cfg.outdir, sizeof cfg.outdir, 52, "The output directory for your executable files");
-        db_input(&d, "~S~ource Directories", cfg.srcdir, sizeof cfg.srcdir, 52, "The directories that store source for included files");
         db_finish(&d, 1);
         for (int i = d.n - 3; i < d.n; i++) { d.it[i].x = 30 + (i - (d.n - 3)) * 0; }
         d.it[d.n - 3].x = 58; d.it[d.n - 3].y = 2 + 0; d.it[d.n - 2].x = 58; d.it[d.n - 1].x = 58;
@@ -323,10 +173,10 @@ void opt_command(int cmd)
         db_radio(&d, "~N~ew window", &cfg.src_tracking, 0, "Open a new window to track messages");
         db_radio(&d, "~C~urrent window", &cfg.src_tracking, 1, "Replace the contents of the current window when tracking messages");
         db_end_group(&d);
-        db_group(&d, "Command Set", 3);
+        if (cfg.cmdset > 1) cfg.cmdset = 1;
+        db_group(&d, "Command Set", 2);
         db_radio(&d, "C~U~A", &cfg.cmdset, 0, "Use CUA menus and hot-key selections (Ctrl-X, Ctrl-C, Ctrl-V, Ctrl-Z)");
-        db_radio(&d, "~A~lternate", &cfg.cmdset, 1, "Use the classic menus and hot-key selections");
-        db_radio(&d, "Na~t~ive", &cfg.cmdset, 2, "Use the classic menus and hot-key selections");
+        db_radio(&d, "~C~lassic", &cfg.cmdset, 1, "Use the classic menus and hot-key selections");
         db_end_group(&d);
         db_at(&d, 30, 2, 26);
         db_group(&d, "Auto-Save", 4);
@@ -344,15 +194,13 @@ void opt_command(int cmd)
     }
     case cmOptEditor: {
         db_start(&d, " Editor Options ", 66); d.bw = 46;
-        db_group(&d, "Editor Options", 11);
+        db_group(&d, "Editor Options", 9);
         db_check(&d, "Create backup ~f~iles", &cfg.backup, 0, "Create a backup (.BAK) file whenever you save");
         db_check(&d, "~I~nsert mode", &cfg.insert, 0, "Characters typed are inserted into edit text");
         db_check(&d, "~A~utoindent mode", &cfg.autoindent, 0, "Auto-indent to previous indentation level on each new line");
         db_check(&d, "~U~se tab character", &cfg.use_tab, 0, "Insert actual tab characters into file");
-        db_check(&d, "~O~ptimal fill", &cfg.optimal_fill, 0, "Optimally replace consecutive spaces with tabs");
         db_check(&d, "~S~yntax Highlighting", &cfg.syntax, 0, "Syntax elements are highlighted in editor windows");
         db_check(&d, "~B~ackspace unindents", &cfg.bs_unindent, 0, "The Backspace key will unindent, based on previous starting columns");
-        db_check(&d, "~C~ursor through tabs", &cfg.cursor_tabs, 0, "Allow cursor to move through tabs one column at a time");
         db_check(&d, "~G~roup undo", &cfg.group_undo, 0, "Group similar editor actions into one Undo action");
         db_check(&d, "~P~ersistent blocks", &cfg.persist_blocks, 0, "Selected text remains highlighted when cursor moves");
         db_check(&d, "Overwrite b~l~ocks", &cfg.overwrite_blocks, 0, "Inserting new text deletes (overwrites) selected text");
@@ -369,41 +217,17 @@ void opt_command(int cmd)
         const char *n[] = { "~N~othing", "~T~opic search", "~S~earch", "Search ~a~gain", "~R~eplace", "~G~o to cursor", "~B~reakpoint", "~I~nspect", "~E~valuate", "Add ~w~atch" };
         radios(&d, &cfg.mouse_right, n, 10, NULL);
         db_end_group(&d);
-        db_num(&d, "~M~ouse Double Click", &cfg.mouse_dbl, 6, "Adjust the double-click speed of your mouse");
-        db_check(&d, "Re~v~erse mouse buttons", &cfg.mouse_reverse, 0, "Make the active mouse button the rightmost one");
         db_finish(&d, 1);
         opt_run(&d, NULL);
         break;
     }
     case cmOptDesktop: {
         db_start(&d, " Desktop Preferences ", 56);
-        db_group(&d, "Save Options", 6);
-        db_check(&d, "~H~istory lists", &cfg.sv_history, 0, "Save all history lists");
-        db_check(&d, "~C~lipboard", &cfg.sv_clip, 0, "Save Clipboard contents");
+        db_group(&d, "Save Options", 3);
         db_check(&d, "~W~atch expressions", &cfg.sv_watch, 0, "Save all watch expressions");
         db_check(&d, "~B~reakpoints", &cfg.sv_bp, 0, "Save all breakpoints");
         db_check(&d, "~O~pen windows", &cfg.sv_open, 0, "Save state information for all open windows");
-        db_check(&d, "C~l~osed windows", &cfg.sv_closed, 0, "Save state information for closed windows");
         db_end_group(&d);
-        db_finish(&d, 1);
-        opt_run(&d, NULL);
-        break;
-    }
-    case cmOptStartup: {
-        db_start(&d, " Startup Options ", 62); d.bw = 28;
-        db_at(&d, 2, 2, 28);
-        db_group(&d, "Video Mode", 3);
-        db_radio(&d, "~A~uto detect", &cfg.video_mode, 0, "Autodetect and use the terminal's capabilities");
-        db_radio(&d, "~B~lack & White / LCD", &cfg.video_mode, 1, "Use black and white");
-        db_radio(&d, "~C~olor", &cfg.video_mode, 2, "Always use color");
-        db_end_group(&d);
-        db_group(&d, "Video Startup Options", 3);
-        db_check(&d, "~S~ave entire palette", &cfg.save_palette, 0, NULL);
-        db_check(&d, "~D~ual monitor mode", &cfg.dual_monitor, 0, NULL);
-        db_check(&d, "S~n~ow checking", &cfg.snow, 0, NULL);
-        db_end_group(&d);
-        db_check(&d, "Use E~x~tended Memory", &cfg.use_ext, 0, NULL);
-        db_check(&d, "Use ~E~MS Memory", &cfg.use_ems, 0, NULL);
         db_finish(&d, 1);
         opt_run(&d, NULL);
         break;

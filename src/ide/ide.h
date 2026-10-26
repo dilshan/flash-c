@@ -39,35 +39,27 @@ void pal_defaults(void);
 typedef struct TransferItem { char title[64], path[128], cmd[160]; int hotkey; } TransferItem;
 typedef struct Config {
     /* compiler / source */
-    int nested_comments, unsigned_char, ident_len, keywords;
+    int nested_comments, unsigned_char, ident_len;
     int max_errors, max_warnings, warn_display;   /* 0 none, 1 selected, 2 all */
-    int warn[NWARN];
-    int opt_redundant, opt_jump, opt_for_speed, regvars;
-    /* code generation (stored; no effect on the Linux back end) */
-    int model, fp, instr, c_calls, std_frame, stack_check, word_align, merge_strings, enums_as_ints;
-    int under_scores, line_numbers, debug_info, fast_fp, fast_huge, comdefs, auto_far;
-    int far_threshold, precompiled, assume_ss, entry_code;
+    int warn[NWARN];                              /* only the entries used by ide_fill_options() */
+    int fp;                                       /* 0 no floating point, 1 floating point */
     char defines[200];
-    char seg_names[12][24];
     /* make / link */
-    int brk_warn, brk_err, brk_fatal, brk_all, after_compile, check_autodep;
-    int map_file, out_kind, lnk_init_seg, lnk_default_libs, lnk_warn_dup, lnk_nostack, lnk_case;
+    int check_autodep;
+    int map_file, lnk_default_libs;
     int lib_stdrt, lib_math, lib_wild;
-    int lib_listing, lib_case, lib_purge, lib_extdict, lib_pagesize;
-    int dbg_source, dbg_swap, dbg_inherited, dbg_methods, dbg_radix, dbg_heap;
-    int app_target;
+    int dbg_source, dbg_swap, dbg_radix;
     /* directories */
-    char incdir[256], libdir[256], outdir[256], srcdir[256];
+    char incdir[256], outdir[256];
     char run_args[256];
     /* environment */
     int screen_lines, src_tracking, cmdset;
     int as_editor, as_env, as_desktop, as_project, save_old_msgs;
-    int backup, insert, autoindent, use_tab, optimal_fill, syntax, bs_unindent, cursor_tabs;
+    int backup, insert, autoindent, use_tab, syntax, bs_unindent;
     int group_undo, persist_blocks, overwrite_blocks, tabsize;
     char defext[8];
-    int mouse_right, mouse_dbl, mouse_reverse;
-    int sv_history, sv_clip, sv_watch, sv_bp, sv_open, sv_closed;
-    int video_mode, save_palette, dual_monitor, snow, swap_drive, use_ext, use_ems, ext_kb, ems_pages;
+    int mouse_right;
+    int sv_watch, sv_bp, sv_open;
     int pause_after_run;
     TransferItem xfer[12]; int nxfer;
     uint8_t colors[P_COUNT];
@@ -237,10 +229,10 @@ enum {
     cmCompile, cmMake, cmLink, cmBuildAll, cmInformation, cmRemoveMsgs,
     cmInspect, cmEvalMod, cmCallStack, cmAddWatch, cmDelWatch, cmEditWatch, cmRemoveWatches, cmToggleBP, cmBreakpoints,
     cmOpenProject, cmCloseProject, cmAddItem, cmDelItem, cmLocalOpts, cmIncludeFiles,
-    cmOptApplication, cmOptCodeGen, cmOptAdvCodeGen, cmOptEntryExit, cmOptOptimize, cmOptSource,
+    cmOptCodeGen, cmOptSource,
     cmOptMsgDisplay, cmOptMsgPortability, cmOptMsgAnsi, cmOptMsgFrequent, cmOptMsgLess,
-    cmOptNames, cmOptTransfer, cmOptMake, cmOptLinkSettings, cmOptLinkLibs, cmOptLibrarian, cmOptDebugger,
-    cmOptDirs, cmOptPrefs, cmOptEditor, cmOptMouse, cmOptDesktop, cmOptStartup, cmOptColors, cmOptSave,
+    cmOptTransfer, cmOptMake, cmOptLinkSettings, cmOptLinkLibs, cmOptDebugger,
+    cmOptDirs, cmOptPrefs, cmOptEditor, cmOptMouse, cmOptDesktop, cmOptColors, cmOptSave,
     cmSizeMove, cmZoom, cmTile, cmCascade, cmNextWin, cmCloseWin, cmCloseAll,
     cmWinMessage, cmWinOutput, cmWinWatch, cmUserScreen, cmWinRegister, cmWinProject, cmWinNotes, cmWinList,
     cmHelpContents, cmHelpIndex, cmHelpTopic, cmHelpPrev, cmHelpOnHelp, cmHelp_,

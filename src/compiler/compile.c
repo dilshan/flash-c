@@ -8,7 +8,6 @@ void fc_options_default(FcOptions *o)
     o->fp_mode = 1;
     o->max_errors = 25;
     o->max_warnings = 100;
-    o->optimize = 1;
     o->w_unused = 1;
     o->w_noproto = 1;
     o->w_noreturn = 1;

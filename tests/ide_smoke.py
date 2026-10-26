@@ -59,7 +59,11 @@ try:
 
     # options dialogs
     s.send('\x1bo', 'c', 'c')
-    check('Code generation dialog', 'Code Generation' in text(s) and 'Model' in text(s) and 'Floating Point' in text(s), s)
+    check('Code generation dialog', 'Code Generation' in text(s) and 'Unsigned characters' in text(s) and 'Floating Point' in text(s) and 'Model' not in text(s), s)
+    s.send('ESC')
+    s.send('\x1bo')
+    t = text(s)
+    check('Options menu has no unused items', 'Application' not in t and 'Librarian' not in t and 'Compiler' in t and 'Debugger' in t, s)
     s.send('ESC')
     s.send('\x1bo', 'e', 'e')
     check('Editor options dialog', 'Syntax Highlighting' in text(s) and 'Tab Size' in text(s), s)

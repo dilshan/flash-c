@@ -11,7 +11,6 @@ typedef struct FcOptions {
     int warn_level;          /* 0 = none, 1 = selected, 2 = all          */
     int max_errors;          /* stop after N errors   (default 25)       */
     int max_warnings;        /* stop after N warnings (default 100)      */
-    int optimize;            /* fold constants / jump optimisation       */
     int unsigned_char;       /* plain char is unsigned                   */
     int ident_len;           /* significant identifier length (0 = all)  */
     int w_unused;            /* warn about unused variables              */
@@ -27,8 +26,6 @@ typedef struct FcOptions {
     int map;                 /* link map: 0 off, 1 segments, 2 publics, 3 detailed (-M) */
     int nomath;              /* do not link the math library (-lnm) */
     int wildargs;            /* link the wildcard argument expander (wildargs.obj) */
-    int warn_dup;            /* warn when the program redefines a library function */
-    int stack_warn;          /* warn when the program has no explicit stack size */
     int debug;               /* record source-level debug information (-v) */
     const char *incdirs[16]; /* include search path                      */
     int nincdir;
