@@ -39,7 +39,7 @@ $(BUILD)/fcc: $(COMP_OBJ) $(BUILD)/cli/fcc.o
 	$(CC) $(LDFLAGS) -o $@ $^
 
 $(BUILD)/fc: $(COMP_OBJ) $(IDE_OBJ)
-	$(CC) $(LDFLAGS) -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ $^ -lutil
 
 test: $(BUILD)/fcc $(BUILD)/fc
 	sh tests/run.sh

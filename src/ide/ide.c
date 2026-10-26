@@ -1,4 +1,8 @@
 /* Flash C IDE - commands, build/run integration, main loop */
+#include <pty.h>
+#include <poll.h>
+#include <errno.h>
+#include <sys/ioctl.h>
 #include "ide.h"
 #include <ctype.h>
 #include <unistd.h>
@@ -365,6 +369,54 @@ static void shell_quote(const char *s, char *out, int n)
     out[j++] = '\''; out[j] = 0;
 }
 
+/* Runs cmd on a pseudo-terminal: the output goes to the user screen as usual and a copy (without escape
+ * sequences) is kept for Window|Output.  Keyboard input is forwarded to the program. */
+static int run_on_pty(const char *cmd)
+{
+    struct winsize ws; int status = 0;
+    if (ioctl(1, TIOCGWINSZ, &ws) != 0) { ws.ws_row = 25; ws.ws_col = 80; ws.ws_xpixel = ws.ws_ypixel = 0; }
+    int mfd; pid_t pid = forkpty(&mfd, NULL, NULL, &ws);
+    if (pid < 0) {                                           /* no pty: run directly */
+        pid = fork();
+        if (pid == 0) { signal(SIGINT, SIG_DFL); execl("/bin/sh", "sh", "-c", cmd, (char *)NULL); _exit(127); }
+        if (pid > 0) waitpid(pid, &status, 0);
+        return status;
+    }
+    if (pid == 0) { signal(SIGINT, SIG_DFL); execl("/bin/sh", "sh", "-c", cmd, (char *)NULL); _exit(127); }
+    out_clear();
+    struct termios o, raw; int have_t = tcgetattr(0, &o) == 0;
+    if (have_t) { raw = o; cfmakeraw(&raw); tcsetattr(0, TCSAFLUSH, &raw); }
+    char line[600]; int ll = 0, esc = 0;
+    for (;;) {
+        struct pollfd pf[2] = { { mfd, POLLIN, 0 }, { 0, POLLIN, 0 } };
+        if (poll(pf, 2, -1) < 0) { if (errno == EINTR) continue; break; }
+        if (pf[1].revents & POLLIN) {
+            char kb[256]; ssize_t k = read(0, kb, sizeof kb);
+            if (k > 0) { ssize_t w = write(mfd, kb, k); (void)w; }
+        }
+        if (pf[0].revents & (POLLIN | POLLHUP)) {
+            char buf[1024]; ssize_t n = read(mfd, buf, sizeof buf);
+            if (n <= 0) break;
+            { ssize_t w = write(1, buf, n); (void)w; }
+            for (ssize_t i = 0; i < n; i++) {
+                unsigned char c = buf[i];
+                if (esc == 1) { esc = c == '[' ? 2 : 0; continue; }
+                if (esc == 2) { if (c >= 0x40 && c <= 0x7e) esc = 0; continue; }
+                if (c == 27) { esc = 1; continue; }
+                if (c == '\r') continue;
+                if (c == '\n') { line[ll] = 0; out_add(line); ll = 0; continue; }
+                if (c == '\b') { if (ll) ll--; continue; }
+                if (ll < (int)sizeof line - 1) line[ll++] = c;
+            }
+        }
+    }
+    if (ll) { line[ll] = 0; out_add(line); }
+    if (have_t) tcsetattr(0, TCSAFLUSH, &o);
+    close(mfd);
+    waitpid(pid, &status, 0);
+    return status;
+}
+
 static void run_program(void)
 {
     char exe[700], q[1500], cmd[2000];
@@ -377,14 +429,7 @@ static void run_program(void)
     term_suspend();
     fflush(stdout);
     void (*oldint)(int) = signal(SIGINT, SIG_IGN);
-    pid_t pid = fork();
-    if (pid == 0) {
-        signal(SIGINT, SIG_DFL);
-        execl("/bin/sh", "sh", "-c", cmd, (char *)NULL);
-        _exit(127);
-    }
-    int status = 0;
-    if (pid > 0) waitpid(pid, &status, 0);
+    int status = run_on_pty(cmd);
     signal(SIGINT, oldint);
     if (cfg.pause_after_run) {
         if (WIFEXITED(status)) printf("\n[Program exited with code %d]", WEXITSTATUS(status));

@@ -16,6 +16,7 @@ enum {
     KEY_MOUSE = 0x1200, KEY_RESIZE, KEY_PASTE_BEGIN, KEY_PASTE_END, KEY_IDLE
 };
 #define ALT(c)  (K_ALT | (c))
+#undef CTRL
 #define CTRL(c) (K_CTRL | (c))
 
 typedef struct { int x, y, btn, ev, mods; } MouseState;

@@ -45,6 +45,9 @@ try:
     t = text(s)
     check('Run shows program output and exit code', 'sum=55' in t and 'Program exited with code 0' in t, s)
     s.send('x')
+    s.send('\x1bw', 'o')
+    check('Window|Output holds the program output', 'Output' in text(s) and 'sum=55' in text(s), s)
+    s.send('\x1bw', 'c')
 
     # break the program: remove a semicolon on the printf line
     s.send('\x1b[1;5H')               # ctrl-home
