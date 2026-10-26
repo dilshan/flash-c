@@ -97,6 +97,8 @@ try:
     check('hyperlink is followed', 'Help: strcpy' not in text(s).split('\n')[1], s)
     s.send('AF1')
     check('Previous topic goes back', 'Help: strcpy' in text(s), s)
+    s.send('ESC'); s.send('\x1bhi'); s.type('printf'); s.send('ENTER'); s.send('ENTER')
+    check('Header name in a function topic is a link', 'Help: stdio.h' in text(s) and 'fopen' in text(s), s)
     s.send('\x1bhi'); s.type('library functions'); s.send('ENTER')
     t = text(s)
     check('help window has a scroll bar', '\u25b2' in t and '\u25bc' in t, s)

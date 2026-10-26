@@ -21,13 +21,18 @@ def add(title, body, keys="", alias="", example=None, first=False):
 def wrap(s, ind=" "):
     return "\n".join(textwrap.fill(p, 70, initial_indent=ind, subsequent_indent=ind) for p in s.split("\n")) if s else ""
 
+MISC_PAGE = "assert.h setjmp.h signal.h stdarg.h stddef.h locale.h"
+def hlink(hdr, summ):
+    if hdr != "misc": return "{%s}" % hdr
+    m = re.search(r"\((\w+\.h)\)", summ)
+    return "{%s|%s}" % (m.group(1), MISC_PAGE) if m else "{%s}" % MISC_PAGE
 funcs = {}
 for m in mods:
     for f in libs[m].F: funcs[f[0]] = (m, f)
 for name, (m, f) in sorted(funcs.items()):
     _, proto, summ, detail, ret, see, ex = f
     hdr = libs[m].H
-    b = [" %s" % name, "", " %s" % summ, "", " Header: %s" % (hdr if hdr != "misc" else "see description"),
+    b = [" %s" % name, "", " %s" % summ, "", " Header: " + hlink(hdr, summ),
          "", " Syntax", "   %s" % proto, ""]
     if detail: b += [wrap(detail), ""]
     b += [" Return value", wrap(ret), ""]
