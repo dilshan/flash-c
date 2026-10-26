@@ -86,15 +86,24 @@ double log(double x)
     s = (m - 1.0) / (m + 1.0); s2 = s * s;
     sum = 0.0; t = s;
     for (i = 1; i < 40; i += 2) { sum = sum + t / i; t = t * s2; }
-    return 2.0 * sum + e * 0.6931471805599453;
+    return (2.0 * sum + e * 1.4286068203094173e-06) + e * 0.693145751953125;
 }
 double log10(double x)
 {
     if (x < 0) return __matherr_call(DOMAIN, "log10", x, 0, -HUGE_VAL);
     if (x == 0) return __matherr_call(SING, "log10", x, 0, -HUGE_VAL);
-    return log(x) / 2.302585092994046;
+    if (x >= 1.0 && x <= 1e22) {            /* exact powers of ten give exact results */
+        double p = 1.0; int n;
+        for (n = 0; n <= 22; n++, p *= 10.0) if (x == p) return (double)n;
+    }
+    return log(x) * 0.4342944819032518;
 }
-double log2(double x) { return log(x) / 0.6931471805599453; }
+double log2(double x)
+{
+    int e; double m;
+    if (x > 0 && x == x) { m = frexp(x, &e); if (m == 0.5) return (double)(e - 1); }     /* exact powers of two */
+    return log(x) / 0.6931471805599453;
+}
 double pow(double x, double y)
 {
     double r = 1.0; long n; int neg = 0;
