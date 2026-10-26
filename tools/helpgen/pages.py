@@ -19,7 +19,8 @@ P("printf formats",
 
    %[flags][width][.precision][length]conversion
 
- Flags
+## Flags
+
    -    left-justify in the field
    +    always print a sign
    space  a space in front of a positive number
@@ -27,13 +28,19 @@ P("printf formats",
         decimal point for floating types
    0    pad with zeros instead of spaces
 
+## Width and precision
+
  Width and precision are numbers or * (taken from the arguments).
+
  Precision: minimum digits for integers, digits after the point for
  e, E and f, significant digits for g and G, maximum characters for s.
 
- Length: h (short), l (long, or wide for c and s), L (long double)
+## Length
 
- Conversions
+ h (short), l (long, or wide for c and s), L (long double)
+
+## Conversions
+
    d i  signed decimal        o  octal          u  unsigned decimal
    x X  hexadecimal           c  character      s  string
    f    fixed point           e E  exponent     g G  shortest of e/f
@@ -51,7 +58,8 @@ P("scanf formats",
  * suppresses assignment. White space in the format matches any amount
  of white space in the input; other characters must match exactly.
 
- Conversions
+## Conversions
+
    d    decimal int            i  int, base from prefix
    o    octal                  u  unsigned decimal
    x X  hexadecimal            c  characters (no skip of white space)
@@ -66,7 +74,8 @@ P("scanf formats",
 P("Keywords and operators",
 """ Keywords and operators
 
- Keywords
+## Keywords
+
    auto break case char const continue default do double else enum
    extern float for goto if int long register return short signed
    sizeof static struct switch typedef union unsigned void volatile
@@ -74,7 +83,8 @@ P("Keywords and operators",
 
  The words near, far, huge, cdecl and pascal are accepted and ignored.
 
- Operators, highest precedence first
+## Operators, highest precedence first
+
    () [] -> .                       left to right
    ! ~ ++ -- + - * & (type) sizeof  right to left
    * / %                            left to right
@@ -93,7 +103,8 @@ P("Keywords and operators",
 P("Preprocessor",
 """ Preprocessor
 
- Directives
+## Directives
+
    #include <file>   search the include directories
    #include "file"   search the current directory first
    #define NAME text / #define NAME(args) text
@@ -109,6 +120,8 @@ P("Preprocessor",
  See {Predefined macros}""", "include define undef ifdef ifndef elif endif pragma line error defined", "Preprocessor directives"),
 P("Predefined macros",
 """ Predefined macros
+
+## Macros
 
    __FILE__   the name of the source file as a string
    __LINE__   the current line number

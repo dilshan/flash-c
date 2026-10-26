@@ -10,202 +10,409 @@ typedef struct { const char *title, *keys, *text; } Topic;
  * external *.fch files when they are installed; see help_load_external(). */
 static const Topic basic[] = {
 { "Contents", "",
-"                     Flash C Help\n\n"
+" Flash C Help\n"
+"\n"
+"## Getting started\n"
+"\n"
 " {Using the IDE}\n"
 " {Keyboard shortcuts}\n"
 " {The editor}\n"
 " {Compiling and running}\n"
+" {Projects}\n"
+"\n"
+"## Compiler\n"
+"\n"
 " {Compiler options}\n"
 " {Code generation options}\n"
 " {Messages and errors}\n"
-" {Projects}\n"
+" {Libraries and linking}\n"
+" {Source-level debugger}\n"
+"\n"
+"## The C language\n"
+"\n"
 " {Language reference}\n"
+" {Differences from classic compilers}\n"
+"\n"
+"## Library\n"
+"\n"
 " {Library: stdio}\n"
 " {Library: string}\n"
 " {Library: stdlib}\n"
 " {Library: ctype}\n"
 " {Library: conio and dos}\n"
-" {Differences from classic compilers}\n"
-" {About Flash C}\n\n"
+"\n"
+"## About\n"
+"\n"
+" {About Flash C}\n"
+"\n"
 " Press Tab to move between topics, Enter to follow one,\n"
 " Alt-F1 to go back and Esc to close this window.\n" },
 
 { "Using the IDE", "ide menu window desktop",
-" Using the IDE\n\n"
-" The top line is the menu bar. Press F10 to activate it, or press\n"
-" Alt plus the first letter of a menu (Alt-F opens File, Alt-C opens\n"
-" Compile, and so on). Move with the arrow keys, Enter chooses an item,\n"
-" Esc closes the menu. The mouse works too.\n\n"
+" Using the IDE\n"
+"\n"
+"## The menu bar\n"
+"\n"
+" The top line is the menu bar. Press F10 to activate it, or press Alt\n"
+" plus the first letter of a menu (Alt-F opens File, Alt-C opens Compile,\n"
+" and so on). Move with the arrow keys, Enter chooses an item, Esc closes\n"
+" the menu. The mouse works too.\n"
+"\n"
+"## The status line\n"
+"\n"
 " The bottom line shows the keys that are useful right now. While a menu\n"
-" or a dialog box is open it shows a description of the highlighted item.\n\n"
+" or a dialog box is open it shows a description of the highlighted item.\n"
+"\n"
+"## Windows\n"
+"\n"
 " The desktop holds windows. Edit windows hold source files; the Message\n"
-" window lists compiler messages. F6 selects the next window, F5 zooms the\n"
-" active window, Alt-F3 closes it and Alt-0 lists all of them.\n"
-" Alt-1 .. Alt-9 select an edit window by its number.\n\n"
+" window lists compiler messages and the Output window keeps the text a\n"
+" program wrote.\n"
+"\n"
+" F6 selects the next window, F5 zooms the active window, Alt-F3 closes\n"
+" it and Alt-0 lists all of them. Alt-1 .. Alt-9 select an edit window by\n"
+" its number.\n"
+"\n"
 " See also: {Keyboard shortcuts}, {The editor}\n" },
 
 { "Keyboard shortcuts", "keys shortcut hotkey",
-" Keyboard shortcuts\n\n"
-" F1 Help          F2 Save           F3 Open           F4 Go to cursor\n"
-" F5 Zoom          F6 Next window    F9 Make           F10 Menu\n"
-" Alt-F9 Compile   Ctrl-F9 Run       Alt-F3 Close      Alt-F5 User screen\n"
-" Alt-F7 Previous message            Alt-F8 Next message\n"
-" Alt-X  Quit      Alt-0  Window list\n"
-" Ctrl-F7 Add watch                  Ctrl-F4 Evaluate\n"
-" Shift-F1 Help index                Ctrl-F1 Help on the word at the cursor\n\n"
+" Keyboard shortcuts\n"
+"\n"
+"## Files and help\n"
+"\n"
+"   F2        Save                   F3        Open\n"
+"   Alt-X     Quit                   Alt-0     Window list\n"
+"   F1        Help                   Shift-F1  Help index\n"
+"   Ctrl-F1   Help on the word at the cursor\n"
+"\n"
+"## Compile and run\n"
+"\n"
+"   Alt-F9    Compile                F9        Make\n"
+"   Ctrl-F9   Run                    Alt-F5    User screen\n"
+"\n"
+"## Windows\n"
+"\n"
+"   F5        Zoom                   F6        Next window\n"
+"   Alt-F3    Close window           F10       Menu\n"
+"\n"
+"## Messages\n"
+"\n"
+"   Alt-F7    Previous message       Alt-F8    Next message\n"
+"\n"
+"## Debugger\n"
+"\n"
+"   F4        Go to cursor           F7        Trace into\n"
+"   F8        Step over              Ctrl-F2   Program reset\n"
+"   Ctrl-F4   Evaluate               Ctrl-F7   Add watch\n"
+"\n"
 " Some terminals reserve a few of these (for instance F11, Alt-F4 or\n"
-" Ctrl-F5). Every command is also reachable from the menus.\n\n"
-" See also: {The editor}\n" },
+" Ctrl-F5). Every command is also reachable from the menus.\n"
+"\n"
+" See also: {The editor}, {Source-level debugger}\n" },
 
 { "The editor", "edit editor cursor block undo find replace",
-" The editor\n\n"
-" Cursor:  arrows, Home, End, PgUp, PgDn; Ctrl-Left / Ctrl-Right move by\n"
-"          word; Ctrl-PgUp / Ctrl-PgDn go to the start / end of the file.\n"
-" Select:  hold Shift with any movement key, or drag with the mouse.\n"
-" Edit:    Ctrl-Ins copy, Shift-Del cut, Shift-Ins paste, Ctrl-Del clear.\n"
-"          Alt-Backspace undo, Shift-Alt-Backspace redo.\n"
-"          Ctrl-Y deletes the line, Ctrl-T the word to the right,\n"
-"          Ctrl-N inserts a line, Ins toggles insert / overwrite.\n\n"
-" Block commands (press Ctrl-K, then the letter):\n"
+" The editor\n"
+"\n"
+"## Moving the cursor\n"
+"\n"
+" Arrows, Home, End, PgUp and PgDn move as usual.\n"
+"\n"
+" Ctrl-Left / Ctrl-Right    move by word\n"
+" Ctrl-PgUp / Ctrl-PgDn     go to the start / end of the file\n"
+"\n"
+"## Selecting\n"
+"\n"
+" Hold Shift with any movement key, or drag with the mouse.\n"
+"\n"
+"## Editing\n"
+"\n"
+" Ctrl-Ins      copy              Shift-Del     cut\n"
+" Shift-Ins     paste             Ctrl-Del      clear\n"
+" Alt-Backspace undo              Shift-Alt-Backspace  redo\n"
+"\n"
+" Ctrl-Y        delete the line   Ctrl-T        delete the word on the right\n"
+" Ctrl-N        insert a line     Ins           toggle insert / overwrite\n"
+"\n"
+"## Block commands\n"
+"\n"
+" Press Ctrl-K, then the letter:\n"
+"\n"
 "   B  mark the block start        K  mark the block end\n"
 "   C  copy the block              V  move the block\n"
 "   Y  delete the block            H  hide the block\n"
 "   R  read a file into the text   W  write the block to a file\n"
-"   T  mark the word               L  mark the line\n\n"
-" Quick commands (press Ctrl-Q, then the letter):\n"
-"   S  line start     D  line end     R  file start     C  file end\n"
-"   E  window top     X  window bottom  F  find   A  replace\n"
-"   Y  delete to end of line   [ or ]  jump to the matching bracket\n\n"
+"   T  mark the word               L  mark the line\n"
+"\n"
+"## Quick commands\n"
+"\n"
+" Press Ctrl-Q, then the letter:\n"
+"\n"
+"   S  line start                  D  line end\n"
+"   R  file start                  C  file end\n"
+"   E  window top                  X  window bottom\n"
+"   F  find                        A  replace\n"
+"   Y  delete to end of line       [ or ]  jump to the matching bracket\n"
+"\n"
+"## Syntax highlighting\n"
+"\n"
 " The editor highlights C syntax; turn this off in\n"
 " Options|Environment|Editor.\n" },
 
 { "Compiling and running", "compile make build link run flash fcc",
-" Compiling and running\n\n"
-" Compile (Alt-F9)  compiles the file in the active Edit window.\n"
-" Make (F9)         compiles what changed and produces the executable.\n"
-" Link              produces the executable from the current sources.\n"
-" Build all         recompiles everything, whether it changed or not.\n"
-" Run (Ctrl-F9)     makes the program and runs it. Output appears on the\n"
-"                   user screen; press Alt-F5 to look at it again.\n"
-" Run|Arguments     sets the command line passed to your program.\n\n"
+" Compiling and running\n"
+"\n"
+"## Commands\n"
+"\n"
+" Compile (Alt-F9)    compiles the file in the active Edit window.\n"
+"\n"
+" Make (F9)           compiles what changed and produces the executable.\n"
+"\n"
+" Link                produces the executable from the current sources.\n"
+"\n"
+" Build all           recompiles everything, whether it changed or not.\n"
+"\n"
+" Run (Ctrl-F9)       makes the program and runs it. Output appears on the\n"
+"                     user screen (press Alt-F5 to look at it again) and a\n"
+"                     copy is kept in the Output window.\n"
+"\n"
+" Run|Arguments       sets the command line passed to your program.\n"
+"\n"
+"## What is compiled\n"
+"\n"
 " If a project is open ({Projects}), all of its source files are compiled\n"
 " together into one program. Otherwise the file in the active window is\n"
-" compiled. The executable is placed in the Output directory\n"
-" (Options|Directories) or next to the source file.\n\n"
+" compiled.\n"
+"\n"
+" The executable is placed in the Output directory (Options|Directories)\n"
+" or next to the source file.\n"
+"\n"
+"## How it works\n"
+"\n"
 " Flash C generates native 64-bit Linux executables directly; no external\n"
 " assembler, linker or C library is needed. A small run-time library is\n"
-" built into the compiler ({Library: stdio} and the topics that follow).\n\n"
-" The command-line version of the compiler is called fcc:\n"
+" built into the compiler ({Library: stdio} and the topics that follow).\n"
+"\n"
+"## From the command line\n"
+"\n"
 "     fcc [options] file.c ...\n" },
 
 { "Compiler options", "options warnings directories names optimization",
-" Compiler options\n\n"
-" Options|Compiler|Code generation  enums, duplicate strings, structure\n"
-"                                   alignment, unsigned char, stack test,\n"
-"                                   floating point, Defines / Undefines\n"
-" Options|Compiler|Optimizations    jump optimization, redundant loads\n"
-" Options|Compiler|Source           nested comments, keywords (Flash C or\n"
-"                                   ANSI), identifier length\n"
-" Options|Compiler|Messages         which warnings are shown\n"
-" Options|Linker                    map file, default libraries, ELF symbol\n"
-"                                   table, W^X segments, stack size\n"
-" Options|Libraries                 which run-time libraries are linked\n"
-" Options|Make                      check auto-dependencies\n"
-" Options|Debugger                  source debugging, display swapping,\n"
-"                                   number format\n"
-" Options|Directories               include search path and output directory\n"
-" Options|Save                      writes the settings to fcconfig.fc\n\n"
+" Compiler options\n"
+"\n"
+" All of these are in the Options menu. Settings are saved with\n"
+" Options|Save into fcconfig.fc.\n"
+"\n"
+"## Compiler\n"
+"\n"
+" Code generation     enums, duplicate strings, structure alignment,\n"
+"                     unsigned char, stack test, floating point,\n"
+"                     Defines / Undefines\n"
+"\n"
+" Optimizations       jump optimization, redundant loads\n"
+"\n"
+" Source              nested comments, keywords (Flash C or ANSI),\n"
+"                     identifier length\n"
+"\n"
+" Messages            which warnings are shown\n"
+"\n"
+"## Linking and libraries\n"
+"\n"
+" Linker              map file, default libraries, ELF symbol table,\n"
+"                     W^X segments, stack size\n"
+"\n"
+" Libraries           which run-time libraries are linked\n"
+"\n"
+"## Other\n"
+"\n"
+" Make                check auto-dependencies\n"
+"\n"
+" Debugger            source debugging, display swapping, number format\n"
+"\n"
+" Directories         include search path and output directory\n"
+"\n"
+" Save                writes the settings to fcconfig.fc\n"
+"\n"
 " Every option in these dialogs is used by the compiler or the IDE. The\n"
 " classic memory models, overlays, segment names, librarian and C++\n"
-" options do not exist because they do not apply to this compiler.\n\n"
+" options do not exist because they do not apply to this compiler.\n"
+"\n"
 " See also: {Code generation options}, {Differences from classic compilers}\n" },
 
 { "Code generation options", "code generation enum string struct pack stack overflow optimization jump symbol table elf wx stack size keywords ansi undefine",
-" Code generation options  (fcc switch in brackets; -x- turns a switch off)\n\n"
-" Options|Compiler|Code generation\n"
-"   Treat enums as ints         [-b, default] off [-b-]: an enum uses the\n"
-"                               smallest of char/short/int that holds its values\n"
-"   Duplicate strings merged    [-d] identical string literals are stored once\n"
-"   Align structure members     [-a, default] off [-a-]: members are packed\n"
-"                               without padding (library headers keep their layout)\n"
-"   Unsigned characters         [-K] plain char is unsigned\n"
-"   Test stack overflow         [-N] every function checks the stack on entry and\n"
-"                               stops with 'Stack overflow!' (exit code 1)\n"
-"   Defines / Undefine symbols  [-Dname[=value]] [-Uname]\n\n"
-" Options|Compiler|Optimizations\n"
-"   Jump optimization           [-O] removes jumps to the next instruction and\n"
-"                               uses 2-byte jumps where the target is near\n"
-"   Suppress redundant loads    [-Z] constant operands go straight into a register\n"
-"                               instead of being saved and restored\n\n"
-" Options|Compiler|Source\n"
-"   Keywords: ANSI              [-A] no // comments; near, far, huge, cdecl,\n"
-"                               pascal and interrupt are ordinary identifiers\n\n"
-" Options|Linker\n"
-"   ELF symbol table            [-lt] writes .symtab/.strtab: nm, gdb, objdump\n"
-"                               and perf show function and variable names\n"
-"   Protect code (W^X)          [-lw] code is read+execute, data is read+write\n"
-"                               (two segments instead of one read+write+execute)\n"
-"   Stack size (KB)             [-ls<KB>] sets the stack limit with setrlimit at\n"
-"                               start-up; 0 keeps the system default. With the\n"
-"                               stack test the same figure is the overflow limit.\n\n"
-" Options|Compiler|Messages  new warnings: Unreachable code [-rch], Ambiguous\n"
-" operators need parentheses [-amb], Structure passed by value [-stv], Condition\n"
-" is always true/false [-cln], Mixing pointers to signed and unsigned char [-ucp],\n"
-" Non-portable pointer comparison [-cpt]. Use -wxxx to enable, -w-xxx to disable.\n\n"
+" Code generation options\n"
+"\n"
+" The fcc switch is in brackets; -x- turns a switch off.\n"
+"\n"
+"## Options|Compiler|Code generation\n"
+"\n"
+" Treat enums as ints         [-b] default. Off [-b-]: an enum uses the\n"
+"                             smallest of char / short / int that holds\n"
+"                             its values.\n"
+"\n"
+" Duplicate strings merged    [-d] identical string literals are stored\n"
+"                             once.\n"
+"\n"
+" Align structure members     [-a] default. Off [-a-]: members are packed\n"
+"                             without padding (library headers keep their\n"
+"                             layout).\n"
+"\n"
+" Unsigned characters         [-K] plain char is unsigned.\n"
+"\n"
+" Test stack overflow         [-N] every function checks the stack on\n"
+"                             entry and stops with 'Stack overflow!'\n"
+"                             (exit code 1).\n"
+"\n"
+" Defines / Undefine symbols  [-Dname[=value]]  [-Uname]\n"
+"\n"
+"## Options|Compiler|Optimizations\n"
+"\n"
+" Jump optimization           [-O] removes jumps to the next instruction\n"
+"                             and uses 2-byte jumps where the target is\n"
+"                             near.\n"
+"\n"
+" Suppress redundant loads    [-Z] constant operands go straight into a\n"
+"                             register instead of being saved and\n"
+"                             restored.\n"
+"\n"
+"## Options|Compiler|Source\n"
+"\n"
+" Keywords: ANSI              [-A] no // comments; near, far, huge, cdecl,\n"
+"                             pascal and interrupt are ordinary\n"
+"                             identifiers.\n"
+"\n"
+"## Options|Linker\n"
+"\n"
+" ELF symbol table            [-lt] writes .symtab / .strtab: nm, gdb,\n"
+"                             objdump and perf show function and variable\n"
+"                             names.\n"
+"\n"
+" Protect code (W^X)          [-lw] code is read+execute, data is\n"
+"                             read+write (two segments instead of one\n"
+"                             read+write+execute).\n"
+"\n"
+" Stack size (KB)             [-ls<KB>] sets the stack limit with setrlimit\n"
+"                             at start-up; 0 keeps the system default.\n"
+"                             With the stack test the same figure is the\n"
+"                             overflow limit.\n"
+"\n"
+"## Options|Compiler|Messages\n"
+"\n"
+" New warnings: Unreachable code [-rch], Ambiguous operators need\n"
+" parentheses [-amb], Structure passed by value [-stv], Condition is\n"
+" always true/false [-cln], Mixing pointers to signed and unsigned char\n"
+" [-ucp], Non-portable pointer comparison [-cpt].\n"
+"\n"
+" Use -wxxx to enable a warning and -w-xxx to disable it.\n"
+"\n"
 " See also: {Compiler options}, {Libraries and linking}\n" },
 
 { "Messages and errors", "message error warning fatal linker",
-" Messages and errors\n\n"
+" Messages and errors\n"
+"\n"
 " Compiler messages appear in the Message window. Use Enter to edit the\n"
 " source line of the selected message, Space to view it, Alt-F7 and\n"
-" Alt-F8 to step through the messages.\n\n"
-" Error    the program cannot be compiled until this is fixed.\n"
-" Warning  the program compiled, but something looks suspicious.\n"
-" Fatal    the compiler cannot continue.\n"
-" Linker   a symbol could not be resolved (for instance no main).\n\n"
-" Common messages:\n"
-"   Undefined symbol 'x'        the name was not declared.\n"
-"   Statement missing ;         a semicolon is missing.\n"
-"   Call to function 'f' with no prototype\n"
-"                               declare the function before using it\n"
-"                               (usually by including the right header).\n"
-"   Function should return a value\n"
-"   'x' is declared but never used\n" },
+" Alt-F8 to step through the messages.\n"
+"\n"
+"## Kinds of message\n"
+"\n"
+" Error      the program cannot be compiled until this is fixed.\n"
+"\n"
+" Warning    the program compiled, but something looks suspicious.\n"
+"\n"
+" Fatal      the compiler cannot continue.\n"
+"\n"
+" Linker     a symbol could not be resolved (for instance no main).\n"
+"\n"
+"## Common messages\n"
+"\n"
+" Undefined symbol 'x'\n"
+"            the name was not declared.\n"
+"\n"
+" Statement missing ;\n"
+"            a semicolon is missing.\n"
+"\n"
+" Call to function 'f' with no prototype\n"
+"            declare the function before using it (usually by including\n"
+"            the right header).\n"
+"\n"
+" Function should return a value\n"
+"            a non-void function ends without return.\n"
+"\n"
+" 'x' is declared but never used\n"
+"            a variable can be removed.\n" },
 
 { "Projects", "project prj fcp",
-" Projects\n\n"
+" Projects\n"
+"\n"
 " A project lists several source files that make up one program.\n"
-" Project|Open project... loads (or creates) a .FCP file; Add item adds\n"
-" a source file; Delete item removes the selected file. The Project\n"
-" window (Window|Project) shows the list.\n\n"
+"\n"
+"## Working with a project\n"
+"\n"
+" Project|Open project...   loads (or creates) a .FCP file.\n"
+"\n"
+" Project|Add item         adds a source file.\n"
+"\n"
+" Project|Delete item      removes the selected file.\n"
+"\n"
+" Window|Project           shows the list.\n"
+"\n"
+"## Compiling\n"
+"\n"
 " All files of the project are compiled together; a function or global\n"
 " variable can be used from any file of the project provided it is\n"
 " declared before use. Declare shared items in a header file.\n" },
 
-{ "Language reference", "c language type int char long short unsigned struct union enum typedef pointer array sizeof",
-" Language reference\n\n"
-" Flash C compiles the C language as used by DOS-era compilers.\n\n"
-" Types:    void char short int long, signed / unsigned variants,\n"
-"           pointers, arrays, struct, union, enum, typedef,\n"
-"           function pointers.\n"
-" Sizes:    char 1, short 2, int 4, long 8, pointer 8 bytes.\n"
-" Also:    float and double; structures can be passed and returned by\n"
-"           value; bit fields (int / unsigned int, C89). Not yet: compound literals.\n\n"
-" Statements: if else while do for switch case default break continue\n"
-"           goto return, declarations anywhere in a block.\n"
-" Operators:  the complete C set including ?: , && || and assignment\n"
-"           operators; pointer arithmetic is scaled as usual.\n"
-" Initializers: scalars, arrays, structs and strings, with nesting.\n"
-" Preprocessor: #include #define (also with arguments, # and ##)\n"
-"           #undef #if #ifdef #ifndef #elif #else #endif #error\n"
-"           #pragma startup / exit (other pragmas are ignored)\n"
-" Keywords near, far, huge, cdecl and pascal are accepted and ignored.\n" },
+{ "Language reference", "c language",
+" Language reference\n"
+"\n"
+" Flash C compiles the C language (ANSI C89) as used by DOS-era\n"
+" compilers, with a few C99 conveniences.\n"
+"\n"
+"## Types\n"
+"\n"
+" void char short int long, signed and unsigned variants, float and\n"
+" double, pointers, arrays, struct, union, enum, typedef and function\n"
+" pointers.\n"
+"\n"
+" Sizes: char 1, short 2, int 4, long 8, pointer 8 bytes.\n"
+"\n"
+" Structures can be passed and returned by value. Bit fields (int and\n"
+" unsigned int, C89) are supported. Not yet: compound literals.\n"
+"\n"
+"## Statements\n"
+"\n"
+" if else while do for switch case default break continue goto return.\n"
+" Declarations may appear anywhere in a block.\n"
+"\n"
+"## Operators\n"
+"\n"
+" The complete C set including ?: , && || and the assignment operators.\n"
+" Pointer arithmetic is scaled as usual.\n"
+"\n"
+"## Initializers\n"
+"\n"
+" Scalars, arrays, structs and strings, with nesting.\n"
+"\n"
+"## Preprocessor\n"
+"\n"
+" #include #define (also with arguments, # and ##) #undef #if #ifdef\n"
+" #ifndef #elif #else #endif #error and #pragma startup / exit (other\n"
+" pragmas are ignored).\n"
+"\n"
+"## DOS keywords\n"
+"\n"
+" near, far, huge, cdecl and pascal are accepted and ignored.\n" },
 
 { "Library: stdio", "stdio clearerr fclose fcloseall fdopen feof ferror fflush fgetc fgetchar fgetpos fgets fileno flushall fopen fprintf fputc fputchar fputs fread freopen fscanf fseek fsetpos _fsopen ftell fwrite getc getchar gets getw perror printf putc putchar puts putw remove rename rewind rmtmp scanf setbuf setvbuf snprintf sprintf sscanf tempnam tmpfile tmpnam ungetc unlink vfprintf vfscanf vprintf vscanf vsnprintf vsprintf vsscanf",
-" <stdio.h>\n"
+" Library: stdio\n"
 "\n"
-" Formatted and character I/O on streams. stdin, stdout and stderr are predefined.\n"
-" Output to a terminal is flushed at each new-line; everything is flushed when the program ends.\n"
+" Header files: <stdio.h>\n"
+"\n"
+" Formatted and character I/O on streams. stdin, stdout and stderr are\n"
+" predefined. Output to a terminal is flushed at each new-line;\n"
+" everything is flushed when the program ends.\n"
+"\n"
+"## Functions\n"
 "\n"
 " clearerr fclose fcloseall fdopen feof ferror fflush fgetc fgetchar\n"
 " fgetpos fgets fileno flushall fopen fprintf fputc fputchar fputs\n"
@@ -213,64 +420,104 @@ static const Topic basic[] = {
 " gets getw perror printf putc putchar puts putw remove rename rewind\n"
 " rmtmp scanf setbuf setvbuf snprintf sprintf sscanf tempnam tmpfile\n"
 " tmpnam ungetc unlink vfprintf vfscanf vprintf vscanf vsnprintf\n"
-" vsprintf vsscanf\n" },
-{ "Library: string", "string memccpy memchr memcmp memcpy memicmp memmove memset movmem setmem stpcpy strcat strchr strcmp strcmpi strcoll strcpy strcspn strdup strerror _strerror stricmp strlen strlwr strncat strncmp strncpy strnicmp strnset strpbrk strrchr strrev strset strspn strstr strtok strupr strxfrm",
-" <string.h> <mem.h>\n"
+" vsprintf vsscanf\n"
 "\n"
-" String and memory block functions (stricmp, strupr, movmem, setmem ... are included).\n"
+" See also: {Library functions}\n" },
+{ "Library: string", "string memccpy memchr memcmp memcpy memicmp memmove memset movmem setmem stpcpy strcat strchr strcmp strcmpi strcoll strcpy strcspn strdup strerror _strerror stricmp strlen strlwr strncat strncmp strncpy strnicmp strnset strpbrk strrchr strrev strset strspn strstr strtok strupr strxfrm",
+" Library: string\n"
+"\n"
+" Header files: <string.h> <mem.h>\n"
+"\n"
+" String and memory block functions (stricmp, strupr, movmem, setmem\n"
+" ... are included).\n"
+"\n"
+"## Functions\n"
 "\n"
 " memccpy memchr memcmp memcpy memicmp memmove memset movmem setmem\n"
 " stpcpy strcat strchr strcmp strcmpi strcoll strcpy strcspn strdup\n"
 " strerror _strerror stricmp strlen strlwr strncat strncmp strncpy\n"
 " strnicmp strnset strpbrk strrchr strrev strset strspn strstr strtok\n"
-" strupr strxfrm\n" },
-{ "Library: stdlib", "stdlib abort abs atexit atof atoi atol bsearch calloc div ecvt exit _exit _cexit _c_exit fcvt free gcvt getenv itoa labs ldiv lfind lsearch ltoa malloc mblen mbstowcs mbtowc putenv qsort rand realloc srand strtod strtol strtoul swab system ultoa wcstombs wctomb _rotl _rotr _lrotl _lrotr _fullpath _makepath _splitpath _searchenv brk sbrk coreleft heapcheck heapcheckfree heapchecknode heapfillfree heapwalk",
-" <stdlib.h> <alloc.h>\n"
+" strupr strxfrm\n"
 "\n"
-" Memory allocation, conversions, sorting, environment and program termination.\n"
-" rand() uses the classic generator: srand(1) gives 346, 130, 10982 ...\n"
-" RAND_MAX is 32767. exit runs atexit handlers and flushes the files.\n"
+" See also: {Library functions}\n" },
+{ "Library: stdlib", "stdlib abort abs atexit atof atoi atol bsearch calloc div ecvt exit _exit _cexit _c_exit fcvt free gcvt getenv itoa labs ldiv lfind lsearch ltoa malloc mblen mbstowcs mbtowc putenv qsort rand realloc srand strtod strtol strtoul swab system ultoa wcstombs wctomb _rotl _rotr _lrotl _lrotr _fullpath _makepath _splitpath _searchenv brk sbrk coreleft heapcheck heapcheckfree heapchecknode heapfillfree heapwalk",
+" Library: stdlib\n"
+"\n"
+" Header files: <stdlib.h> <alloc.h>\n"
+"\n"
+" Memory allocation, conversions, sorting, environment and program\n"
+" termination. rand() uses the classic generator: srand(1) gives 346,\n"
+" 130, 10982 ... RAND_MAX is 32767. exit runs atexit handlers and\n"
+" flushes the files.\n"
+"\n"
+"## Functions\n"
 "\n"
 " abort abs atexit atof atoi atol bsearch calloc div ecvt exit _exit\n"
 " _cexit _c_exit fcvt free gcvt getenv itoa labs ldiv lfind lsearch\n"
 " ltoa malloc mblen mbstowcs mbtowc putenv qsort rand realloc srand\n"
 " strtod strtol strtoul swab system ultoa wcstombs wctomb _rotl _rotr\n"
 " _lrotl _lrotr _fullpath _makepath _splitpath _searchenv brk sbrk\n"
-" coreleft heapcheck heapcheckfree heapchecknode heapfillfree heapwalk\n" },
+" coreleft heapcheck heapcheckfree heapchecknode heapfillfree heapwalk\n"
+"\n"
+" See also: {Library functions}\n" },
 { "Library: ctype", "ctype isalnum isalpha isascii iscntrl isdigit isgraph islower isprint ispunct isspace isupper isxdigit toascii tolower toupper _tolower _toupper",
-" <ctype.h>\n"
+" Library: ctype\n"
+"\n"
+" Header files: <ctype.h>\n"
 "\n"
 " Character classification and conversion.\n"
 "\n"
+"## Functions\n"
+"\n"
 " isalnum isalpha isascii iscntrl isdigit isgraph islower isprint\n"
 " ispunct isspace isupper isxdigit toascii tolower toupper _tolower\n"
-" _toupper\n" },
-{ "Library: math", "math matherr abs labs acos asin atan atan2 atof ceil cos cosh exp fabs floor fmod frexp hypot ldexp log log10 modf poly pow pow10 sin sinh sqrt tan tanh acosl asinl atanl atan2l ceill cosl coshl expl fabsl floorl fmodl frexpl hypotl ldexpl logl log10l modfl polyl powl pow10l sinl sinhl sqrtl tanl tanhl trunc round log2 cbrt fmax fmin isnan isinf _clear87 _control87 _fpreset _status87",
-" <math.h> <float.h>\n"
+" _toupper\n"
 "\n"
-" Mathematics. Domain and range errors call matherr() and print a message such as\n"
-" 'sqrt: DOMAIN error'. Linking floating point is automatic when the program uses\n"
-" float or double; Options|Libraries|Math library can switch it off.\n"
+" See also: {Library functions}\n" },
+{ "Library: math", "math matherr abs labs acos asin atan atan2 atof ceil cos cosh exp fabs floor fmod frexp hypot ldexp log log10 modf poly pow pow10 sin sinh sqrt tan tanh acosl asinl atanl atan2l ceill cosl coshl expl fabsl floorl fmodl frexpl hypotl ldexpl logl log10l modfl polyl powl pow10l sinl sinhl sqrtl tanl tanhl trunc round log2 cbrt fmax fmin isnan isinf _clear87 _control87 _fpreset _status87",
+" Library: math\n"
+"\n"
+" Header files: <math.h> <float.h>\n"
+"\n"
+" Mathematics. Domain and range errors call matherr() and print a\n"
+" message such as 'sqrt: DOMAIN error'. Linking floating point is\n"
+" automatic when the program uses float or double;\n"
+" Options|Libraries|Math library can switch it off.\n"
+"\n"
+"## Functions\n"
 "\n"
 " matherr abs labs acos asin atan atan2 atof ceil cos cosh exp fabs\n"
 " floor fmod frexp hypot ldexp log log10 modf poly pow pow10 sin sinh\n"
 " sqrt tan tanh acosl asinl atanl atan2l ceill cosl coshl expl fabsl\n"
 " floorl fmodl frexpl hypotl ldexpl logl log10l modfl polyl powl pow10l\n"
 " sinl sinhl sqrtl tanl tanhl trunc round log2 cbrt fmax fmin isnan\n"
-" isinf _clear87 _control87 _fpreset _status87\n" },
-{ "Library: time", "time asctime clock ctime difftime gmtime localtime mktime strftime time stime tzset _strdate _strtime ftime utime",
-" <time.h> <dos.h> <sys/timeb.h>\n"
+" isinf _clear87 _control87 _fpreset _status87\n"
 "\n"
-" Calendar time. The time zone comes from the TZ variable (for example EST5EDT);\n"
-" without it local time is UTC. Also: the DOS-style date and time calls of dos.h.\n"
+" See also: {Library functions}\n" },
+{ "Library: time", "time asctime clock ctime difftime gmtime localtime mktime strftime time stime tzset _strdate _strtime ftime utime",
+" Library: time\n"
+"\n"
+" Header files: <time.h> <dos.h> <sys/timeb.h>\n"
+"\n"
+" Calendar time. The time zone comes from the TZ variable (for example\n"
+" EST5EDT); without it local time is UTC. Also: the DOS-style date and\n"
+" time calls of dos.h.\n"
+"\n"
+"## Functions\n"
 "\n"
 " asctime clock ctime difftime gmtime localtime mktime strftime time\n"
-" stime tzset _strdate _strtime ftime utime\n" },
-{ "Library: io and dir", "io dir access chmod _chmod chsize close _close creat _creat creatnew creattemp dup dup2 eof filelength getftime ioctl isatty lock locking lseek mktemp open _open read _read remove rename setftime setmode sopen tell umask unlink unlock write _write stat fstat chdir findfirst findnext fnmerge fnsplit getcurdir getcwd getdisk mkdir rmdir searchpath setdisk opendir readdir closedir rewinddir _chdrive _getdcwd _getdrive",
-" <io.h> <fcntl.h> <sys/stat.h> <dir.h> <dirent.h>\n"
+" stime tzset _strdate _strtime ftime utime\n"
 "\n"
-" Low-level file handles, file status, directories and wildcard searches\n"
-" (findfirst/findnext), path splitting and merging.\n"
+" See also: {Library functions}\n" },
+{ "Library: io and dir", "io dir access chmod _chmod chsize close _close creat _creat creatnew creattemp dup dup2 eof filelength getftime ioctl isatty lock locking lseek mktemp open _open read _read remove rename setftime setmode sopen tell umask unlink unlock write _write stat fstat chdir findfirst findnext fnmerge fnsplit getcurdir getcwd getdisk mkdir rmdir searchpath setdisk opendir readdir closedir rewinddir _chdrive _getdcwd _getdrive",
+" Library: io and dir\n"
+"\n"
+" Header files: <io.h> <fcntl.h> <sys/stat.h> <dir.h> <dirent.h>\n"
+"\n"
+" Low-level file handles, file status, directories and wildcard\n"
+" searches (findfirst/findnext), path splitting and merging.\n"
+"\n"
+"## Functions\n"
 "\n"
 " access chmod _chmod chsize close _close creat _creat creatnew\n"
 " creattemp dup dup2 eof filelength getftime ioctl isatty lock locking\n"
@@ -278,91 +525,169 @@ static const Topic basic[] = {
 " sopen tell umask unlink unlock write _write stat fstat chdir\n"
 " findfirst findnext fnmerge fnsplit getcurdir getcwd getdisk mkdir\n"
 " rmdir searchpath setdisk opendir readdir closedir rewinddir _chdrive\n"
-" _getdcwd _getdrive\n" },
-{ "Library: process", "process abort _cexit _c_exit execl execle execlp execlpe execv execve execvp execvpe exit _exit getpid spawnl spawnle spawnlp spawnlpe spawnv spawnve spawnvp spawnvpe system signal raise",
-" <process.h> <signal.h> <setjmp.h>\n"
+" _getdcwd _getdrive\n"
 "\n"
-" Running other programs (system, spawn..., exec...), signals and non-local jumps.\n"
+" See also: {Library functions}\n" },
+{ "Library: process", "process abort _cexit _c_exit execl execle execlp execlpe execv execve execvp execvpe exit _exit getpid spawnl spawnle spawnlp spawnlpe spawnv spawnve spawnvp spawnvpe system signal raise",
+" Library: process\n"
+"\n"
+" Header files: <process.h> <signal.h> <setjmp.h>\n"
+"\n"
+" Running other programs (system, spawn..., exec...), signals and non-\n"
+" local jumps.\n"
+"\n"
+"## Functions\n"
 "\n"
 " abort _cexit _c_exit execl execle execlp execlpe execv execve execvp\n"
 " execvpe exit _exit getpid spawnl spawnle spawnlp spawnlpe spawnv\n"
-" spawnve spawnvp spawnvpe system signal raise\n" },
-{ "Library: conio and dos", "conio dos cgets clreol clrscr cprintf cputs cscanf delline getch getche gettextinfo getpass gotoxy highvideo insline kbhit lowvideo normvideo putch _setcursortype textattr textbackground textcolor textmode ungetch wherex wherey window delay sleep sound nosound getdate gettime setdate settime dostounix unixtodos getdfree getpid unlink biostime bioskey biosequip biosmemory setlocale localeconv",
-" <conio.h> <dos.h> <bios.h>\n"
+" spawnve spawnvp spawnvpe system signal raise\n"
 "\n"
-" Console I/O through ANSI terminal sequences: windows, colours, cursor control,\n"
-" unbuffered keyboard input (extended keys return 0 followed by a scan code).\n"
-" DOS interrupts, ports, far memory, gettext/puttext/movetext and graphics are not available.\n"
+" See also: {Library functions}\n" },
+{ "Library: conio and dos", "conio dos cgets clreol clrscr cprintf cputs cscanf delline getch getche gettextinfo getpass gotoxy highvideo insline kbhit lowvideo normvideo putch _setcursortype textattr textbackground textcolor textmode ungetch wherex wherey window delay sleep sound nosound getdate gettime setdate settime dostounix unixtodos getdfree getpid unlink biostime bioskey biosequip biosmemory setlocale localeconv",
+" Library: conio and dos\n"
+"\n"
+" Header files: <conio.h> <dos.h> <bios.h>\n"
+"\n"
+" Console I/O through ANSI terminal sequences: windows, colours, cursor\n"
+" control, unbuffered keyboard input (extended keys return 0 followed\n"
+" by a scan code). DOS interrupts, ports, far memory,\n"
+" gettext/puttext/movetext and graphics are not available.\n"
+"\n"
+"## Functions\n"
 "\n"
 " cgets clreol clrscr cprintf cputs cscanf delline getch getche\n"
 " gettextinfo getpass gotoxy highvideo insline kbhit lowvideo normvideo\n"
 " putch _setcursortype textattr textbackground textcolor textmode\n"
 " ungetch wherex wherey window delay sleep sound nosound getdate\n"
 " gettime setdate settime dostounix unixtodos getdfree getpid unlink\n"
-" biostime bioskey biosequip biosmemory setlocale localeconv\n" },
+" biostime bioskey biosequip biosmemory setlocale localeconv\n"
+"\n"
+" See also: {Library functions}\n" },
 { "Libraries and linking", "library libraries link linker map wildargs pragma startup exit nolibs floating",
-" Libraries and linking\n\n"
-" Programs are linked with the Flash C run-time library. Only the functions\n"
-" a program really uses are placed in the executable.\n\n"
-" Start-up code      always linked (argc/argv/environ, exit, abort)\n"
-" Standard library   Options|Libraries|Standard run-time library\n"
-" Math library       Options|Libraries|Math library (math.h, %f %e %g,\n"
-"                    atof/strtod); linked when floating point is used\n"
-" Wildcard arguments Options|Libraries|Wildcard arguments expands * and ?\n"
-"                    in command-line arguments (command line: wildargs.obj)\n\n"
-" Options|Linker\n"
-"   Map file          Off / Segments / Publics / Detailed. Writes <program>.map\n"
-"                     listing every linked function and its library module.\n"
-"   Default libraries unchecked = link only the start-up code (-ln)\n\n"
-" Options|Compiler|Code generation|Floating point\n"
-"   None              floating-point formats are not linked; printf(\"%f\")\n"
-"                     stops with 'floating point formats not linked'\n"
-"   Emulation / 8087  both use the built-in floating-point code\n\n"
-" #pragma startup fn [priority]   run fn before main\n"
-" #pragma exit fn [priority]      run fn after main returns or exit() is called\n"
-" Priorities are 0-255 (default 100). Start-up functions run from the lowest\n"
-" number up, exit functions from the highest down.\n\n"
+" Libraries and linking\n"
+"\n"
+" Programs are linked with the Flash C run-time library. Only the\n"
+" functions a program really uses are placed in the executable.\n"
+"\n"
+"## Libraries\n"
+"\n"
+" Start-up code        always linked (argc/argv/environ, exit, abort).\n"
+"\n"
+" Standard library     Options|Libraries|Standard run-time library.\n"
+"\n"
+" Math library         Options|Libraries|Math library (math.h, %f %e %g,\n"
+"                      atof / strtod); linked when floating point is\n"
+"                      used.\n"
+"\n"
+" Wildcard arguments   Options|Libraries|Wildcard arguments expands * and\n"
+"                      ? in command-line arguments (command line:\n"
+"                      wildargs.obj).\n"
+"\n"
+"## Options|Linker\n"
+"\n"
+" Map file             Off / Segments / Publics / Detailed. Writes\n"
+"                      <program>.map listing every linked function and\n"
+"                      its library module.\n"
+"\n"
+" Default libraries    unchecked = link only the start-up code (-ln).\n"
+"\n"
+"## Options|Compiler|Code generation|Floating point\n"
+"\n"
+" None                 floating-point formats are not linked;\n"
+"                      printf(\"%f\") stops with 'floating point formats not\n"
+"                      linked'.\n"
+"\n"
+" Emulation / 8087     both use the built-in floating-point code.\n"
+"\n"
+"## Start-up and exit functions\n"
+"\n"
+" #pragma startup fn [priority]    run fn before main.\n"
+"\n"
+" #pragma exit fn [priority]       run fn after main returns or exit() is\n"
+"                                  called.\n"
+"\n"
+" Priorities are 0-255 (default 100). Start-up functions run from the\n"
+" lowest number up, exit functions from the highest down.\n"
+"\n"
 " See also: {Library: stdio}, {Library: math}\n" },
 
 { "Source-level debugger", "debug debugger breakpoint trace step watch inspect evaluate call stack go to cursor register",
-" Source-level debugger\n\n"
-" Ctrl+F9  Run to the next breakpoint        Ctrl+F2  Program reset\n"
-" F4  Go to cursor                           F7  Trace into\n"
-" F8  Step over                              Ctrl+F8  Toggle breakpoint\n"
-" Alt+F4  Inspect                            Ctrl+F4  Evaluate/modify\n"
-" Ctrl+F3  Call stack                        Ctrl+F7  Add watch\n\n"
+" Source-level debugger\n"
+"\n"
+"## Commands\n"
+"\n"
+"   Ctrl+F9   Run to the next breakpoint     Ctrl+F2   Program reset\n"
+"   F4        Go to cursor                   F7        Trace into\n"
+"   F8        Step over                      Ctrl+F8   Toggle breakpoint\n"
+"   Alt+F4    Inspect                        Ctrl+F4   Evaluate/modify\n"
+"   Ctrl+F3   Call stack                     Ctrl+F7   Add watch\n"
+"\n"
+"## Debug information\n"
+"\n"
 " The program is compiled with debug information when Options|Debugger|\n"
-" Source debugging is On. The first Trace into / Step over starts the\n"
-" program and stops at the first statement of main; the green bar marks the\n"
-" statement that runs next. Breakpoints (red lines) can have a condition\n"
-" (a C expression) and a pass count: Debug|Breakpoints.\n\n"
+" Source debugging is On.\n"
+"\n"
+"## Stepping\n"
+"\n"
+" The first Trace into / Step over starts the program and stops at the\n"
+" first statement of main; the green bar marks the statement that runs\n"
+" next.\n"
+"\n"
+"## Breakpoints\n"
+"\n"
+" Breakpoints (red lines) can have a condition (a C expression) and a\n"
+" pass count: Debug|Breakpoints.\n"
+"\n"
+"## Expressions\n"
+"\n"
 " Expressions may use local and global variables, ., ->, [], *, &, casts,\n"
 " sizeof and assignment. A format suffix selects the display: total,x\n"
-" (hex), ,d (decimal), ,c (character).\n\n"
+" (hex), ,d (decimal), ,c (character).\n"
+"\n"
+"## The program screen\n"
+"\n"
 " Display swapping (Options|Debugger) selects when the program screen is\n"
-" shown while stepping; Alt+F5 shows the user screen at any time.\n\n"
+" shown while stepping; Alt+F5 shows the user screen at any time.\n"
+"\n"
 " See also: {Differences from classic compilers}\n" },
 
 { "Differences from classic compilers", "dos difference int 64 float memory model far near",
-" Differences from classic DOS compilers\n\n"
-" * The target is 64-bit Linux, so int is 32 bits, long and pointers are\n"
-"   64 bits. Memory models, near / far pointers, overlays and the\n"
-"   floating-point emulator do not apply (the settings are kept for\n"
-"   compatibility). Graphics, BIOS and interrupt calls are not provided.\n"
-" * Only C (ANSI C89) is supported. C++ is not supported, so there are no\n"
-"   C++ options and files with C++ extensions are not compiled as C++.\n"
-" * There is no separate object-file / link step: the compiler writes the\n"
-"   executable directly. Compile and Link therefore produce the same file.\n"
-" * The source-level debugger runs the program under ptrace (see\n"
-"   {Source-level debugger}); it needs Options|Debugger|Source debugging.\n"
-" * The standard library is built in (see {Libraries and linking}). Programs\n"
-"   get their header files from the compiler itself, and your own include\n"
-"   directories (Options|Directories) are searched first.\n" },
+" Differences from classic DOS compilers\n"
+"\n"
+"## Target\n"
+"\n"
+" The target is 64-bit Linux, so int is 32 bits, long and pointers are 64\n"
+" bits. Memory models, near / far pointers, overlays and the floating-point\n"
+" emulator do not apply (the settings are kept for compatibility).\n"
+" Graphics, BIOS and interrupt calls are not provided.\n"
+"\n"
+"## Language\n"
+"\n"
+" Only C (ANSI C89) is supported. C++ is not supported, so there are no\n"
+" C++ options and files with C++ extensions are not compiled as C++.\n"
+"\n"
+"## Linking\n"
+"\n"
+" There is no separate object-file / link step: the compiler writes the\n"
+" executable directly. Compile and Link therefore produce the same file.\n"
+"\n"
+"## Debugger\n"
+"\n"
+" The source-level debugger runs the program under ptrace (see\n"
+" {Source-level debugger}); it needs Options|Debugger|Source debugging.\n"
+"\n"
+"## Library\n"
+"\n"
+" The standard library is built in (see {Libraries and linking}). Programs\n"
+" get their header files from the compiler itself, and your own include\n"
+" directories (Options|Directories) are searched first.\n" },
 
 { "About Flash C", "about version",
-" Flash C " FC_VERSION "\n\n"
+" Flash C " FC_VERSION "\n"
+"\n"
 " A compact C compiler and text-mode IDE for Linux.\n"
-" The compiler translates C to native x86-64 executables.\n\n"
+" The compiler translates C to native x86-64 executables.\n"
+"\n"
 " See {Contents} for a list of topics.\n" },
 { NULL, NULL, NULL }
 };
@@ -506,10 +831,12 @@ static void help_load_external(void)
 }
 
 /* ------------------------------------------------------------------ parsed topic */
-typedef struct { char *s; int example; } PLine;
+enum { PL_TEXT, PL_TITLE, PL_HEAD, PL_RULE };     /* kinds of help lines: body, page title, section heading, rule under the title */
+typedef struct { char *s; int example, kind; } PLine;
 typedef struct { int row, col, len; char target[100]; } PLink;
 typedef struct HS {
     int topic, top, link, hist[32], nhist;
+    int follow;                                  /* a key moved the selected link: scroll it into view */
     PLine *lines; int nlines; PLink *links; int nlinks;
 } HS;
 
@@ -520,20 +847,36 @@ static void parse_free(HS *h)
     h->lines = NULL; h->links = NULL; h->nlines = h->nlinks = 0;
 }
 
+static PLine *add_line(HS *h, int *cap, int kind, const char *text)
+{
+    if (h->nlines == *cap) { *cap = *cap ? *cap * 2 : 64; h->lines = realloc(h->lines, *cap * sizeof *h->lines); }
+    PLine *L = &h->lines[h->nlines++];
+    L->example = 0; L->kind = kind; L->s = strdup(text);
+    return L;
+}
+
+/* Topic text -> display lines.  The first line is the page title (drawn in the title colour with a rule below it);
+ * a line "## Name" is a section heading and always has a blank line before it.  {Topic} and {text|Topic} are links;
+ * "{ " is a literal brace. */
 static void parse_topic(HS *h)
 {
     parse_free(h);
     const char *text = tps[h->topic].text;
-    int caplines = 0, caplinks = 0;
+    int caplines = 0, caplinks = 0, first = 1;
     for (const char *p = text; *p;) {
         const char *e = strchr(p, '\n'); if (!e) e = p + strlen(p);
-        if (h->nlines == caplines) { caplines = caplines ? caplines * 2 : 64; h->lines = realloc(h->lines, caplines * sizeof *h->lines); }
-        PLine *L = &h->lines[h->nlines];
-        L->example = *p == 1;
-        const char *q = p + (L->example ? 1 : 0);
-        char *out = malloc(e - q + 1); int o = 0;
+        int example = *p == 1;
+        const char *q = p + (example ? 1 : 0);
+        int kind = PL_TEXT;
+        if (!example && !strncmp(q, "## ", 3)) { kind = PL_HEAD; q += 3; }
+        else if (!example && first && e > q) kind = PL_TITLE;
+        if (!example && kind == PL_TEXT && e == q && h->nlines && h->lines[h->nlines - 1].kind == PL_HEAD) { p = *e ? e + 1 : e; continue; }   /* no blank line right after a heading */
+        if (kind == PL_HEAD && h->nlines && h->lines[h->nlines - 1].s[0]) add_line(h, &caplines, PL_TEXT, "");
+        char *out = malloc(e - q + 3); int o = 0;
+        if (kind == PL_HEAD) out[o++] = ' ';
+        int row = h->nlines;
         for (; q < e; q++) {
-            if (!L->example && *q == '{' && q + 1 < e && q[1] != ' ') {      /* "{ " is a literal brace, "{Topic}" a link */
+            if (!example && *q == '{' && q + 1 < e && q[1] != ' ') {      /* "{ " is a literal brace, "{Topic}" a link */
                 const char *c = memchr(q, '}', e - q);
                 if (c) {
                     const char *bar = memchr(q, '|', c - q);
@@ -541,7 +884,7 @@ static void parse_topic(HS *h)
                     const char *ts = bar ? bar + 1 : q + 1;
                     if (h->nlinks == caplinks) { caplinks = caplinks ? caplinks * 2 : 32; h->links = realloc(h->links, caplinks * sizeof *h->links); }
                     PLink *k = &h->links[h->nlinks++];
-                    k->row = h->nlines; k->col = o; k->len = (int)(le - ls);
+                    k->row = row; k->col = o; k->len = (int)(le - ls);
                     int tl = (int)(c - ts); if (tl > 99) tl = 99;
                     memcpy(k->target, ts, tl); k->target[tl] = 0;
                     memcpy(out + o, ls, le - ls); o += (int)(le - ls);
@@ -550,8 +893,18 @@ static void parse_topic(HS *h)
             }
             out[o++] = *q;
         }
-        out[o] = 0; L->s = out;
-        h->nlines++;
+        out[o] = 0;
+        PLine *L = add_line(h, &caplines, kind, out);
+        L->example = example;
+        free(out);
+        if (kind == PL_TITLE) {                                     /* rule under the page title */
+            int n = (int)strlen(h->lines[row].s);
+            char *r = malloc(n + 2); memset(r, 0, n + 2);
+            for (int i = 1; i < n; i++) r[i - 1] = '-';
+            add_line(h, &caplines, PL_RULE, r);
+            free(r);
+            first = 0;
+        } else if (e > p + (example ? 1 : 0)) first = 0;
         p = *e ? e + 1 : e;
     }
 }
@@ -767,14 +1120,27 @@ void help_draw(Win *w, int active)
     scr_put(w->x + 1, w->y, '[', pal[P_HELP_BORDER]); scr_put(w->x + 2, w->y, 0x25A0, pal[P_ED_ICON]); scr_put(w->x + 3, w->y, ']', pal[P_HELP_BORDER]);
     int hh = w->h - 2, wd = w->w - 2;
     if (h->link >= h->nlinks) h->link = h->nlinks ? h->nlinks - 1 : 0;
-    if (h->nlinks) { int r = h->links[h->link].row; if (r < h->top) h->top = r; if (r >= h->top + hh) h->top = r - hh + 1; }
+    if (h->nlinks && h->follow) { int r = h->links[h->link].row; if (r < h->top) h->top = r; if (r >= h->top + hh) h->top = r - hh + 1; }
     if (h->top > h->nlines - hh) h->top = h->nlines - hh;
     if (h->top < 0) h->top = 0;
+    if (h->nlinks && !h->follow) {                                   /* keep the selection on a link that can be seen */
+        int k = h->link;
+        while (k < h->nlinks - 1 && h->links[k].row < h->top) k++;
+        while (k > 0 && h->links[k].row >= h->top + hh) k--;
+        h->link = k;
+    }
+    h->follow = 0;
     for (int r = 0; r < hh && h->top + r < h->nlines; r++) {
         PLine *L = &h->lines[h->top + r];
         int y = w->y + 1 + r;
         if (L->example) scr_fill(w->x + 1, y, wd, 1, ' ', pal[P_HELP_EXAMPLE]);
-        scr_strn(w->x + 1, y, L->s, wd, L->example ? pal[P_HELP_EXAMPLE] : norm);
+        if (L->kind == PL_RULE) {
+            int n = (int)strlen(L->s);
+            for (int c = 0; c < n && c < wd; c++) scr_put(w->x + 2 + c, y, 0x2500, pal[P_HELP_BORDER]);       /* thin line under the title */
+            continue;
+        }
+        uint8_t at = L->example ? pal[P_HELP_EXAMPLE] : L->kind == PL_TEXT ? norm : pal[P_HELP_TITLE];
+        scr_strn(w->x + 1, y, L->s, wd, at);
     }
     if (w->h > 4) {                                              /* scroll bar */
         int sx = w->x + w->w - 1;
@@ -799,9 +1165,9 @@ int help_key(Win *w, int key)
     int base = key & KMASK, nl = h->nlinks;
     if (key == KEY_ESC) { win_close(w); return 1; }
     switch (base) {
-    case KEY_TAB: if (nl) h->link = (h->link + ((key & K_SHIFT) ? nl - 1 : 1)) % nl; return 1;
-    case KEY_DOWN: case KEY_RIGHT: if (h->link < nl - 1 && (base == KEY_RIGHT || h->links[h->link + 1].row <= h->top + w->h - 3)) h->link++; else h->top++; return 1;
-    case KEY_UP: case KEY_LEFT: if (h->link > 0 && (base == KEY_LEFT || h->links[h->link - 1].row >= h->top)) h->link--; else if (h->top > 0) h->top--; return 1;
+    case KEY_TAB: h->follow = 1; if (nl) h->link = (h->link + ((key & K_SHIFT) ? nl - 1 : 1)) % nl; return 1;
+    case KEY_DOWN: case KEY_RIGHT: h->follow = 1; if (h->link < nl - 1 && (base == KEY_RIGHT || h->links[h->link + 1].row <= h->top + w->h - 3)) h->link++; else h->top++; return 1;
+    case KEY_UP: case KEY_LEFT: h->follow = 1; if (h->link > 0 && (base == KEY_LEFT || h->links[h->link - 1].row >= h->top)) h->link--; else if (h->top > 0) h->top--; return 1;
     case KEY_PGDN: h->top += w->h - 3; if (nl) { int k = h->link; while (k < nl - 1 && h->links[k].row < h->top) k++; h->link = k; } return 1;
     case KEY_PGUP: h->top -= w->h - 3; if (h->top < 0) h->top = 0; if (nl) { int k = h->link; while (k > 0 && h->links[k].row >= h->top + w->h - 2) k--; h->link = k; } return 1;
     case KEY_HOME: h->top = 0; h->link = 0; return 1;

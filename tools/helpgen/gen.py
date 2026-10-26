@@ -37,12 +37,13 @@ for name, (m, f) in sorted(funcs.items()):
     _, proto, summ, detail, ret, see, ex = f
     hdr = libs[m].H
     b = [" %s" % name, "", " %s" % summ, "", " Header: " + hlink(hdr, summ),
-         "", " Syntax", "   %s" % proto, ""]
-    if detail: b += [wrap(detail), ""]
-    b += [" Return value", wrap(ret), ""]
+         "", "## Syntax", "", "   %s" % proto]
+    if detail: b += ["", "## Description", "", wrap(detail)]
+    b += ["", "## Return value", "", wrap(ret)]
     if see:
         links = " ".join("{%s}" % s for s in see.split() if s in funcs or s in topics or s in BUILTIN or any(s == t[0] for l in libs.values() for t in l.TYPES))
-        if links: b += [" See also: " + links, ""]
+        if links: b += ["", "## See also", "", fill(" " + links, 72, subsequent_indent=" ")]
+    b += [""]
     b += [" Library: {Library: %s}" % m if False else " Back to {Library functions}"]
     add(name, "\n".join(b), keys=name, alias="", example=ex)
 
@@ -60,15 +61,15 @@ for name,(m,f) in funcs.items():
 for h, names in sorted(HDRS.items()):
     desc = pages.HEADERS.get(h, "")
     ts = [t[0] for t in libs[[mm for mm in mods if libs[mm].H == h][0]].TYPES]
-    b = [" <%s>" % h, "", wrap(desc), "", " Functions", ""]
+    b = [" <%s>" % h, "", wrap(desc), "", "## Functions", ""]
     b += [textwrap.fill(" ".join("{%s}" % n for n in sorted(names)), 72, initial_indent="  ", subsequent_indent="  "), ""]
-    if ts: b += [" Types, macros and objects", "", textwrap.fill(" ".join("{%s}" % t for t in ts), 72, initial_indent="  ", subsequent_indent="  "), ""]
+    if ts: b += ["## Types, macros and objects", "", textwrap.fill(" ".join("{%s}" % t for t in ts), 72, initial_indent="  ", subsequent_indent="  "), ""]
     b += [" Back to {Library functions}"]
     add(h, "\n".join(b), keys=h)
 # misc header (setjmp, signal ...) page
-b = [" Other headers", "", wrap(pages.HEADERS["misc"]), "", " Functions and macros", "",
+b = [" Other headers", "", wrap(pages.HEADERS["misc"]), "", "## Functions and macros", "",
      textwrap.fill(" ".join("{%s}" % n for n,_ in [(f[0],0) for f in libs["misc"].F]), 72, initial_indent="  ", subsequent_indent="  "), "",
-     " Other topics", "", textwrap.fill(" ".join("{%s}" % t[0] for t in libs["misc"].TYPES), 72, initial_indent="  ", subsequent_indent="  "), "", " Back to {Library functions}"]
+     "## Other topics", "", textwrap.fill(" ".join("{%s}" % t[0] for t in libs["misc"].TYPES), 72, initial_indent="  ", subsequent_indent="  "), "", " Back to {Library functions}"]
 add("assert.h setjmp.h signal.h stdarg.h stddef.h locale.h", "\n".join(b), keys="assert.h setjmp.h signal.h stdarg.h stddef.h locale.h errno.h limits.h float.h", alias="assert.h; setjmp.h; signal.h; stdarg.h; stddef.h; locale.h; errno.h; limits.h; float.h")
 for p in pages.PAGES:
     add(p[0], p[1], keys=p[2] if len(p) > 2 else "", alias=p[3] if len(p) > 3 else "")
@@ -78,27 +79,27 @@ cats = {"Library: stdio":"stdio","Library: string":"string","Library: stdlib":"s
 for title, m in cats.items():
     if m is None: continue
     names = sorted(f[0] for f in libs[m].F)
-    b = [" %s  (<%s>)" % (title, libs[m].H), "", wrap(pages.HEADERS.get(libs[m].H, "")), ""]
+    b = [" %s  (<%s>)" % (title, libs[m].H), "", wrap(pages.HEADERS.get(libs[m].H, "")), "", "## Functions", ""]
     b += [textwrap.fill(" ".join("{%s}" % n for n in names), 72, initial_indent=" ", subsequent_indent=" "), "", " Back to {Library functions}"]
     add(title, "\n".join(b), keys="")
 allf = sorted(funcs)
-b = [" Library functions", "", " Header files of the library:", ""]
+b = [" Library functions", "", "## Header files", ""]
 b += [" {%s}" % h for h in sorted(HDRS)] + [" {%s|assert.h setjmp.h signal.h stdarg.h stddef.h locale.h}" % x for x in "assert.h setjmp.h signal.h stdarg.h stddef.h locale.h errno.h limits.h float.h".split()] + [""]
-b += [" Formatting and conversion", "", " {printf formats}", " {scanf formats}", " {Library: conio and dos}", " {Not supported DOS features}", ""]
-b += [" All functions", "", textwrap.fill(" ".join("{%s}" % n for n in allf), 72, initial_indent=" ", subsequent_indent=" "), "",
+b += ["", "## Formatting and conversion", "", " {printf formats}", " {scanf formats}", " {Library: conio and dos}", " {Not supported DOS features}", ""]
+b += ["## All functions", "", textwrap.fill(" ".join("{%s}" % n for n in allf), 72, initial_indent=" ", subsequent_indent=" "), "",
       " Press Shift+F1 for the Index, or Ctrl+F1 on a function name in the editor."]
 add("Library functions", "\n".join(b), keys="library standard functions reference")
 
 names = lambda m: sorted(f[0] for f in libs[m].F)
 b = [" Library: conio and dos", "", " Console input and output (<conio.h>), DOS-style time and delay functions", " (<dos.h>) and a few BIOS-style functions (<bios.h>).", " Console output uses ANSI terminal sequences; keyboard input is unbuffered.", "",
-     " <conio.h>", textwrap.fill(" ".join("{%s}" % n for n in names("conio")), 72, initial_indent="  ", subsequent_indent="  "), "",
-     " <dos.h>", textwrap.fill(" ".join("{%s}" % n for n in names("dos")), 72, initial_indent="  ", subsequent_indent="  "), "",
-     " <bios.h>", textwrap.fill(" ".join("{%s}" % n for n in names("bios")), 72, initial_indent="  ", subsequent_indent="  "), "",
-     " Types and constants", "  {text_info} {Console colors} {directvideo}", "  {struct date} {struct time} {struct dfree}", "",
+     "## <conio.h>", "", textwrap.fill(" ".join("{%s}" % n for n in names("conio")), 72, initial_indent="  ", subsequent_indent="  "), "",
+     "## <dos.h>", "", textwrap.fill(" ".join("{%s}" % n for n in names("dos")), 72, initial_indent="  ", subsequent_indent="  "), "",
+     "## <bios.h>", "", textwrap.fill(" ".join("{%s}" % n for n in names("bios")), 72, initial_indent="  ", subsequent_indent="  "), "",
+     "## Types and constants", "", "  {text_info} {Console colors} {directvideo}", "  {struct date} {struct time} {struct dfree}", "",
      " DOS interrupts, ports, far memory and graphics are not available: see", " {Not supported DOS features}.", "", " Back to {Library functions}"]
 add("Library: conio and dos", "\n".join(b), keys="conio dos bios console")
 b = [" Not supported DOS features", "", wrap("Flash C produces programs for 64-bit Linux, so features that depend on DOS, the PC BIOS or the hardware cannot be provided. Declarations for these are not in the headers, so a program that uses them gets an undefined-function error. Use the portable replacements where one exists."), "",
- " Not provided", "",
+"## Not provided", "",
  "   int86, int86x, intdos, intdosx, bdos, geninterrupt  (software interrupts)",
  "   inportb, outportb, inport, outport, inp, outp        (I/O ports)",
  "   peek, poke, peekb, pokeb, MK_FP, FP_SEG, FP_OFF      (far memory)",
@@ -107,7 +108,7 @@ b = [" Not supported DOS features", "", wrap("Flash C produces programs for 64-b
  "   gettext, puttext, movetext                             (screen buffer)",
  "   graphics.h: initgraph, line, circle and so on          (graphics)",
  "   bioscom, biosdisk, bios_*, biosprint                   (BIOS devices)", "",
- " Replacements", "",
+"## Replacements", "",
  "   screen text      {cprintf}, {gotoxy}, {window}, {textcolor}",
  "   keyboard         {getch}, {kbhit}, {bioskey}",
  "   timing           {delay}, {sleep}, {time}, {clock}",
@@ -122,7 +123,8 @@ lang_topics = set()
 def kbody(k):
     b = [" %s" % k["title"], "", " %s" % k["summary"], ""]
     if k["syntax"]:
-        b += [" Syntax"] + ["   %s" % x for x in k["syntax"]] + [""]
+        b += ["## Syntax", ""] + ["   %s" % x for x in k["syntax"]] + [""]
+    b += ["## Description", ""]
     for line in k["detail"].split("\n"):
         if line == "" or line.startswith(" "): b.append(line)
         else: b.append(wrap(line))
@@ -132,7 +134,7 @@ def kbody(k):
     for t in toks:
         if t.startswith("{"): links.append(t)
         elif t in known_lang or t in funcs or t in BUILTIN: links.append("{%s}" % t)
-    if links: b += [fill(" See also: " + " ".join(links), 72, subsequent_indent="  "), ""]
+    if links: b += ["## See also", "", fill(" " + " ".join(links), 72, subsequent_indent=" "), ""]
     b.append(" Back to {Language topics}")
     return "\n".join(b)
 
@@ -159,18 +161,18 @@ def linklist(titles, indent="  "):
 kw_titles = [k["title"] for k in lang.KEYWORDS]
 hub = [" Language topics", "",
  wrap("The C language as implemented by Flash C. With the cursor on a keyword or operator in the editor press Ctrl+F1 to jump to its topic; in a topic, Edit|Copy example copies the program into an edit window."), "",
- " Keywords", "", linklist(kw_titles), "  {Extended keywords}", "",
- " Operators and expressions", "", linklist([k["title"] for k in lang.OPERATORS] + ["Expressions", "Type conversions"]), "",
- " Types and constants", "", linklist(["Data types", "Integer types", "Integer constants", "Floating constants", "Character constants and escape sequences", "Strings", "Pointers", "Arrays", "Bit fields"]), "",
- " Declarations and functions", "", linklist(["Declarations", "Storage classes and scope", "Type qualifiers", "Initializers", "Identifiers", "Functions", "main", "Function pointers", "Variable arguments"]), "",
- " Statements", "", linklist(["Statements", "if", "else", "switch", "while", "do", "for", "break", "continue", "goto", "return"]), "",
- " Preprocessor", "", linklist(["Preprocessor", "Comments", "Stringizing and token pasting", "Predefined macros"] + [k["title"] for k in lang.PP if k["title"].startswith("#")]), "",
- " See also: {Language reference}, {Library functions}, {Compiler options}"]
+ "## Keywords", "", linklist(kw_titles), "  {Extended keywords}", "",
+ "## Operators and expressions", "", linklist([k["title"] for k in lang.OPERATORS] + ["Expressions", "Type conversions"]), "",
+ "## Types and constants", "", linklist(["Data types", "Integer types", "Integer constants", "Floating constants", "Character constants and escape sequences", "Strings", "Pointers", "Arrays", "Bit fields"]), "",
+ "## Declarations and functions", "", linklist(["Declarations", "Storage classes and scope", "Type qualifiers", "Initializers", "Identifiers", "Functions", "main", "Function pointers", "Variable arguments"]), "",
+ "## Statements", "", linklist(["Statements", "if", "else", "switch", "while", "do", "for", "break", "continue", "goto", "return"]), "",
+ "## Preprocessor", "", linklist(["Preprocessor", "Comments", "Stringizing and token pasting", "Predefined macros"] + [k["title"] for k in lang.PP if k["title"].startswith("#")]), "",
+ "", " See also: {Language reference}, {Library functions}, {Compiler options}"]
 add("Language topics", "\n".join(hub), keys="language reference c89 syntax")
 lang_topics.add("Language topics")
 
 # the older overview pages now link to the detailed topics
-ov = [" Keywords and operators", "", " Keywords", "", linklist(kw_titles), "  {Extended keywords}", "",
+ov = [" Keywords and operators", "", "## Keywords", "", linklist(kw_titles), "  {Extended keywords}", "",
  " Operators, highest precedence first", "",
  "   () [] -> .                       left to right",
  "   ! ~ ++ -- + - * & (type) sizeof  right to left",
@@ -205,33 +207,41 @@ if bad:
 
 # contents addendum
 def write_topics(f, names):
+    def emit(text):
+        for line in text.split("\n"):
+            f.write(("@" + line if line.startswith("@") else line) + "\n")
     for t in sorted(names):
         d = topics[t]
         f.write("\n@topic %s\n" % t)
         if d["keys"]: f.write("@keys %s\n" % d["keys"])
         if d["alias"]: f.write("@alias %s\n" % d["alias"])
-        for line in d["body"].split("\n"):
-            f.write(("@" + line if line.startswith("@") else line) + "\n")
+        body, tail = d["body"], ""
+        if d["example"]:                       # the example goes before "See also" / "Back to"
+            cut = [i for i in (body.find("\n## See also"), body.find("\n Back to")) if i >= 0]
+            if cut: body, tail = body[:min(cut)], body[min(cut):]
+        emit(body)
         if d["example"]:
-            f.write("\n Example\n\n@example\n")
+            f.write("\n## Example\n\n@example\n")
             for line in d["example"].split("\n"): f.write(("@" + line if line.startswith("@") else line) + "\n")
             f.write("@end\n")
+            if tail: emit(tail)
 with open(os.path.join(out, "language.fch"), "w") as f:
     f.write(";; Flash C extended help: the C language - generated by tools/helpgen/gen.py, do not edit by hand.\n")
     ref = ["@append Language reference", "",
+     "## Detailed topics", "",
      " Every keyword, operator and preprocessor directive has its own topic",
      " with syntax, notes and an example program: see {Language topics}.", "",
-     " Types", linklist(["Data types", "Integer types", "char", "short", "int", "long", "float", "double", "signed", "unsigned", "void", "Pointers", "Arrays", "Strings", "struct", "union", "enum", "typedef", "Bit fields"]), "",
-     " Constants", linklist(["Integer constants", "Floating constants", "Character constants and escape sequences", "Strings"]), "",
-     " Declarations", linklist(["Declarations", "Storage classes and scope", "auto", "static", "extern", "register", "const", "volatile", "Type qualifiers", "Initializers", "Identifiers", "Comments"]), "",
-     " Functions", linklist(["Functions", "main", "return", "Function pointers", "Variable arguments", "Extended keywords"]), "",
-     " Statements", linklist(["Statements", "if", "else", "switch", "case", "default", "while", "do", "for", "break", "continue", "goto"]), "",
-     " Operators", linklist([k["title"] for k in lang.OPERATORS] + ["sizeof", "Expressions", "Type conversions"]), "",
-     " Preprocessor", linklist(["Preprocessor", "Stringizing and token pasting", "Predefined macros"] + [k["title"] for k in lang.PP if k["title"].startswith("#")])]
+     "## Topics: Types", "", linklist(["Data types", "Integer types", "char", "short", "int", "long", "float", "double", "signed", "unsigned", "void", "Pointers", "Arrays", "Strings", "struct", "union", "enum", "typedef", "Bit fields"]), "",
+     "## Topics: Constants", "", linklist(["Integer constants", "Floating constants", "Character constants and escape sequences", "Strings"]), "",
+     "## Topics: Declarations", "", linklist(["Declarations", "Storage classes and scope", "auto", "static", "extern", "register", "const", "volatile", "Type qualifiers", "Initializers", "Identifiers", "Comments"]), "",
+     "## Topics: Functions", "", linklist(["Functions", "main", "return", "Function pointers", "Variable arguments", "Extended keywords"]), "",
+     "## Topics: Statements", "", linklist(["Statements", "if", "else", "switch", "case", "default", "while", "do", "for", "break", "continue", "goto"]), "",
+     "## Topics: Operators", "", linklist([k["title"] for k in lang.OPERATORS] + ["sizeof", "Expressions", "Type conversions"]), "",
+     "## Topics: Preprocessor", "", linklist(["Preprocessor", "Stringizing and token pasting", "Predefined macros"] + [k["title"] for k in lang.PP if k["title"].startswith("#")])]
     f.write("\n".join(ref) + "\n")
     write_topics(f, lang_topics)
 with open(os.path.join(out, "library.fch"), "w") as f:
     f.write(";; Flash C extended help - generated by tools/helpgen/gen.py, do not edit by hand.\n")
-    f.write("@append Contents\n\n Extended topics\n\n {Language topics}\n {Library functions}\n {printf formats}\n {scanf formats}\n {Predefined macros}\n\n Press Shift+F1 for the Index, Ctrl+F1 for the word at the cursor.\n")
+    f.write("@append Contents\n\n## Extended topics\n\n {Language topics}\n {Library functions}\n {printf formats}\n {scanf formats}\n {Predefined macros}\n\n Press Shift+F1 for the Index, Ctrl+F1 for the word at the cursor.\n")
     write_topics(f, [t for t in topics if t not in lang_topics])
 print("wrote", len(topics), "topics,", len(funcs), "functions,", len(lang_topics), "language topics")
