@@ -152,6 +152,48 @@ check layout layout smaller <<'X'
 #include <stdio.h>
 int main(int c, char **v) { int i = 0, s = 0; while (i < 50) { s += i; i++; } for (i = 0; i < c + 9; i++) s -= i; printf("%d\n", s); return 0; }
 X
+check sccp cfg,ssa,domtree,sccp,fold,algebra,compare,bool smaller <<'X'
+#include <stdio.h>
+int main(int c, char **v) { int k = 4, m, i, z = 0; if (k == 4) m = 10; else m = 20; while (z < 3) z++; for (i = 0; i < 5; i++) m += k; printf("%d %d\n", m + c, z); return 0; }
+X
+check adce cfg,ssa,domtree,adce smaller <<'X'
+#include <stdio.h>
+int main(int c, char **v) { int i, s = 0, dead = 0; for (i = 0; i < 10; i++) { dead = dead + i * 2; s += i; } printf("%d\n", s + c); return 0; }
+X
+check alias cfg,avail,gcse,alias same <<'X'
+#include <stdio.h>
+int a[16], b[16];
+int main(int c, char **v) { int i = c, r; a[3] = 5; b[i] = 7; r = a[i + 2] * 3; b[1] = 9; r += a[i + 2] * 5; *(&a[0] + c) = 1; r += a[i + 2] * 7; printf("%d\n", r); return 0; }
+X
+check ipcp ipcp,fold,constprop smaller <<'X'
+#include <stdio.h>
+int scale(int v, int k) { if (k == 3) return v * 7; return v * k + 100; }
+int main(int c, char **v) { printf("%d %d\n", scale(c, 3), scale(c + 1, 3)); return 0; }
+X
+check ipdce ipdce,inline smaller <<'X'
+#include <stdio.h>
+static int twice(int x) { return x * 2; }
+static int unused_arg(int a, int b) { return a + 1; }
+int main(int c, char **v) { printf("%d\n", unused_arg(c, c * 77) + twice(c)); return 0; }
+X
+check unroll unroll,fold same <<'X'
+#include <stdio.h>
+int main(int c, char **v) { int i, s = 0; for (i = 0; i < 6; i++) s += i * c; for (i = 20; i > 0; i -= 3) s ^= i; printf("%d %d\n", s, i); return 0; }
+X
+check unswitch unswitch same <<'X'
+#include <stdio.h>
+int main(int c, char **v) { int i, s = 0, f = c > 1; for (i = 0; i < 30; i++) { if (f) s += i; else s -= i; s ^= 3; } printf("%d\n", s); return 0; }
+X
+check sroa sroa,regalloc,fold,constprop smaller <<'X'
+#include <stdio.h>
+struct P { int x, y; };
+int main(int c, char **v) { struct P p = {1, 2}; int t[3]; t[0] = c; t[1] = p.x + p.y; t[2] = t[0] + t[1]; p.x = t[2]; printf("%d %d\n", p.x, t[1]); return 0; }
+X
+check size size,inline,unroll same <<'X'
+#include <stdio.h>
+static int sq(int x) { return x * x; }
+int main(int c, char **v) { int i, s = 0; for (i = 0; i < 4; i++) s += sq(i + c); printf("%d\n", s); return 0; }
+X
 
 # tail recursion: 20 million nested calls only work when the frame is reused
 cat > "$TMP/tail.c" <<'X'
@@ -172,6 +214,28 @@ int main(void) { printf("%ld\n", a(3000000L, 0)); return 0; }
 X
 $FCC -w- -O:tailcall,regalloc -e"$TMP/tc" "$TMP/tc.c" > /dev/null 2>&1
 if [ "$("$TMP/tc" 2>&1)" = "4500000" ]; then echo "ok   tailcall (3000000 calls in constant stack)"; else echo "FAIL tailcall"; fail=1; fi
+
+# accumulator introduction: n * f(n - 1) and f(n - 1) + n run in constant stack
+cat > "$TMP/acc.c" <<'X'
+#include <stdio.h>
+int sumto(int n) { if (n == 0) return 0; return sumto(n - 1) + n; }
+long fact(long n) { if (n <= 1) return 1; return n * fact(n - 1); }
+int main(void) { printf("%d %ld\n", sumto(10000000), fact(15)); return 0; }
+X
+$FCC -w- -O:recur,tailrec -e"$TMP/acc" "$TMP/acc.c" > /dev/null 2>&1
+if [ "$("$TMP/acc" 2>&1)" = "-2004260032 1307674368000" ]; then echo "ok   recur (10000000 nested calls in constant stack)"; else echo "FAIL recur: $("$TMP/acc" 2>&1)"; fail=1; fi
+
+# profile-guided optimization: -Pg writes a profile, -Pu reads it and the output stays the same
+cat > "$TMP/pg.c" <<'X'
+#include <stdio.h>
+static int hot(int x) { return x * 3 + 1; }
+static int cold(int x) { int i, s = 0; for (i = 0; i < x; i++) s += i; return s; }
+int main(void) { int i, s = 0; for (i = 0; i < 1000; i++) { if (i % 50 == 0) s += cold(3); else s += hot(i); } printf("%d\n", s); return 0; }
+X
+(cd "$TMP" && "$OLDPWD/$FCC" -w- -Pg -epg.gen pg.c > /dev/null 2>&1 && ./pg.gen > pg.want && "$OLDPWD/$FCC" -w- -O -Puprof.none -epg.nouse pg.c > /dev/null 2>&1)
+ls "$TMP/fcprof.dat" > /dev/null 2>&1 && grep -q "^hot/F/0/E 980$" "$TMP/fcprof.dat" && echo "ok   pgo profile written (hot called 980 times)" || { echo "FAIL pgo profile"; fail=1; }
+$FCC -w- -O -Pu"$TMP/fcprof.dat" -e"$TMP/pg.use" "$TMP/pg.c" > /dev/null 2>&1
+if [ "$("$TMP/pg.use" 2>&1)" = "$(cat "$TMP/pg.want")" ]; then echo "ok   pgo (-Pu output equal)"; else echo "FAIL pgo -Pu"; fail=1; fi
 
 rm -rf "$TMP"
 [ $fail -eq 0 ] && echo "all optimization checks passed"

@@ -236,6 +236,12 @@ typedef struct Sym {
     int regmask;    /* function: callee-saved registers it saves (bit i = register i + 1) */
     int rsave[5];   /* function: frame offsets of the saved registers */
     int tail_ok;    /* function: its frame can be dropped by a tail call */
+    int fidx;       /* function: index in the whole-program tables */
+    int rec;        /* function: 1 calls itself, 2 is part of a cycle of calls */
+    int pure;       /* function: no side effects (reads memory only) */
+    int ncalls;     /* function: number of direct calls of it in the program */
+    int fn_addr;    /* function: its address is used or it is called from outside */
+    long prof;      /* function: call count from the profile (-Pu) */
     int hidden;     /* runtime symbol not yet declared by user code */
     Node *body;
     int frame; /* function */
@@ -391,6 +397,11 @@ Node *parse_expr_only(TokVec *tv);
 /* optimizer */
 void opt_function(Sym *f, int debugged);
 void opt_regalloc(Sym *f, int debugged);
+void opt_program(int debugged);
+void opt_profile_load(const char *file);
+void opt_profile_order(void);
+void opt_pgo_number(Sym *f);
+int opt_fn_size(Sym *f);
 
 /* codegen */
 int gen_program(const char *outpath, char *err, int errlen, int mapmode);

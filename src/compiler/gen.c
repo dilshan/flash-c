@@ -42,6 +42,10 @@ static int ngl, capgl;
 static int brk_label[64], cont_label[64], ctl_sp;
 static int ret_label;
 static Sym *gen_fn;
+static int gen_size; /* the function being generated is optimized for size */
+static void prof_site(Node *n, int kind, int which);
+static void prof_start(void);
+static void mark(Sym *s);
 static char gerr[256];
 static int gerr_set;
 
@@ -1641,7 +1645,9 @@ static void gen_stmt(Node *n)
     case S_IF: {
         int lelse = newlabel(), lend = newlabel();
         note_line(n->line);
+        prof_site(n, 'I', 'E');
         gen_branch(n->c, lelse, 0);
+        prof_site(n, 'I', 'T');
         gen_stmt(n->l);
         if (n->r) {
             jump_to(lend, -1);
@@ -1655,12 +1661,14 @@ static void gen_stmt(Node *n)
     }
     case S_WHILE: {
         int ltop = newlabel(), lend = newlabel();
-        if ((CX->opt.opt_flags & FCO_LAYOUT) && !dbg_rec && n->c->kind != N_NUM) {
+        prof_site(n, 'L', 'E');
+        if ((CX->opt.opt_flags & FCO_LAYOUT) && !gen_size && !dbg_rec && n->c->kind != N_NUM) {
             /* loop rotation: the test sits at the bottom, one conditional jump per iteration */
             int lcond = newlabel();
             note_line(n->line);
             jump_to(lcond, -1);
             place(ltop);
+            prof_site(n, 'L', 'T');
             brk_label[++ctl_sp] = lend;
             cont_label[ctl_sp] = lcond;
             gen_stmt(n->l);
@@ -1674,6 +1682,7 @@ static void gen_stmt(Node *n)
         place(ltop);
         note_line(n->line);
         gen_branch(n->c, lend, 0);
+        prof_site(n, 'L', 'T');
         brk_label[++ctl_sp] = lend;
         cont_label[ctl_sp] = ltop;
         gen_stmt(n->l);
@@ -1684,7 +1693,9 @@ static void gen_stmt(Node *n)
     }
     case S_DO: {
         int ltop = newlabel(), lcont = newlabel(), lend = newlabel();
+        prof_site(n, 'L', 'E');
         place(ltop);
+        prof_site(n, 'L', 'T');
         brk_label[++ctl_sp] = lend;
         cont_label[ctl_sp] = lcont;
         gen_stmt(n->l);
@@ -1698,12 +1709,14 @@ static void gen_stmt(Node *n)
     case S_FOR: {
         int ltop = newlabel(), lcont = newlabel(), lend = newlabel();
         note_line(n->line);
+        prof_site(n, 'L', 'E');
         gen_list(n->d);
-        if ((CX->opt.opt_flags & FCO_LAYOUT) && !dbg_rec && n->c && n->c->kind != N_NUM) {
+        if ((CX->opt.opt_flags & FCO_LAYOUT) && !gen_size && !dbg_rec && n->c && n->c->kind != N_NUM) {
             /* loop rotation: the test sits at the bottom, one conditional jump per iteration */
             int lcond = newlabel();
             jump_to(lcond, -1);
             place(ltop);
+            prof_site(n, 'L', 'T');
             brk_label[++ctl_sp] = lend;
             cont_label[ctl_sp] = lcont;
             gen_stmt(n->l);
@@ -1724,6 +1737,7 @@ static void gen_stmt(Node *n)
         if (n->c) {
             gen_branch(n->c, lend, 0);
         }
+        prof_site(n, 'L', 'T');
         brk_label[++ctl_sp] = lend;
         cont_label[ctl_sp] = lcont;
         gen_stmt(n->l);
@@ -1931,6 +1945,67 @@ static int file_without_debug(int fileid)
 }
 
 /* Emits the code of one function: prologue, body and epilogue. */
+/* ---------- profile instrumentation (-Pg) ---------- */
+enum { PROF_SLOTS = 2048, PROF_KEYLEN = 40 };
+static int prof_on, prof_n;
+static Sym *prof_ctr, *prof_keys, *prof_cnt, *prof_file;
+static char prof_key[PROF_SLOTS][PROF_KEYLEN];
+
+/* Makes the profile run-time (counters, names, the routine that writes the file) part of the
+ * program when -Pg is on. */
+static void prof_start(void)
+{
+    prof_on = 0;
+    prof_n = 0;
+    if (CX->opt.pgo_mode != 1) {
+        return;
+    }
+    prof_ctr = global_lookup("__fc_prof_ctr");
+    prof_keys = global_lookup("__fc_prof_keys");
+    prof_cnt = global_lookup("__fc_prof_n");
+    prof_file = global_lookup("__fc_prof_file");
+    Sym *dump = global_lookup("__fc_prof_dump");
+    if (!prof_ctr || !prof_keys || !prof_cnt || !prof_file || !dump) {
+        return;
+    }
+    mark(prof_ctr);
+    mark(prof_keys);
+    mark(prof_cnt);
+    mark(prof_file);
+    mark(dump);
+    prof_on = 1;
+}
+
+/* Adds one to the counter of a place: F for the entry of the function, I for an if statement, L for
+ * a loop; E counts how often it is reached, T how often its then part or body runs. */
+static void prof_site(Node *n, int kind, int which)
+{
+    if (!prof_on || dbg_rec || gen_fn->from_rt || prof_n >= PROF_SLOTS || (n && n->bsh <= 0)) {
+        return;
+    }
+    snprintf(prof_key[prof_n], PROF_KEYLEN, "%.20s/%c/%d/%c", gen_fn->name, kind, n ? n->bsh : 0,
+             which);
+    b4(0x48, 0x83, 0x04, 0x25); /* add qword [counter], 1 */
+    add_cfix(1, prof_ctr, 8L * prof_n);
+    b1(0x01);
+    prof_n++;
+}
+
+/* Stores the counter names and the file name in the program's data. */
+static void prof_finish(void)
+{
+    if (!prof_on) {
+        return;
+    }
+    if (!prof_keys->bss && !prof_cnt->bss && !prof_file->bss) {
+        for (int i = 0; i < prof_n; i++) {
+            memcpy(PG.data + prof_keys->off + (long)i * PROF_KEYLEN, prof_key[i], PROF_KEYLEN);
+        }
+        memcpy(PG.data + prof_cnt->off, &prof_n, sizeof prof_n);
+        snprintf((char *)PG.data + prof_file->off, 259, "%s", CX->opt.pgo_file);
+    }
+}
+
 static void gen_function(Sym *f)
 {
     int cfix0 = ncfix, dln0 = ndln;
@@ -1942,6 +2017,10 @@ static void gen_function(Sym *f)
     njfix = 0;
     dbg_rec = CX->opt.debug && fid_class(f->fileid) == FC_USER && !file_without_debug(f->fileid);
     cont_label[0] = -1;
+    if (CX->opt.pgo_mode && !f->from_rt) {
+        opt_pgo_number(f);
+    }
+    gen_size = opt_fn_size(f);
     opt_function(f, dbg_rec);
     opt_regalloc(f, dbg_rec);
     b1(0x55);
@@ -1973,6 +2052,7 @@ static void gen_function(Sym *f)
         }
     }
     ret_label = newlabel();
+    prof_site(NULL, 'F', 'E');
     gen_stmt(f->body);
     b2(0x31, 0xC0); /* falling off the end returns 0 */
     place(ret_label);
@@ -2631,7 +2711,13 @@ int gen_program(const char *outpath, char *err, int errlen, int mapmode)
         return 1;
     }
     nlinkmods = 0;
+    if (CX->opt.pgo_mode == 2) {
+        opt_profile_load(CX->opt.pgo_file);
+        opt_profile_order();
+    }
+    opt_program(dbg_rec);
     mark(mainf);
+    prof_start();
     mark(startf);
     for (int i = 0; i < PG.nfuncs; i++) {
         if (PG.funcs[i]->reach & 2) {
@@ -2684,6 +2770,7 @@ int gen_program(const char *outpath, char *err, int errlen, int mapmode)
         }
         gen_function(f);
     }
+    prof_finish();
     emit_proc_list("__fc_init", 0);
     emit_proc_list("__fc_exit", 1);
     emit_sigstubs();

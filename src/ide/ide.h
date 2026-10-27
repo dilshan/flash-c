@@ -109,7 +109,7 @@ typedef struct TransferItem {
     int hotkey;
 } TransferItem;
 
-enum { NOPT = 36 }; /* number of switchable optimizations (FCO_* bits in the compiler) */
+enum { NOPT = 48 }; /* number of switchable optimizations (FCO_* bits in the compiler) */
 
 typedef struct Config {
     /* compiler / source */

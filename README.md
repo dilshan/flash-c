@@ -195,7 +195,12 @@ fcc [options] file.c [file2.c ...]     * several files are compiled as one progr
   -O:name,-name   single optimizations: fold algebra compare constprop copyprop deadstore
                   unreachable casts canon cse strength bool  cfg gconst ccp cfs ublock gdce
                   gcopy merge thread live branch tailrec  rd avail gcse pre inline tailcall
-                  loops licm iv regalloc isel layout  jumps peephole all none
+                  loops licm iv regalloc isel layout ssa sccp domtree adce alias ipcp ipdce unroll
+                  unswitch recur sroa size  jumps peephole all none
+  -Os             all optimizations, tuned for size (no unrolling, little inlining)
+  -Pg[file]       instrument the program: it writes a profile (default fcprof.dat) when it ends
+  -Pu[file]       optimize with a profile: likely branch arms fall through, hot functions come
+                  first, loops that run few iterations are not unrolled, cold code is kept small
   -Z              suppress redundant loads (constant operands stay in a register)
   -A              ANSI keywords only: no // comments, near/far/huge/cdecl/pascal/interrupt are identifiers
   -Uname          undefine a macro

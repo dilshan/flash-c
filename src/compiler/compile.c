@@ -43,6 +43,10 @@ static const struct {
     {"pre", FCO_PRE},           {"inline", FCO_INLINE},       {"tailcall", FCO_TAILCALL},
     {"loops", FCO_LOOPS},       {"licm", FCO_LICM},           {"iv", FCO_IV},
     {"regalloc", FCO_REGALLOC}, {"isel", FCO_ISEL},           {"layout", FCO_LAYOUT},
+    {"ssa", FCO_SSA},           {"sccp", FCO_SCCP},           {"domtree", FCO_DOMTREE},
+    {"adce", FCO_ADCE},         {"alias", FCO_ALIAS},         {"ipcp", FCO_IPCP},
+    {"ipdce", FCO_IPDCE},       {"unroll", FCO_UNROLL},       {"unswitch", FCO_UNSWITCH},
+    {"recur", FCO_RECUR},       {"sroa", FCO_SROA},           {"size", FCO_SIZE},
 };
 
 /* Applies the list of an -O:name,name option: a name switches an optimization on, -name off.  The
@@ -119,6 +123,16 @@ int fc_apply_switch(FcOptions *o, const char *arg)
         }
         o->jump_opt = arg[2] != '-';
         o->opt_flags = arg[2] != '-' ? FCO_ALL : 0;
+        if (arg[2] == 's') { /* -Os: everything, tuned for size */
+            o->opt_flags |= FCO_SIZE;
+        }
+        break;
+    case 'P': /* -Pg[file] instruments the program, -Pu[file] uses the recorded profile */
+        if (arg[2] != 'g' && arg[2] != 'u') {
+            return 0;
+        }
+        o->pgo_mode = arg[2] == 'g' ? 1 : 2;
+        snprintf(o->pgo_file, sizeof o->pgo_file, "%s", arg[3] ? arg + 3 : "fcprof.dat");
         break;
     case 'Z':
         o->redundant_loads = arg[2] != '-';

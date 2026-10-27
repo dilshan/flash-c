@@ -104,8 +104,9 @@ void cfg_defaults(void)
     cfg.max_warnings = 100;
     cfg.warn_display = 1;
     for (int i = 0; i < NOPT; i++) {
-        cfg.opt[i] = 1; /* all optimizations on */
+        cfg.opt[i] = 1; /* all optimizations on, except preferring small code */
     }
+    cfg.opt[47] = 0;
     static const int on[] = {0,  1,  2,  6,  8,  15, 32,
                              34, 37, 38, 40, 43, 44, 48}; /* the warnings the compiler can switch */
     for (unsigned i = 0; i < sizeof on / sizeof on[0]; i++) {

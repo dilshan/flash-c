@@ -27,6 +27,8 @@ static const char *usage =
     "  -d      Merge duplicate strings   -a    * Align structure members (-a- packs)\n"
     "  -N      Check stack overflow      -O      Optimize jumps\n"
     "  -Z      Suppress redundant loads  -ls<KB> Stack size in KB\n"
+    "  -Os     Optimize for size         -O:name Single optimizations (see the manual)\n"
+    "  -Pg[f]  Write a profile (fcprof.dat) -Pu[f] Optimize with the profile\n"
     "  -lt     Write an ELF symbol table -lw     Separate R+X code and R+W data segments\n"
     "  -M      Create link map file      -Mp/-Md Map with publics / detailed segments\n"
     "  -v      Record source-level debug information (for the IDE debugger)\n"

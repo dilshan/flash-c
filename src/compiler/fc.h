@@ -51,7 +51,19 @@ enum { FC_WARNING = 0, FC_ERROR = 1, FC_FATAL = 2 };
 #define FCO_REGALLOC (1ULL << 33) /* register allocation */
 #define FCO_ISEL (1ULL << 34) /* instruction selection */
 #define FCO_LAYOUT (1ULL << 35) /* branch folding and block layout */
-#define FCO_ALL ((1ULL << 36) - 1)
+#define FCO_SSA (1ULL << 36)      /* static single assignment form (dominator tree, phi nodes) */
+#define FCO_SCCP (1ULL << 37)     /* sparse conditional constant propagation on the SSA form */
+#define FCO_DOMTREE (1ULL << 38)  /* dominator tree and dominance frontiers */
+#define FCO_ADCE (1ULL << 39)     /* aggressive dead-code elimination on the SSA form */
+#define FCO_ALIAS (1ULL << 40)    /* alias analysis: loads of memory take part in global CSE */
+#define FCO_IPCP (1ULL << 41)     /* interprocedural constant propagation */
+#define FCO_IPDCE (1ULL << 42)    /* interprocedural dead-code elimination */
+#define FCO_UNROLL (1ULL << 43)   /* loop unrolling */
+#define FCO_UNSWITCH (1ULL << 44) /* loop unswitching */
+#define FCO_RECUR (1ULL << 45)    /* recursive function analysis */
+#define FCO_SROA (1ULL << 46)     /* scalarization of structures and arrays */
+#define FCO_SIZE (1ULL << 47)     /* optimize for code size (not part of "all") */
+#define FCO_ALL ((1ULL << 47) - 1)
 
 /* All settings of one compilation; fc_options_default() gives the defaults. */
 typedef struct FcOptions {
@@ -87,6 +99,8 @@ typedef struct FcOptions {
     int elf_symtab;      /* write section headers with .symtab/.strtab (-lt) */
     int wx;              /* separate R+X code and R+W data segments (-lw) */
     uint64_t opt_flags;     /* FCO_* optimization passes (-O:name) */
+    int pgo_mode;           /* profile-guided optimization: 0 off, 1 instrument (-Pg), 2 use (-Pu) */
+    char pgo_file[260];     /* the profile data file */
     int w_unreach;       /* unreachable code                         */
     int w_amb;           /* ambiguous operators need parentheses     */
     int w_structval;     /* structure passed by value                */

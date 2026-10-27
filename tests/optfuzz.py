@@ -74,8 +74,11 @@ class Gen:
             return '%s%s' % (self.cast(), e())
         if k < 0.93:
             return 'f%d(%s, %s)' % (r.randint(1, 3), e(), e())
-        if k < 0.96:
+        if k < 0.95:
             return 'tr((%s) & 15, %s)' % (e(), e())
+        if k < 0.97:
+            return r.choice(['acc((%s) & 7, %s)', 'facc((%s) & 5) + 0 * (%s)', 'sr(%s, %s)',
+                             'ip(%s, 5) + 0 * (%s)', 'sideeff(%s) + 0 * (%s)']) % (e(), e())
         return '(%s, %s)' % (e(), e())
 
     def lvalue(self):
@@ -105,8 +108,10 @@ class Gen:
             # the same subexpression twice
             a, b = self.var(), self.var()
             return '%s = (%s * %s) + (%s * %s) + %s;' % (lv, a, b, a, b, self.const())
-        if k < 0.85:
+        if k < 0.88:
             return '%s = %s;' % (lv, self.const())
+        if k < 0.94:
+            return r.choice(['sideeff(%s);', 'purefn(%s, 3);', 'ip(%s, 5);']) % self.expr(2)
         return 'g = %s;' % self.expr(2)
 
     def block(self, depth, loop):
@@ -183,6 +188,14 @@ class Gen:
         nloops = self.loopvars
         out = ['#include <stdio.h>', 'int g = 3; int arr[8] = {1,2,3,4,5,6,7,8};']
         out.append('static int tr(int n, int a) { if (n <= 0) return a; return tr(n - 1, a + n * 3); }')
+        out.append('static int acc(int n, int k) { if (n <= 0) return k; return n * 3 + acc(n - 1, k + 1); }')
+        out.append('static long facc(int n) { if (n < 2) return 1; return n * facc(n - 1); }')
+        out.append('struct P { int a; int b; };')
+        out.append('static int sr(int x, int y) { struct P p; int t[3]; p.a = x; p.b = y; t[0] = p.a; '
+                   't[1] = p.b; t[2] = t[0] + t[1]; return t[2] * 2 + p.a; }')
+        out.append('static int ip(int a, int k) { return a * k + 3; }')
+        out.append('static int sideeff(int a) { g += a; return a; }')
+        out.append('static int purefn(int a, int b) { return a * b + 1; }')
         for i in (1, 2, 3):
             out.append('static int f%d(int a, int b) { return %s; }' % (
                 i, ['a * 2 + b', '(a ^ b) + 1', 'a - b * 3'][i - 1]))
@@ -222,7 +235,8 @@ def main():
     seed = int(sys.argv[2]) if len(sys.argv) > 2 else 1
     singles = ['fold', 'algebra', 'compare', 'constprop', 'copyprop', 'deadstore', 'unreachable',
                'casts', 'canon', 'cse', 'strength', 'bool', 'gcse', 'pre', 'licm', 'iv', 'inline',
-               'regalloc', 'isel', 'layout', 'tailcall']
+               'regalloc', 'isel', 'layout', 'tailcall', 'ssa', 'sccp', 'domtree', 'adce',
+               'alias', 'ipcp', 'ipdce', 'unroll', 'unswitch', 'recur', 'sroa', 'size']
     bad = 0
     with tempfile.TemporaryDirectory(prefix='fc-optfuzz-') as tmp:
         for n in range(count):
@@ -237,7 +251,7 @@ def main():
                 continue
             if want == 'timeout':   # a generated loop that never ends (continue skips the decrement)
                 continue
-            for flags in (['-O', '-Z'], ['-O'], ['-Z']):
+            for flags in (['-O', '-Z'], ['-O'], ['-Z'], ['-Os'], ['-O:unroll,unswitch,sroa,adce,sccp,ssa,domtree,cfg,fold,constprop']):
                 got, err = build_run(src, flags, tmp, 'opt')
                 if got != want:
                     culprit = []

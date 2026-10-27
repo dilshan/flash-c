@@ -80,6 +80,48 @@ source ──► lexer/preprocessor ──► parser + type checker ──► x8
   `jcc l; jmp m; l:` into `jncc m` and rotates `while`/`for` loops so the test sits at the bottom. A tail call to
   another function pops its arguments into the caller's own argument slots, restores the registers, runs `leave`
   and jumps (only when every variable in the frame is a scalar whose address is never taken).
+* **SSA form (`opt.c`)**: with the dominator sets of `graph_build` the compiler derives the dominator tree and the
+  dominance frontiers (`domtree_build`), places phi functions for the tracked local scalars at the iterated frontier of
+  their assignments (only where the variable is live), and renames every definition and use (`ssa_build`). An atom
+  that is a plain assignment `x = e` defines one SSA value; any other atom that assigns defines opaque values. Sparse
+  conditional constant propagation (`sccp_run`) keeps a lattice value per SSA value and per edge whether it can be
+  taken, evaluates the expressions with the constants of their operands (the same folding code as the tree
+  optimizer), and then substitutes the constants. Aggressive dead-code elimination (`adce_run`) starts from the
+  statements that must stay (conditions, returns, calls, stores, anything with an effect), marks the values they
+  use, and removes every assignment that was never marked, including assignments that only feed each other in a
+  loop. Branch conditions and statements are never removed by it, only assignments.
+* **Alias analysis**: with `alias` on, global CSE also treats loads of memory (globals, members, `a[i]` with a
+  pure index, `p->x`) as expressions. `loc_of` describes an access as a named object plus offset or "through a
+  pointer"; two accesses to different objects never overlap, accesses to the same object overlap unless their
+  constant ranges are apart, and a pointer access may overlap anything. A store or a call of a function that is not
+  known to be pure invalidates the loads it may touch. Partial redundancy elimination never moves a load.
+* **Whole-program passes (`opt_program`, before any code is generated)**: a call graph with Tarjan's strongly
+  connected components marks recursive functions (`Sym.rec`) and a greatest fixed point marks pure functions (no
+  stores except to locals, no calls of impure functions, no `goto`, no endless loops). Inlining runs over all
+  functions first, then interprocedural constant propagation substitutes an argument that every call passes (and
+  recursive calls pass through) as a constant, interprocedural dead-code elimination replaces arguments the callee
+  never reads by 0, drops the result of functions whose callers all discard it, deletes calls of pure functions
+  whose result is unused, and removes the references to functions that are no longer called so that they are not
+  emitted. A function whose address is taken, `main`, and library functions are left alone. Accumulator
+  introduction (`accum_recursion`) rewrites `return n * f(n - 1)` and `return f(n - 1) + n` (integer `+` and `*`
+  are associative) into a tail call plus an accumulator, which tail-recursion elimination turns into a loop.
+* **Loop unrolling and unswitching**: `for` loops with a counter, a constant bound and a constant step that run at
+  most 8 times are replaced by their copies; other small loops without `break`/`continue`/`goto` run two
+  iterations per test (`for (a; c; s) b` becomes `for (a; c;) { b; s; if (c) { b; s; } }`). An `if` inside a loop
+  whose condition only uses local scalars the loop never assigns is moved out and the loop is duplicated.
+* **Scalarization (`sroa`)**: a local structure or array that is only accessed member by member, or element by
+  element with constant indices (the parser writes those as `*(&v + offset)`), is replaced by one scalar per
+  access, which the register allocator can then place in a register.
+* **Profile-guided optimization**: `-Pg` makes the code generator add a counter increment (`add qword [counter], 1`)
+  at the entry of every function, before every `if` and loop and at the start of their then part or body; the
+  names of the counters are stored in the program's data, and `prof.c` (run-time library, `#pragma exit`) writes
+  `name/kind/number/E|T count` lines when the program ends. Statements are numbered before optimization so that
+  the same numbers are found again whatever the optimization switches. `-Pu` reads the file: the likely arm of an
+  `if` with an `else` becomes the fall-through arm, hot functions are generated first, functions that never ran are
+  optimized for size, hot callees get a larger inlining limit and loops that average fewer than three iterations
+  per entry are not unrolled.
+* **Code size (`-Os`, `size`)**: switches off unrolling, unswitching, partial redundancy elimination and loop
+  rotation, and limits inlining to bodies of 3 nodes or functions with exactly one call.
 * **Code generator optimizations (`-O`, `-Z`)**: `-Z` keeps a constant right operand in `rcx` instead of `push rax` / `pop rax` and
   removes `push rax; pop` pairs that are not separated by a label or line mark; `-O` drops a `jmp` to the next
   instruction and then relaxes the jumps of each function (rel32 to rel8 until a fixed point), remapping labels,

@@ -35,6 +35,8 @@
 /* state of the function being optimized                               */
 /* ------------------------------------------------------------------ */
 static uint64_t fl;      /* FCO_* passes enabled for this function */
+static void pgo_function(Sym *f);
+static int pgo_loop_hot(Sym *f, Node *loop);
 static int jumps;        /* redundant jump elimination enabled (the -O switch) */
 static Sym *cur_fn;      /* the function */
 static int use_flow;     /* data-flow passes (propagation, dead stores, CSE) are allowed */
@@ -2094,12 +2096,24 @@ typedef struct ESet {
     uint64_t w[2];
 } ESet;
 
+/* Where a memory access goes: a named object (obj) at a byte offset, or through a pointer. */
+typedef struct Loc {
+    Sym *obj;    /* the object; NULL for an access through a pointer */
+    long off;
+    int size;
+    int var_off; /* the offset has a part that is not constant */
+} Loc;
+
+enum { MAXWRITES = 6 };
+
 typedef struct Atom {
     int kind;
     Node *stmt;
     Node **slot;
     ESet gen, kill; /* expressions this atom makes available / invalidates */
     int allkill;    /* assigns so many variables that every expression is invalidated */
+    Loc w[MAXWRITES]; /* memory the atom stores to */
+    int nw, wall;     /* number of stores; calls or too many stores: all memory may change */
 } Atom;
 
 enum { T_FALL, T_JUMP, T_BRANCH, T_RET, T_SWITCH };
@@ -2971,6 +2985,161 @@ static void tail_recursion(Sym *f)
     }
 }
 
+/* ---- accumulator introduction ----
+ * A function that returns  E op f(args)  (op is + or *) is turned into one that carries the
+ * partial result in an accumulator: the recursive call becomes a tail call, which tail-recursion
+ * elimination then turns into a loop. */
+static Sym *acc_sym;
+static int acc_op, acc_bad, acc_count, acc_pass;
+static Type *acc_ty;
+static Node *acc_init;
+
+/* Returns true if e only reads local scalars and constants. */
+static int acc_simple(Node *e)
+{
+    switch (e->kind) {
+    case N_NUM:
+        return 1;
+    case N_VAR:
+        return trackable(e->sym);
+    case N_NEG:
+    case N_BITNOT:
+        return acc_simple(e->l);
+    case N_CAST:
+        return scalar_ty(e->ty) && scalar_ty(e->l->ty) && acc_simple(e->l);
+    case N_BIN:
+        return e->op != B_DIV && e->op != B_MOD && acc_simple(e->l) && acc_simple(e->r);
+    default:
+        return 0;
+    }
+}
+
+/* Splits  E op f(args)  into its two parts. */
+static int acc_match(Node *e, Sym *f, Node **other, Node **call)
+{
+    if (e->kind != N_BIN || (e->op != B_ADD && e->op != B_MUL) || !is_int(e->ty) ||
+        e->ty->size < 4 || !same_rep(e->ty, f->ty->ret)) {
+        return 0;
+    }
+    if (e->r->kind == N_CALL && e->r->sym == f && acc_simple(e->l)) {
+        *other = e->l;
+        *call = e->r;
+    } else if (e->l->kind == N_CALL && e->l->sym == f && acc_simple(e->r)) {
+        *other = e->r;
+        *call = e->l;
+    } else {
+        return 0;
+    }
+    return 1;
+}
+
+/* Walker callback of accum_recursion: pass 0 checks the returns, pass 1 rewrites them. */
+static void acc_cb(Node *n, void *ud)
+{
+    Sym *f = ud;
+    if (n->kind != S_RETURN) {
+        return;
+    }
+    if (!n->l) {
+        acc_bad = 1;
+        return;
+    }
+    Node *other, *call;
+    if (acc_match(n->l, f, &other, &call)) {
+        if (acc_op >= 0 && acc_op != n->l->op) {
+            acc_bad = 1;
+        }
+        acc_op = n->l->op;
+        if (acc_pass == 1) {
+            Node *bin = n->l;
+            int line = n->line;
+            Node *add = new_node(N_BIN, acc_ty, line);
+            add->op = acc_op;
+            add->cmpty_uns = bin->cmpty_uns;
+            Node *av = new_node(N_VAR, acc_ty, line);
+            av->sym = acc_sym;
+            add->l = av;
+            add->r = clone_expr(other);
+            Node *as = new_node(N_ASSIGN, acc_ty, line);
+            Node *av2 = new_node(N_VAR, acc_ty, line);
+            av2->sym = acc_sym;
+            as->l = av2;
+            as->r = add;
+            Node *st = new_node(S_EXPR, NULL, line);
+            st->l = as;
+            Node *ret = new_node(S_RETURN, NULL, line);
+            ret->l = call;
+            st->next = ret;
+            Node *blk = new_node(S_BLOCK, NULL, line);
+            blk->cmpty_uns = line;
+            blk->l = st;
+            rep(n, blk);
+        }
+        acc_count++;
+    } else if (n->l->kind == N_CALL && n->l->sym == f) {
+        return; /* a plain tail call: the accumulator carries on */
+    } else if (acc_pass == 1 && acc_op >= 0) {
+        int line = n->line;
+        Node *bin = new_node(N_BIN, acc_ty, line);
+        bin->op = acc_op;
+        Node *av = new_node(N_VAR, acc_ty, line);
+        av->sym = acc_sym;
+        bin->l = av;
+        bin->r = n->l;
+        n->l = bin;
+    }
+}
+
+/* Prepares accumulator introduction for f; the initial statement is left in acc_init. */
+static void accum_recursion(Sym *f)
+{
+    acc_init = NULL;
+    Type *ft = f->ty;
+    if (!is_int(ft->ret) || ft->ret->size < 4 || ft->variadic || ft->noproto) {
+        return;
+    }
+    acc_op = -1;
+    acc_bad = acc_count = 0;
+    acc_pass = 0;
+    walk(f->body, acc_cb, f);
+    if (acc_bad || acc_count == 0) {
+        return;
+    }
+    tail_fn = f; /* the same safety rules as for tail-recursion elimination */
+    ntail = tail_bad = 0;
+    walk(f->body, tail_scan_cb, NULL);
+    if (tail_bad) {
+        return;
+    }
+    Node *tv = new_temp(ft->ret, f->body->line);
+    acc_sym = tv->sym;
+    acc_ty = ft->ret;
+    acc_pass = 1;
+    int op = acc_op;
+    walk(f->body, acc_cb, f);
+    acc_op = op;
+    Node *as = new_node(N_ASSIGN, acc_ty, f->body->line);
+    as->l = tv;
+    as->r = num(acc_op == B_MUL ? 1 : 0, acc_ty, f->body->line);
+    acc_init = new_node(S_EXPR, NULL, f->body->line);
+    acc_init->l = as;
+}
+
+/* Tail-recursion elimination, with accumulator introduction first when it is enabled. */
+static void tail_phase(Sym *f)
+{
+    acc_init = NULL;
+    if (fl & FCO_RECUR) {
+        accum_recursion(f);
+    }
+    tail_recursion(f);
+    if (acc_init) {
+        acc_init->next = f->body->l;
+        f->body->l = acc_init;
+        acc_init = NULL;
+    }
+}
+
 /* ------------------------------------------------------------------ */
 /* graph structure: reachability, predecessors, dominators, loops      */
 /* ------------------------------------------------------------------ */
@@ -3483,6 +3652,8 @@ typedef struct Ex {
     Sym *vars[8];
     int nvars;
     Node *temp; /* the variable that holds the value */
+    Loc loads[4];
+    int nloads;
 } Ex;
 static Ex exs[MAXEX];
 static int nex;
@@ -3497,14 +3668,127 @@ static void eset_add(ESet *s, int i)
     s->w[i / 64] |= 1ULL << (i % 64);
 }
 
+/* Adds the constant and variable parts of an address to the location. */
+static void loc_terms(Node *a, Loc *l, long *off, int *has_ptr)
+{
+    switch (a->kind) {
+    case N_NUM:
+        *off += a->val;
+        break;
+    case N_ADDR:
+        if (a->l->kind == N_VAR && !l->obj) {
+            l->obj = a->l->sym;
+        } else {
+            *has_ptr = 1;
+        }
+        break;
+    case N_BIN:
+        if (a->op == B_ADD) {
+            loc_terms(a->l, l, off, has_ptr);
+            loc_terms(a->r, l, off, has_ptr);
+            break;
+        }
+        l->var_off = 1;
+        break;
+    default:
+        l->var_off = 1;
+        if (is_ptr(a->ty)) {
+            *has_ptr = 1;
+        }
+        break;
+    }
+}
+
+/* Describes where a load or store through the node goes. */
+static void loc_of(Node *acc, Loc *l)
+{
+    memset(l, 0, sizeof *l);
+    l->size = acc->ty->size;
+    long off = 0;
+    int has_ptr = 0;
+    Node *n = acc;
+    while (n->kind == N_MEMBER) {
+        off += n->val;
+        n = n->l;
+    }
+    if (n->kind == N_VAR) {
+        l->obj = n->sym;
+        l->off = off;
+        return;
+    }
+    if (n->kind == N_DEREF) {
+        loc_terms(n->l, l, &off, &has_ptr);
+        if (has_ptr || !l->obj) {
+            l->obj = NULL;
+        }
+        l->off = off;
+        return;
+    }
+    l->obj = NULL;
+}
+
+/* Returns true if two accesses may touch the same memory. */
+static int loc_alias(const Loc *a, const Loc *b)
+{
+    if (!a->obj || !b->obj) {
+        return 1;
+    }
+    if (a->obj != b->obj) {
+        return 0;
+    }
+    if (a->var_off || b->var_off) {
+        return 1;
+    }
+    return a->off < b->off + b->size && b->off < a->off + a->size;
+}
+
+/* Collects the memory the expression reads; returns 0 if it reads too many places. */
+static int loads_of(Node *e, Loc *out, int *n)
+{
+    if (!e) {
+        return 1;
+    }
+    Node *root = e;
+    int mem = 0;
+    if (e->kind == N_DEREF || e->kind == N_MEMBER) {
+        mem = 1;
+    } else if (e->kind == N_VAR && !trackable(e->sym) && scalar_ty(e->ty)) {
+        mem = 1;
+    }
+    if (mem) {
+        if (*n == 4) {
+            return 0;
+        }
+        loc_of(e, &out[(*n)++]);
+        while (root->kind == N_MEMBER) {
+            root = root->l;
+        }
+        if (root->kind == N_VAR) {
+            return 1;
+        }
+        return loads_of(root->l, out, n);
+    }
+    return loads_of(e->l, out, n) && loads_of(e->r, out, n) && loads_of(e->c, out, n);
+}
+
 /* Returns the number of nodes of a tree. */
 static int gc_size(Node *e)
 {
     return e ? 1 + gc_size(e->l) + gc_size(e->r) : 0;
 }
 
+static int gc_mem; /* loads of memory may be part of an expression (alias analysis is on) */
+static int gc_ok(Node *e);
+
+/* Returns true for an object in memory: a global variable or a local whose address is taken. */
+static int gc_memobj(Sym *s)
+{
+    return s && s->kind == SY_VAR && (s->global || s->esc);
+}
+
 /* Returns true if e is built from constants and local scalar variables with operators that do not
- * trap, so it can be evaluated at any point and any number of times. */
+ * trap, so it can be evaluated at any point and any number of times.  With gc_mem set it may also
+ * read memory (the stores in the program decide when such a value is still valid). */
 static int gc_ok(Node *e)
 {
     switch (e->kind) {
@@ -3512,7 +3796,19 @@ static int gc_ok(Node *e)
     case N_FNUM:
         return 1;
     case N_VAR:
-        return trackable(e->sym);
+        return trackable(e->sym) || (gc_mem && scalar_ty(e->ty) && gc_memobj(e->sym));
+    case N_ADDR:
+        return gc_mem && e->l->kind == N_VAR && e->l->sym->kind == SY_VAR;
+    case N_DEREF:
+        return gc_mem && scalar_ty(e->ty) && gc_ok(e->l);
+    case N_MEMBER: {
+        Node *b = e->l;
+        while (b->kind == N_MEMBER) {
+            b = b->l;
+        }
+        return gc_mem && scalar_ty(e->ty) && !e->bw &&
+               ((b->kind == N_VAR && gc_memobj(b->sym)) || (b->kind == N_DEREF && gc_ok(b->l)));
+    }
     case N_NEG:
     case N_NOT:
     case N_BITNOT:
@@ -3595,6 +3891,9 @@ static void gc_walk_kids(Node *n, Sym **K, int nK, GcFn fn, void *ud)
     }
 }
 
+static Atom *gc_atom; /* the atom being walked, when memory loads are expressions */
+static int atom_clobbers(Atom *a, const Loc *loads, int nloads);
+
 static void gc_walk(Node *n, Sym **K, int nK, GcFn fn, void *ud)
 {
     if (!n) {
@@ -3604,6 +3903,11 @@ static void gc_walk(Node *n, Sym **K, int nK, GcFn fn, void *ud)
         int bad = 0;
         for (int i = 0; i < nK && !bad; i++) {
             bad = mentions(n, K[i]);
+        }
+        if (!bad && gc_mem && gc_atom) { /* a load that the same atom may overwrite is not reused */
+            Loc ls[4];
+            int nl = 0;
+            bad = !loads_of(n, ls, &nl) || atom_clobbers(gc_atom, ls, nl);
         }
         if (!bad && !fn(n, ud)) {
             return;
@@ -3619,7 +3923,8 @@ static int ex_add_cb(Node *n, void *ud)
     if (ex_find(n) < 0 && nex < MAXEX) {
         Ex *x = &exs[nex];
         x->nvars = 0;
-        if (gc_vars(n, x->vars, &x->nvars)) {
+        x->nloads = 0;
+        if (gc_vars(n, x->vars, &x->nvars) && loads_of(n, x->loads, &x->nloads)) {
             x->tree = clone_expr(n); /* the tree itself is rewritten in place */
             x->temp = NULL;
             nex++;
@@ -3640,10 +3945,80 @@ static int ex_gen_cb(Node *n, void *ud)
 
 static ESet *av_in, *av_out;
 
+static Atom *wr_atom;
+
+/* Walker callback: notes the stores and calls of an atom. */
+static void wr_cb(Node *n, void *ud)
+{
+    (void)ud;
+    Atom *a = wr_atom;
+    switch (n->kind) {
+    case N_CALL:
+        if (!(n->sym && n->sym->pure && n->sym->fidx >= 0)) {
+            a->wall = 1;
+        }
+        break;
+    case N_ASSIGN:
+    case N_ASSIGNOP:
+    case N_PREINC:
+    case N_POSTINC:
+    case N_PREDEC:
+    case N_POSTDEC: {
+        Node *l = n->l, *root = l;
+        while (root->kind == N_MEMBER) {
+            root = root->l;
+        }
+        if (root->kind == N_VAR && trackable(root->sym)) {
+            break; /* a local in a register-like variable */
+        }
+        if (root->kind == N_VAR && !gc_memobj(root->sym)) {
+            break; /* a local aggregate whose address is never taken */
+        }
+        if (a->nw == MAXWRITES) {
+            a->wall = 1;
+        } else {
+            loc_of(l, &a->w[a->nw++]);
+        }
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+/* Returns true if the atom may change memory that the expression reads. */
+static int atom_clobbers(Atom *a, const Loc *loads, int nloads)
+{
+    if (nloads == 0) {
+        return 0;
+    }
+    if (a->wall) {
+        return 1;
+    }
+    for (int w = 0; w < a->nw; w++) {
+        for (int l = 0; l < nloads; l++) {
+            if (loc_alias(&a->w[w], &loads[l])) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
 /* Finds the expressions of the function and what each atom generates and invalidates. */
 static int avail_prepare(void)
 {
     nex = 0;
+    for (int b = 0; b < nbl; b++) {
+        for (int a = 0; a < bl[b].natoms; a++) {
+            Atom *at = &bl[b].atoms[a];
+            at->nw = at->wall = 0;
+            if (gc_mem && at->kind != A_JUMP && *at->slot) {
+                wr_atom = at;
+                walk(*at->slot, wr_cb, NULL);
+            }
+        }
+    }
     for (int b = 0; b < nbl; b++) {
         if (!g_reach[b]) {
             continue;
@@ -3652,6 +4027,7 @@ static int avail_prepare(void)
             Atom *at = &bl[b].atoms[a];
             Sym *K[65];
             int nK = atom_assigns(at, K);
+            gc_atom = at;
             if (at->kind != A_JUMP && *at->slot) {
                 gc_walk(*at->slot, K, nK, ex_add_cb, NULL);
             }
@@ -3667,6 +4043,7 @@ static int avail_prepare(void)
             memset(&at->kill, 0, sizeof at->kill);
             Sym *K[65];
             int nK = atom_assigns(at, K);
+            gc_atom = at;
             if (at->kind != A_JUMP && *at->slot) {
                 gc_walk(*at->slot, K, nK, ex_gen_cb, &at->gen);
             }
@@ -3677,6 +4054,9 @@ static int avail_prepare(void)
                             eset_add(&at->kill, e);
                         }
                     }
+                }
+                if (atom_clobbers(at, exs[e].loads, exs[e].nloads)) {
+                    eset_add(&at->kill, e);
                 }
             }
         }
@@ -3821,6 +4201,7 @@ static int gcse_apply(void)
                 Sym *K[65];
                 c.K = K;
                 c.nK = atom_assigns(at, K);
+                gc_atom = at;
                 if (at->kind != A_JUMP && *at->slot) {
                     gc_walk(*at->slot, K, c.nK, gcse_cb, &c);
                 }
@@ -3843,7 +4224,7 @@ static int pre_cb(Node *n, void *ud)
 {
     (void)ud;
     int e = ex_find(n);
-    if (e >= 0 && !pre_c.found && !eset_has(&pre_c.before, e)) {
+    if (e >= 0 && !pre_c.found && exs[e].nloads == 0 && !eset_has(&pre_c.before, e)) {
         pre_c.found = 1;
         pre_c.expr = e;
         return 0;
@@ -3875,6 +4256,7 @@ static int pre_insert(void)
             int nK = atom_assigns(at, K);
             pre_c.found = 0;
             pre_c.before = cur_set;
+            gc_atom = at;
             if (at->kind != A_JUMP && *at->slot) {
                 gc_walk(*at->slot, K, nK, pre_cb, NULL);
             }
@@ -4334,12 +4716,645 @@ static int iv_transform(void)
     return 0;
 }
 
+static long long unroll_norm(long long v, Type *t);
+
+/* ------------------------------------------------------------------ */
+/* dominator tree and dominance frontiers                              */
+/* ------------------------------------------------------------------ */
+static int *g_idom;                  /* immediate dominator of every block (-1 for the entry) */
+static int *g_cstart, *g_cedge;      /* children in the dominator tree */
+static struct DfVec {
+    int *v, n, cap;
+} *g_df;                             /* dominance frontier of every block */
+
+static void domtree_free(void)
+{
+    free(g_idom);
+    free(g_cstart);
+    free(g_cedge);
+    if (g_df) {
+        for (int i = 0; i < nbl; i++) {
+            free(g_df[i].v);
+        }
+    }
+    free(g_df);
+    g_idom = g_cstart = g_cedge = NULL;
+    g_df = NULL;
+}
+
+/* Builds the dominator tree from the dominator sets, and the dominance frontier of each block. */
+static void domtree_build(void)
+{
+    g_idom = malloc(nbl * sizeof *g_idom);
+    for (int b = 0; b < nbl; b++) {
+        g_idom[b] = -1;
+        if (b == 0 || !g_reach[b]) {
+            continue;
+        }
+        int best = -1, bestc = -1;
+        for (int d = 0; d < nbl; d++) {
+            if (d != b && g_reach[d] && dominates(d, b)) {
+                int c = 0;
+                for (int k = 0; k < g_w; k++) {
+                    c += __builtin_popcountll(g_dom[(size_t)d * g_w + k]);
+                }
+                if (c > bestc) {
+                    bestc = c;
+                    best = d;
+                }
+            }
+        }
+        g_idom[b] = best;
+    }
+    g_cstart = calloc(nbl + 2, sizeof *g_cstart);
+    for (int b = 1; b < nbl; b++) {
+        if (g_idom[b] >= 0) {
+            g_cstart[g_idom[b] + 1]++;
+        }
+    }
+    for (int b = 0; b < nbl; b++) {
+        g_cstart[b + 1] += g_cstart[b];
+    }
+    g_cedge = malloc((g_cstart[nbl] + 1) * sizeof *g_cedge);
+    int *fill = calloc(nbl, sizeof *fill);
+    for (int b = 1; b < nbl; b++) {
+        if (g_idom[b] >= 0) {
+            g_cedge[g_cstart[g_idom[b]] + fill[g_idom[b]]++] = b;
+        }
+    }
+    free(fill);
+    g_df = calloc(nbl, sizeof *g_df);
+    for (int b = 0; b < nbl; b++) {
+        if (!g_reach[b] || g_pstart[b + 1] - g_pstart[b] < 2) {
+            continue;
+        }
+        for (int e = g_pstart[b]; e < g_pstart[b + 1]; e++) {
+            for (int r = g_pedge[e]; r >= 0 && r != g_idom[b]; r = g_idom[r]) {
+                struct DfVec *d = &g_df[r];
+                int dup = 0;
+                for (int i = 0; i < d->n; i++) {
+                    dup |= d->v[i] == b;
+                }
+                if (!dup) {
+                    if (d->n == d->cap) {
+                        d->cap = d->cap ? d->cap * 2 : 4;
+                        d->v = realloc(d->v, d->cap * sizeof *d->v);
+                    }
+                    d->v[d->n++] = b;
+                }
+            }
+        }
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* static single assignment form                                       */
+/* ------------------------------------------------------------------ */
+enum { SV_ENTRY, SV_DEF, SV_PHI, SV_OPAQUE };
+enum { ST_TOP, ST_CONST, ST_BOT };
+
+typedef struct SsaVal {
+    int kind, var, blk, prev, state, live;
+    int atom;       /* SV_DEF: global number of the defining atom */
+    int *args;      /* SV_PHI: the value that comes from each predecessor */
+    long long iv;   /* constant value */
+} SsaVal;
+
+static SsaVal *sv;
+static int nsv, capsv;
+static int *a_base;                /* number of the first atom of each block */
+static int *a_def, *a_use0, *a_nuse; /* per atom: defined value, uses in the pools */
+static int *pu_var, *pu_val, npu, cappu;
+static int natoms_all;
+static int **bphi, *nbphi;         /* phi values of every block */
+static int *ssa_cur;               /* the current value of every variable during renaming */
+static int *pstk, psp, cappstk;
+static int ssa_nvars;
+
+static int sv_new(int kind, int var, int blk)
+{
+    if (nsv == capsv) {
+        capsv = capsv ? capsv * 2 : 256;
+        sv = realloc(sv, capsv * sizeof *sv);
+    }
+    memset(&sv[nsv], 0, sizeof sv[0]);
+    sv[nsv].kind = kind;
+    sv[nsv].var = var;
+    sv[nsv].blk = blk;
+    sv[nsv].prev = -1;
+    sv[nsv].atom = -1;
+    return nsv++;
+}
+
+static void ssa_free(void)
+{
+    for (int i = 0; i < nsv; i++) {
+        free(sv[i].args);
+    }
+    free(sv);
+    free(a_base);
+    free(a_def);
+    free(a_use0);
+    free(a_nuse);
+    free(pu_var);
+    free(pu_val);
+    free(ssa_cur);
+    free(pstk);
+    if (bphi) {
+        for (int i = 0; i < nbl; i++) {
+            free(bphi[i]);
+        }
+    }
+    free(bphi);
+    free(nbphi);
+    sv = NULL;
+    a_base = a_def = a_use0 = a_nuse = pu_var = pu_val = ssa_cur = pstk = nbphi = NULL;
+    bphi = NULL;
+    nsv = capsv = npu = cappu = natoms_all = psp = cappstk = 0;
+}
+
+static void push_def(int val)
+{
+    SsaVal *x = &sv[val];
+    x->prev = ssa_cur[x->var];
+    ssa_cur[x->var] = val;
+    if (psp == cappstk) {
+        cappstk = cappstk ? cappstk * 2 : 256;
+        pstk = realloc(pstk, cappstk * sizeof *pstk);
+    }
+    pstk[psp++] = val;
+}
+
+/* Returns true if the atom is a plain assignment  x = e  to a tracked variable. */
+static int ssa_simple_def(Atom *a, int nK)
+{
+    return (a->kind == A_EXPR || a->kind == A_VALUE) && *a->slot && lv_def(*a->slot) >= 0 && nK == 1;
+}
+
+/* Renames the variables of block b and of the blocks it dominates. */
+static void ssa_rename(int b)
+{
+    int base = psp;
+    for (int i = 0; i < nbphi[b]; i++) {
+        push_def(bphi[b][i]);
+    }
+    for (int i = 0; i < bl[b].natoms; i++) {
+        Atom *a = &bl[b].atoms[i];
+        int g = a_base[b] + i;
+        a_nuse[g] = 0;
+        a_def[g] = -1;
+        a_use0[g] = npu;
+        Sym *K[65];
+        int nK = 0;
+        if (a->kind != A_JUMP && *a->slot) {
+            uint64_t set[MAXLIVE / 64];
+            memset(set, 0, lv_words * sizeof *set);
+            Node *root = *a->slot;
+            if (ssa_simple_def(a, atom_assigns(a, K))) {
+                lv_use(root->r, set);
+            } else {
+                lv_use(root, set);
+            }
+            for (int v = 0; v < ssa_nvars; v++) {
+                if (set[v / 64] >> (v % 64) & 1) {
+                    if (npu == cappu) {
+                        cappu = cappu ? cappu * 2 : 256;
+                        pu_var = realloc(pu_var, cappu * sizeof *pu_var);
+                        pu_val = realloc(pu_val, cappu * sizeof *pu_val);
+                    }
+                    pu_var[npu] = v;
+                    pu_val[npu++] = ssa_cur[v];
+                    a_nuse[g]++;
+                }
+            }
+            nK = atom_assigns(a, K);
+            if (ssa_simple_def(a, nK)) {
+                int v = sv_new(SV_DEF, lv_def(*a->slot), b);
+                sv[v].atom = g;
+                a_def[g] = v;
+                push_def(v);
+            } else {
+                for (int k = 0; k < nK; k++) {
+                    int var = lv_index(K[k]);
+                    if (var >= 0) {
+                        push_def(sv_new(SV_OPAQUE, var, b));
+                    }
+                }
+            }
+        }
+    }
+    for (int k = 0; k < succ_count(&bl[b]); k++) {
+        int y = succ_at(&bl[b], k);
+        for (int j = g_pstart[y]; j < g_pstart[y + 1]; j++) {
+            if (g_pedge[j] != b) {
+                continue;
+            }
+            for (int p = 0; p < nbphi[y]; p++) {
+                SsaVal *ph = &sv[bphi[y][p]];
+                ph->args[j - g_pstart[y]] = ssa_cur[ph->var];
+            }
+        }
+    }
+    for (int c = g_cstart[b]; c < g_cstart[b + 1]; c++) {
+        ssa_rename(g_cedge[c]);
+    }
+    while (psp > base) {
+        int v = pstk[--psp];
+        ssa_cur[sv[v].var] = sv[v].prev;
+    }
+}
+
+/* Builds the SSA form of the function: phi functions at the (pruned) iterated dominance frontier of
+ * the assignments, then one value for every definition.  Needs the live variables of the blocks. */
+static int ssa_build(Node *body)
+{
+    if (!lv_solve(body)) {
+        return 0;
+    }
+    ssa_nvars = nlv;
+    int w = lv_words;
+    uint64_t *defb = calloc((size_t)ssa_nvars * g_w, sizeof *defb);
+    for (int b = 0; b < nbl; b++) {
+        for (int i = 0; g_reach[b] && i < bl[b].natoms; i++) {
+            Sym *K[65];
+            int nK = atom_assigns(&bl[b].atoms[i], K);
+            for (int k = 0; k < nK; k++) {
+                int v = lv_index(K[k]);
+                if (v >= 0) {
+                    defb[(size_t)v * g_w + b / 64] |= 1ULL << (b % 64);
+                }
+            }
+        }
+    }
+    bphi = calloc(nbl, sizeof *bphi);
+    nbphi = calloc(nbl, sizeof *nbphi);
+    int *work = malloc(nbl * sizeof *work);
+    char *hasphi = malloc(nbl), *inwork = malloc(nbl);
+    for (int v = 0; v < ssa_nvars; v++) {
+        int sp = 0;
+        memset(hasphi, 0, nbl);
+        memset(inwork, 0, nbl);
+        for (int b = 0; b < nbl; b++) {
+            if (g_reach[b] && (defb[(size_t)v * g_w + b / 64] >> (b % 64) & 1)) {
+                work[sp++] = b;
+                inwork[b] = 1;
+            }
+        }
+        while (sp > 0) {
+            int x = work[--sp];
+            for (int i = 0; i < g_df[x].n; i++) {
+                int y = g_df[x].v[i];
+                if (hasphi[y] || !(lv_in[(size_t)y * w + v / 64] >> (v % 64) & 1)) {
+                    continue;
+                }
+                hasphi[y] = 1;
+                int ph = sv_new(SV_PHI, v, y);
+                sv[ph].args = calloc(g_pstart[y + 1] - g_pstart[y] + 1, sizeof(int));
+                bphi[y] = realloc(bphi[y], (nbphi[y] + 1) * sizeof(int));
+                bphi[y][nbphi[y]++] = ph;
+                if (!inwork[y]) {
+                    inwork[y] = 1;
+                    work[sp++] = y;
+                }
+            }
+        }
+    }
+    free(work);
+    free(hasphi);
+    free(inwork);
+    free(defb);
+    natoms_all = 0;
+    a_base = malloc((nbl + 1) * sizeof *a_base);
+    for (int b = 0; b < nbl; b++) {
+        a_base[b] = natoms_all;
+        natoms_all += bl[b].natoms;
+    }
+    a_def = malloc((natoms_all + 1) * sizeof *a_def);
+    a_use0 = malloc((natoms_all + 1) * sizeof *a_use0);
+    a_nuse = malloc((natoms_all + 1) * sizeof *a_nuse);
+    for (int g = 0; g < natoms_all; g++) {
+        a_def[g] = -1;
+        a_use0[g] = a_nuse[g] = 0;
+    }
+    ssa_cur = malloc((ssa_nvars + 1) * sizeof *ssa_cur);
+    for (int v = 0; v < ssa_nvars; v++) {
+        ssa_cur[v] = sv_new(SV_ENTRY, v, 0);
+        sv[ssa_cur[v]].state = ST_BOT; /* parameters and uninitialised locals */
+    }
+    ssa_rename(0);
+    return 1;
+}
+
+/* ---- sparse conditional constant propagation ---- */
+
+/* Builds the environment of constants that hold at the start of an atom.  Returns 1 if a value the
+ * atom uses is not known yet. */
+static int ssa_atom_env(int g, Env *env)
+{
+    int top = 0;
+    env->n = 0;
+    for (int u = a_use0[g]; u < a_use0[g] + a_nuse[g]; u++) {
+        SsaVal *x = &sv[pu_val[u]];
+        if (x->state == ST_TOP) {
+            top = 1;
+        } else if (x->state == ST_CONST && env->n < MAXFACT) {
+            Fact f;
+            memset(&f, 0, sizeof f);
+            f.sym = lv_syms[pu_var[u]];
+            f.kind = FACT_INT;
+            f.iv = x->iv;
+            env->f[env->n++] = f;
+        }
+    }
+    return top;
+}
+
+static char *sc_exec;    /* block can run */
+static char *sc_edge;    /* edge (block, successor number) can be taken */
+static int *sc_eoff;
+
+/* Marks an edge as executable; returns 1 if it was not. */
+static int sc_mark_edge(int b, int k)
+{
+    int i = sc_eoff[b] + k;
+    if (sc_edge[i]) {
+        return 0;
+    }
+    sc_edge[i] = 1;
+    sc_exec[succ_at(&bl[b], k)] = 1;
+    return 1;
+}
+
+/* Sets the state of a value; returns 1 if it changed. */
+static int sc_lower(SsaVal *x, int state, long long iv)
+{
+    if (x->state == ST_BOT) {
+        return 0;
+    }
+    if (x->state == ST_CONST && state == ST_CONST && x->iv == iv) {
+        return 0;
+    }
+    if (x->state == ST_CONST && state == ST_CONST) {
+        state = ST_BOT;
+    }
+    if (x->state == state && x->iv == iv) {
+        return 0;
+    }
+    x->state = state;
+    x->iv = iv;
+    return 1;
+}
+
+/* One sweep over the executable blocks; returns 1 if anything changed. */
+static int sc_sweep(uint64_t aflags)
+{
+    int changed_any = 0;
+    for (int b = 0; b < nbl; b++) {
+        if (!sc_exec[b]) {
+            continue;
+        }
+        for (int p = 0; p < nbphi[b]; p++) {
+            SsaVal *ph = &sv[bphi[b][p]];
+            int state = ST_TOP;
+            long long iv = 0;
+            for (int j = g_pstart[b]; j < g_pstart[b + 1]; j++) {
+                int pb = g_pedge[j], live = 0;
+                for (int k = 0; k < succ_count(&bl[pb]); k++) {
+                    if (succ_at(&bl[pb], k) == b && sc_edge[sc_eoff[pb] + k]) {
+                        live = 1;
+                    }
+                }
+                if (!live) {
+                    continue;
+                }
+                SsaVal *a = &sv[ph->args[j - g_pstart[b]]];
+                if (a->state == ST_TOP) {
+                    continue;
+                }
+                if (a->state == ST_BOT) {
+                    state = ST_BOT;
+                } else if (state == ST_TOP) {
+                    state = ST_CONST;
+                    iv = a->iv;
+                } else if (state == ST_CONST && iv != a->iv) {
+                    state = ST_BOT;
+                }
+            }
+            if (state != ST_TOP && sc_lower(ph, state, iv)) {
+                changed_any = 1;
+            }
+        }
+        Block *blk = &bl[b];
+        int branch_done = 0;
+        for (int i = 0; i < blk->natoms; i++) {
+            Atom *a = &blk->atoms[i];
+            int g = a_base[b] + i;
+            if (a->kind == A_JUMP || !*a->slot) {
+                continue;
+            }
+            Env env;
+            int top = ssa_atom_env(g, &env);
+            if (a_def[g] >= 0) {
+                SsaVal *x = &sv[a_def[g]];
+                if (top || x->state == ST_BOT) {
+                    continue;
+                }
+                Node *c = clone_expr(*a->slot);
+                uint64_t saved = fl;
+                fl = aflags;
+                ex(c, &env, 0);
+                fl = saved;
+                Sym *var = lv_syms[x->var];
+                if (c->kind == N_ASSIGN && c->r->kind == N_NUM && is_int(var->ty)) {
+                    if (sc_lower(x, ST_CONST, unroll_norm(c->r->val, var->ty))) {
+                        changed_any = 1;
+                    }
+                } else if (sc_lower(x, ST_BOT, 0)) {
+                    changed_any = 1;
+                }
+            } else if (a->kind == A_COND && blk->term == T_BRANCH) {
+                if (top) {
+                    continue;
+                }
+                Node *c = clone_expr(*a->slot);
+                uint64_t saved = fl;
+                fl = aflags;
+                ex(c, &env, 1);
+                fl = saved;
+                int taken = 3;
+                if (c->kind == N_NUM) {
+                    taken = c->val ? 1 : 2;
+                }
+                for (int k = 0; k < 2; k++) {
+                    if ((taken & (1 << k)) && sc_mark_edge(b, k)) {
+                        changed_any = 1;
+                    }
+                }
+                branch_done = 1;
+            }
+        }
+        if (!branch_done) {
+            for (int k = 0; k < succ_count(blk); k++) {
+                if (blk->term != T_BRANCH && sc_mark_edge(b, k)) {
+                    changed_any = 1;
+                }
+            }
+        }
+    }
+    return changed_any;
+}
+
+/* Sparse conditional constant propagation on the SSA values: only the blocks and edges that can
+ * run are looked at, and a value is a constant when every definition that reaches it agrees.  The
+ * known constants are then propagated into the expressions.  Returns 1 if the tree changed. */
+static int sccp_run(void)
+{
+    uint64_t aflags = fl | FCO_CONSTPROP | FCO_COPYPROP | FCO_FOLD | FCO_ALGEBRA | FCO_COMPARE |
+                      FCO_BOOL;
+    sc_exec = calloc(nbl, 1);
+    int total_edges = 0;
+    sc_eoff = malloc((nbl + 1) * sizeof *sc_eoff);
+    for (int b = 0; b < nbl; b++) {
+        sc_eoff[b] = total_edges;
+        total_edges += succ_count(&bl[b]);
+    }
+    sc_edge = calloc(total_edges + 1, 1);
+    for (int i = 0; i < nsv; i++) {
+        if (sv[i].kind == SV_OPAQUE) {
+            sv[i].state = ST_BOT;
+        }
+    }
+    sc_exec[0] = 1;
+    int rounds = 0, settled = 0;
+    while (rounds++ < 60) {
+        if (!sc_sweep(aflags)) {
+            settled = 1;
+            break;
+        }
+    }
+    int result = 0;
+    if (settled) {
+        int before = changed;
+        changed = 0;
+        for (int b = 0; b < nbl; b++) {
+            if (!sc_exec[b]) {
+                continue;
+            }
+            for (int i = 0; i < bl[b].natoms; i++) {
+                Atom *a = &bl[b].atoms[i];
+                if (a->kind == A_JUMP || !*a->slot) {
+                    continue;
+                }
+                Env env;
+                ssa_atom_env(a_base[b] + i, &env);
+                if (env.n == 0) {
+                    continue;
+                }
+                uint64_t saved = fl;
+                fl = aflags;
+                ex(*a->slot, &env, a->kind == A_COND);
+                fl = saved;
+            }
+        }
+        result = changed;
+        changed |= before;
+    }
+    free(sc_exec);
+    free(sc_edge);
+    free(sc_eoff);
+    return result;
+}
+
+/* ---- aggressive dead-code elimination ---- */
+
+static int *ad_queue, ad_head, ad_tail;
+
+static void ad_mark(int val)
+{
+    if (val >= 0 && !sv[val].live) {
+        sv[val].live = 1;
+        ad_queue[ad_tail++] = val;
+    }
+}
+
+/* Aggressive dead-code elimination: an assignment is needed only if a statement with an effect
+ * (a branch, a return, a call, a store to memory) depends on its value, directly or through other
+ * assignments.  Assignments that only feed each other, such as an accumulator in a loop that is
+ * never read afterwards, are removed.  Returns 1 if it removed anything. */
+static int adce_run(void)
+{
+    ad_queue = malloc((nsv + 1) * sizeof *ad_queue);
+    ad_head = ad_tail = 0;
+    for (int b = 0; b < nbl; b++) {
+        if (!g_reach[b]) {
+            continue;
+        }
+        for (int i = 0; i < bl[b].natoms; i++) {
+            Atom *a = &bl[b].atoms[i];
+            int g = a_base[b] + i;
+            if (a_def[g] >= 0 && pure((*a->slot)->r)) {
+                continue; /* needed only if its value is */
+            }
+            for (int u = a_use0[g]; u < a_use0[g] + a_nuse[g]; u++) {
+                ad_mark(pu_val[u]);
+            }
+        }
+    }
+    while (ad_head < ad_tail) {
+        SsaVal *x = &sv[ad_queue[ad_head++]];
+        if (x->kind == SV_DEF) {
+            for (int u = a_use0[x->atom]; u < a_use0[x->atom] + a_nuse[x->atom]; u++) {
+                ad_mark(pu_val[u]);
+            }
+        } else if (x->kind == SV_PHI) {
+            for (int j = 0; j < g_pstart[x->blk + 1] - g_pstart[x->blk]; j++) {
+                ad_mark(x->args[j]);
+            }
+        }
+    }
+    int removed = 0;
+    for (int b = 0; b < nbl; b++) {
+        if (!g_reach[b]) {
+            continue;
+        }
+        for (int i = 0; i < bl[b].natoms; i++) {
+            Atom *a = &bl[b].atoms[i];
+            int g = a_base[b] + i;
+            if (a_def[g] < 0 || sv[a_def[g]].live || !pure((*a->slot)->r)) {
+                continue;
+            }
+            if (a->kind == A_EXPR && a->stmt && a->stmt->kind == S_EXPR && a->stmt->l == *a->slot) {
+                make_nop(a->stmt);
+                removed++;
+            } else if (a->kind == A_VALUE) {
+                rep(*a->slot, num(0, ty_int, (*a->slot)->line));
+                removed++;
+            }
+        }
+    }
+    free(ad_queue);
+    ad_queue = NULL;
+    return removed;
+}
+
+static int has_zero;
+static void zero_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (n->kind == S_ZERO) {
+        has_zero = 1;
+    }
+}
+
 /* Runs the analyses and transformations that need loops and expression availability. */
 static void cfg_phase2(Sym *f)
 {
     int do_loops = (fl & FCO_LOOPS) && (fl & (FCO_LICM | FCO_IV));
     int do_avail = (fl & FCO_AVAIL) && (fl & (FCO_GCSE | FCO_PRE));
-    if (!use_flow || !(do_loops || do_avail)) {
+    int do_ssa = (fl & FCO_SSA) && (fl & FCO_DOMTREE) && (fl & (FCO_SCCP | FCO_ADCE));
+    has_zero = 0;
+    walk(f->body, zero_cb, NULL);
+    if (!use_flow || !(do_loops || do_avail || do_ssa)) {
         return;
     }
     for (int round = 0; round < 24; round++) {
@@ -4357,14 +5372,34 @@ static void cfg_phase2(Sym *f)
                     moved = licm_transform((fl & FCO_RD) != 0, f->body);
                 }
             }
+            gc_mem = (fl & FCO_ALIAS) && !has_zero;
             if (!moved && do_avail && avail_prepare() && avail_solve()) {
-                if (fl & FCO_PRE) {
+                if ((fl & FCO_PRE) && !(fl & FCO_SIZE)) {
                     moved = pre_insert();
                 }
                 if (!moved && (fl & FCO_GCSE)) {
                     moved = gcse_apply();
                 }
                 avail_release();
+            }
+            gc_mem = 0;
+            gc_atom = NULL;
+            if (!moved && do_ssa) {
+                domtree_build();
+                if (ssa_build(f->body)) {
+                    int before = changed;
+                    changed = 0;
+                    if (fl & FCO_SCCP) {
+                        moved = sccp_run();
+                    }
+                    if (!moved && (fl & FCO_ADCE)) {
+                        moved = adce_run() > 0;
+                    }
+                    changed |= before;
+                    ssa_free();
+                    lv_release();
+                }
+                domtree_free();
             }
         }
         graph_free();
@@ -4480,7 +5515,13 @@ static int inl_eligible(Sym *g, InlInfo *in)
         }
         ret = st;
     }
-    if (!ret || gc_size(ret->l) > INL_MAXSIZE) {
+    int maxsz = INL_MAXSIZE;
+    if (fl & FCO_SIZE) { /* only what shrinks the program: tiny bodies, or the last call */
+        maxsz = (g->ncalls == 1 && !g->fn_addr) ? INL_MAXSIZE : 3;
+    } else if (g->prof >= 100) {
+        maxsz = 2 * INL_MAXSIZE;
+    }
+    if (!ret || gc_size(ret->l) > maxsz || ((fl & FCO_RECUR) && g->rec)) {
         return 0;
     }
     for (int i = 0; i < g->ndbg; i++) {
@@ -4631,6 +5672,597 @@ static void inline_calls(Sym *f)
     }
 }
 
+/* ------------------------------------------------------------------ */
+/* loop unrolling and loop unswitching                                 */
+/* ------------------------------------------------------------------ */
+enum { UNROLL_MAXTRIPS = 8, UNROLL_MAXSIZE = 160, PARTIAL_MAXSIZE = 40, UNSWITCH_MAXSIZE = 100 };
+
+/* Returns a deep copy of a statement or expression, with the nodes that follow it in its list. */
+static Node *clone_deep(Node *n)
+{
+    Node *head = NULL, **tail = &head;
+    for (; n; n = n->next) {
+        Node *c = copy_node(n);
+        c->l = clone_deep(n->l);
+        c->r = clone_deep(n->r);
+        c->c = clone_deep(n->c);
+        c->d = clone_deep(n->d);
+        *tail = c;
+        tail = &c->next;
+    }
+    return head;
+}
+
+/* Returns a deep copy of one node (not of the nodes after it). */
+static Node *clone_one(Node *n)
+{
+    Node *save = n->next;
+    n->next = NULL;
+    Node *c = clone_deep(n);
+    n->next = save;
+    return c;
+}
+
+/* Returns the number of nodes below and including n, with its list. */
+static int stmt_size(Node *n)
+{
+    int sz = 0;
+    for (; n; n = n->next) {
+        int chain = n->kind == S_CASE || n->kind == S_DEFAULT; /* r is the case chain, not a child */
+        sz += 1 + stmt_size(n->l) + (chain ? 0 : stmt_size(n->r)) + stmt_size(n->c) + stmt_size(n->d);
+    }
+    return sz;
+}
+
+static int lx_bad;
+static Sym *lx_assigned[64];
+static int lx_nassigned, lx_over;
+
+/* Walker callback: notes the constructs that cannot be copied and the variables that change. */
+static void lx_scan_cb(Node *n, void *ud)
+{
+    (void)ud;
+    switch (n->kind) {
+    case S_BREAK:
+    case S_CONTINUE:
+    case S_GOTO:
+    case S_LABEL:
+    case S_SWITCH:
+    case S_CASE:
+    case S_DEFAULT:
+    case S_ZERO:
+        lx_bad = 1;
+        break;
+    case N_CALL:
+        if (n->sym && n->sym->is_builtin) {
+            lx_bad = 1; /* setjmp and the like */
+        }
+        break;
+    case N_ASSIGN:
+    case N_ASSIGNOP:
+    case N_PREINC:
+    case N_POSTINC:
+    case N_PREDEC:
+    case N_POSTDEC:
+        if (n->l && n->l->kind == N_VAR) {
+            for (int i = 0; i < lx_nassigned; i++) {
+                if (lx_assigned[i] == n->l->sym) {
+                    return;
+                }
+            }
+            if (lx_nassigned == 64) {
+                lx_over = 1;
+            } else {
+                lx_assigned[lx_nassigned++] = n->l->sym;
+            }
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+/* Scans the statement list for what lx_scan_cb looks for. */
+static void lx_scan(Node *list)
+{
+    lx_bad = lx_nassigned = lx_over = 0;
+    for (Node *n = list; n; n = n->next) {
+        walk(n, lx_scan_cb, NULL);
+    }
+}
+
+static int lx_assigns(Sym *s)
+{
+    for (int i = 0; i < lx_nassigned; i++) {
+        if (lx_assigned[i] == s) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Decodes a step  i++, i--, i += c, i -= c, i = i + c, i = i - c  of the variable. */
+static int unroll_step(Node *e, Sym *v, long long *k)
+{
+    if (!e) {
+        return 0;
+    }
+    Node *l = e->l;
+    if ((e->kind == N_POSTINC || e->kind == N_PREINC || e->kind == N_POSTDEC ||
+         e->kind == N_PREDEC) &&
+        l->kind == N_VAR && l->sym == v) {
+        *k = (e->kind == N_POSTINC || e->kind == N_PREINC) ? e->val : -e->val;
+        return 1;
+    }
+    if (e->kind == N_ASSIGNOP && (e->op == B_ADD || e->op == B_SUB) && l->kind == N_VAR &&
+        l->sym == v && e->r->kind == N_NUM) {
+        *k = e->op == B_ADD ? e->r->val : -e->r->val;
+        return 1;
+    }
+    if (e->kind == N_ASSIGN && l->kind == N_VAR && l->sym == v && e->r->kind == N_BIN &&
+        (e->r->op == B_ADD || e->r->op == B_SUB) && e->r->l->kind == N_VAR &&
+        e->r->l->sym == v && e->r->r->kind == N_NUM) {
+        *k = e->r->op == B_ADD ? e->r->r->val : -e->r->r->val;
+        return 1;
+    }
+    return 0;
+}
+
+/* Wraps a value to the type of the variable. */
+static long long unroll_norm(long long v, Type *t)
+{
+    int bits = t->size * 8;
+    if (bits >= 64) {
+        return v;
+    }
+    unsigned long long m = (1ULL << bits) - 1, u = (unsigned long long)v & m;
+    if (!t->uns && (u >> (bits - 1))) {
+        u |= ~m;
+    }
+    return (long long)u;
+}
+
+/* Replaces  for (i = c; i < N; i += k) body  by the body repeated, when the loop runs a small
+ * known number of times. */
+static int unroll_full(Node *f)
+{
+    Node *init = f->d, *cond = f->c, *step = f->r;
+    if (!init || init->next || init->kind != S_EXPR || init->l->kind != N_ASSIGN ||
+        init->l->l->kind != N_VAR || init->l->r->kind != N_NUM || !cond || !step) {
+        return 0;
+    }
+    Sym *v = init->l->l->sym;
+    if (!trackable(v) || !is_int(v->ty) || cond->kind != N_BIN || cond->l->kind != N_VAR ||
+        cond->l->sym != v || cond->r->kind != N_NUM) {
+        return 0;
+    }
+    int op = cond->op;
+    if (op != B_LT && op != B_LE && op != B_GT && op != B_GE && op != B_NE) {
+        return 0;
+    }
+    long long k;
+    if (!unroll_step(step, v, &k) || k == 0) {
+        return 0;
+    }
+    long long x = unroll_norm(init->l->r->val, v->ty), bound = unroll_norm(cond->r->val, v->ty);
+    int trips = 0;
+    for (;;) {
+        int go;
+        int u = v->ty->uns;
+        switch (op) {
+        case B_LT:
+            go = u ? (unsigned long long)x < (unsigned long long)bound : x < bound;
+            break;
+        case B_LE:
+            go = u ? (unsigned long long)x <= (unsigned long long)bound : x <= bound;
+            break;
+        case B_GT:
+            go = u ? (unsigned long long)x > (unsigned long long)bound : x > bound;
+            break;
+        case B_GE:
+            go = u ? (unsigned long long)x >= (unsigned long long)bound : x >= bound;
+            break;
+        default:
+            go = x != bound;
+        }
+        if (!go) {
+            break;
+        }
+        if (++trips > UNROLL_MAXTRIPS) {
+            return 0;
+        }
+        x = unroll_norm(x + k, v->ty);
+    }
+    lx_scan(f->l);
+    if (lx_bad || lx_over || lx_assigns(v) || stmt_size(f->l) * trips + trips > UNROLL_MAXSIZE) {
+        return 0;
+    }
+    Node *blk = new_node(S_BLOCK, NULL, f->line);
+    blk->cmpty_uns = f->line;
+    Node **t = &blk->l;
+    *t = clone_one(init);
+    t = &(*t)->next;
+    for (int i = 0; i < trips; i++) {
+        Node *b = new_node(S_BLOCK, NULL, f->line);
+        b->cmpty_uns = f->line;
+        b->l = clone_deep(f->l);
+        *t = b;
+        t = &b->next;
+        Node *st = new_node(S_EXPR, NULL, f->line);
+        st->l = clone_one(step);
+        *t = st;
+        t = &st->next;
+    }
+    rep(f, blk);
+    return 1;
+}
+
+/* Replaces  for (a; c; s) body  by  for (a; c;) { body; s; if (c) { body; s; } }  so that the
+ * loop test and jump are executed once per two iterations. */
+static int unroll_partial(Node *f)
+{
+    if (!f->c || !f->r || !pure(f->c) || stmt_size(f->l) > PARTIAL_MAXSIZE) {
+        return 0;
+    }
+    lx_scan(f->l);
+    walk(f->r, lx_scan_cb, NULL);
+    walk(f->c, lx_scan_cb, NULL);
+    if (lx_bad || lx_over) {
+        return 0;
+    }
+    int line = f->line;
+    Node *body = f->l, *step = f->r;
+    Node *inner = new_node(S_BLOCK, NULL, line);
+    inner->cmpty_uns = line;
+    inner->l = clone_deep(body);
+    Node *s2 = new_node(S_EXPR, NULL, line);
+    s2->l = clone_one(step);
+    Node *last = inner->l;
+    while (last->next) {
+        last = last->next;
+    }
+    last->next = s2;
+    Node *test = new_node(S_IF, NULL, line);
+    test->c = clone_one(f->c);
+    test->l = inner;
+    Node *s1 = new_node(S_EXPR, NULL, line);
+    s1->l = step;
+    Node *blk = new_node(S_BLOCK, NULL, line);
+    blk->cmpty_uns = line;
+    blk->l = body;
+    Node *b = body;
+    while (b->next) {
+        b = b->next;
+    }
+    b->next = s1;
+    s1->next = test;
+    f->l = blk;
+    f->r = NULL;
+    changed = 1;
+    return 1;
+}
+
+/* Returns true if the condition only uses constants and local scalars. */
+static int unswitch_cond(Node *e)
+{
+    switch (e->kind) {
+    case N_NUM:
+        return 1;
+    case N_VAR:
+        return trackable(e->sym) && !lx_assigns(e->sym);
+    case N_NOT:
+    case N_NEG:
+    case N_BITNOT:
+        return unswitch_cond(e->l);
+    case N_CAST:
+        return scalar_ty(e->ty) && scalar_ty(e->l->ty) && unswitch_cond(e->l);
+    case N_LOGAND:
+    case N_LOGOR:
+        return unswitch_cond(e->l) && unswitch_cond(e->r);
+    case N_BIN:
+        return e->op != B_DIV && e->op != B_MOD && unswitch_cond(e->l) && unswitch_cond(e->r);
+    default:
+        return 0;
+    }
+}
+
+static Node *us_found;
+
+/* Walker callback: finds an if statement with a loop-invariant condition. */
+static void us_find_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (!us_found && n->kind == S_IF && n->c->kind != N_NUM && unswitch_cond(n->c)) {
+        us_found = n;
+    }
+}
+
+static Node *us_mark;
+
+/* Walker callback: finds the marked if statement in a copy. */
+static void us_mark_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (n->kind == S_IF && n->bw == -777) {
+        us_mark = n;
+    }
+}
+
+static int unswitch_count;
+
+/* Replaces a loop that contains  if (c) A else B  with an invariant c by
+ * if (c) loop-with-A else loop-with-B. */
+static int unswitch(Node *loop)
+{
+    if (unswitch_count >= 4) {
+        return 0;
+    }
+    lx_scan(loop->l);
+    walk(loop->c, lx_scan_cb, NULL);
+    walk(loop->r, lx_scan_cb, NULL);
+    for (Node *d = loop->d; d; d = d->next) {
+        walk(d, lx_scan_cb, NULL);
+    }
+    if (lx_bad || lx_over || stmt_size(loop) > UNSWITCH_MAXSIZE) {
+        return 0;
+    }
+    us_found = NULL;
+    walk(loop->l, us_find_cb, NULL);
+    if (!us_found) {
+        return 0;
+    }
+    int line = loop->line;
+    Node *cond = clone_one(us_found->c);
+    us_found->bw = -777;
+    Node *copy = clone_one(loop); /* the version for the else branch */
+    us_mark = NULL;
+    walk(copy->l, us_mark_cb, NULL);
+    Node *orig_if = us_found;
+    us_found->bw = 0;
+    if (!us_mark) {
+        return 0;
+    }
+    us_mark->bw = 0;
+    Node *then_s = clone_one(us_mark->l);
+    Node *else_s = us_mark->r ? clone_one(us_mark->r) : new_node(S_NOP, NULL, line);
+    rep(us_mark, else_s);
+    Node *keep_then = orig_if->l ? clone_one(orig_if->l) : new_node(S_NOP, NULL, line);
+    (void)then_s;
+    rep(orig_if, keep_then);
+    Node *first = copy_node(loop);
+    first->next = NULL;
+    Node *sel = new_node(S_IF, NULL, line);
+    sel->c = cond;
+    sel->l = first;
+    copy->next = NULL;
+    sel->r = copy;
+    rep(loop, sel);
+    unswitch_count++;
+    return 1;
+}
+
+/* Walker callback: unswitches and fully unrolls loops. */
+static void lx_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (n->kind != S_FOR && n->kind != S_WHILE && n->kind != S_DO) {
+        return;
+    }
+    if ((fl & FCO_UNSWITCH) && !(fl & FCO_SIZE)) {
+        unswitch(n);
+    }
+    if (n->kind == S_FOR && (fl & FCO_UNROLL) && !(fl & FCO_SIZE)) {
+        unroll_full(n);
+    }
+}
+
+/* Walker callback: unrolls loops by two. */
+static void partial_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (n->kind == S_FOR && !(fl & FCO_SIZE) && pgo_loop_hot(cur_fn, n)) {
+        unroll_partial(n);
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* scalar replacement of structures and arrays                         */
+/* ------------------------------------------------------------------ */
+enum { SR_MAXVARS = 32, SR_MAXENTS = 8, SR_MAXSIZE = 128 };
+
+typedef struct SrEnt {
+    long off;
+    Type *ty;
+    Sym *sym;
+} SrEnt;
+
+typedef struct SrVar {
+    Sym *s;
+    SrEnt e[SR_MAXENTS];
+    int n, total, good, bad;
+} SrVar;
+
+static SrVar sr_v[SR_MAXVARS];
+static int sr_nv;
+
+/* Returns the candidate record of the symbol, or NULL. */
+static SrVar *sr_find(Sym *s)
+{
+    for (int i = 0; i < sr_nv; i++) {
+        if (sr_v[i].s == s) {
+            return &sr_v[i];
+        }
+    }
+    return NULL;
+}
+
+/* Walker callback: counts the uses of the candidates. */
+static void sr_count_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (n->kind == N_VAR && n->sym) {
+        SrVar *v = sr_find(n->sym);
+        if (v) {
+            v->total++;
+        }
+    }
+}
+
+/* Recognises  v.member  and  v[constant]  (written as *(&v + offset)) on a candidate. */
+static SrVar *sr_access(Node *n, long *off)
+{
+    Node *base = NULL;
+    if (n->kind == N_MEMBER && n->l->kind == N_VAR && !n->bw) {
+        base = n->l;
+        *off = n->val;
+    } else if (n->kind == N_DEREF) {
+        Node *a = n->l;
+        *off = 0;
+        if (a->kind == N_BIN && a->op == B_ADD && a->r->kind == N_NUM) {
+            *off = a->r->val;
+            a = a->l;
+        }
+        if (a->kind == N_ADDR && a->l->kind == N_VAR) {
+            base = a->l;
+        }
+    }
+    if (!base || !base->sym) {
+        return NULL;
+    }
+    SrVar *v = sr_find(base->sym);
+    if (!v || !scalar_ty(n->ty) || *off < 0 || *off + n->ty->size > v->s->ty->size) {
+        return NULL;
+    }
+    return v;
+}
+
+/* Returns the entry for the access, creating it; NULL if it clashes with another one. */
+static SrEnt *sr_entry(SrVar *v, long off, Type *ty)
+{
+    for (int i = 0; i < v->n; i++) {
+        SrEnt *e = &v->e[i];
+        if (e->off == off && e->ty->size == ty->size && is_int(e->ty) == is_int(ty) &&
+            is_ptr(e->ty) == is_ptr(ty) &&
+            (e->ty->kind == TY_FLOAT || e->ty->kind == TY_DOUBLE) ==
+                (ty->kind == TY_FLOAT || ty->kind == TY_DOUBLE) &&
+            e->ty->kind == ty->kind) {
+            return e;
+        }
+        if (off < e->off + e->ty->size && e->off < off + ty->size) {
+            return NULL; /* overlaps an entry of another shape */
+        }
+    }
+    if (v->n == SR_MAXENTS) {
+        return NULL;
+    }
+    SrEnt *e = &v->e[v->n++];
+    e->off = off;
+    e->ty = ty;
+    e->sym = NULL;
+    return e;
+}
+
+static int sr_phase; /* 0: classify, 1: rewrite */
+
+/* Visits a tree; a node that is an access to a candidate is classified or rewritten. */
+static void sr_visit(Node *n)
+{
+    for (; n; n = n->next) {
+        long off;
+        SrVar *v = sr_access(n, &off);
+        if (v) {
+            SrEnt *e = sr_entry(v, off, n->ty);
+            if (!e) {
+                v->bad = 1;
+            } else if (sr_phase == 0) {
+                v->good++;
+            } else if (!v->bad) {
+                if (!e->sym) {
+                    e->sym = new_temp(e->ty, n->line)->sym;
+                }
+                Node *nv = new_node(N_VAR, n->ty, n->line);
+                nv->sym = e->sym;
+                rep(n, nv);
+            }
+            continue;
+        }
+        if (n->kind == S_ZERO && n->sym) {
+            SrVar *z = sr_find(n->sym);
+            if (z && sr_phase == 1 && !z->bad) {
+                Node *blk = new_node(S_BLOCK, NULL, n->line), **t = &blk->l;
+                blk->cmpty_uns = n->line;
+                for (int i = 0; i < z->n; i++) {
+                    if (!z->e[i].sym) {
+                        z->e[i].sym = new_temp(z->e[i].ty, n->line)->sym;
+                    }
+                    Type *et = z->e[i].ty;
+                    Node *zero;
+                    if (et->kind == TY_FLOAT || et->kind == TY_DOUBLE) {
+                        zero = new_node(N_FNUM, et, n->line);
+                        zero->fval = 0;
+                    } else {
+                        zero = num(0, et, n->line);
+                    }
+                    Node *nv = new_node(N_VAR, et, n->line);
+                    nv->sym = z->e[i].sym;
+                    Node *as = new_node(N_ASSIGN, et, n->line);
+                    as->l = nv;
+                    as->r = zero;
+                    Node *st = new_node(S_EXPR, NULL, n->line);
+                    st->l = as;
+                    *t = st;
+                    t = &st->next;
+                }
+                rep(n, blk);
+            }
+            continue;
+        }
+        int chain = n->kind == S_CASE || n->kind == S_DEFAULT;
+        sr_visit(n->l);
+        if (!chain) {
+            sr_visit(n->r);
+        }
+        sr_visit(n->c);
+        sr_visit(n->d);
+    }
+}
+
+/* Replaces the local structures and small arrays that are only used member by member (or element
+ * by element with a constant index) by one scalar variable for each member. */
+static void sroa(Sym *f)
+{
+    sr_nv = 0;
+    for (int i = 0; i < f->ndbg && sr_nv < SR_MAXVARS; i++) {
+        Sym *s = f->dbgvars[i];
+        if (s->kind == SY_VAR && !s->global && !s->is_param && !s->esc &&
+            (s->ty->kind == TY_STRUCT || s->ty->kind == TY_ARRAY) && s->ty->size > 0 &&
+            s->ty->size <= SR_MAXSIZE) {
+            memset(&sr_v[sr_nv], 0, sizeof sr_v[0]);
+            sr_v[sr_nv++].s = s;
+        }
+    }
+    if (!sr_nv) {
+        return;
+    }
+    walk(f->body, sr_count_cb, NULL);
+    sr_phase = 0;
+    sr_visit(f->body);
+    for (int i = 0; i < sr_nv; i++) {
+        if (sr_v[i].total != sr_v[i].good) {
+            sr_v[i].bad = 1;
+        }
+        sr_v[i].n = 0; /* the entries are made again, with the symbols, in the second pass */
+    }
+    int any = 0;
+    for (int i = 0; i < sr_nv; i++) {
+        any |= !sr_v[i].bad;
+    }
+    if (any) {
+        sr_phase = 1;
+        sr_visit(f->body);
+    }
+}
+
 /* Optimizes the body of function f.  debugged says that debug information is recorded for it. */
 void opt_function(Sym *f, int debugged)
 {
@@ -4640,9 +6272,18 @@ void opt_function(Sym *f, int debugged)
         return;
     }
     cur_fn = f;
+    if (opt_fn_size(f)) { /* -Os, or code that the profile found cold: keep it small */
+        fl = (fl | FCO_SIZE) & ~(uint64_t)(FCO_UNROLL | FCO_UNSWITCH);
+    }
     use_flow = 1;
     has_goto = no_cfg = 0;
     int volatile_fn = PG.uses_volatile && !f->from_rt;
+    if ((fl & FCO_SROA) && !debugged && !PG.uses_volatile) {
+        sroa(f);
+    }
+    if (!debugged) {
+        pgo_function(f);
+    }
     if (debugged) { /* keep the statements and variable values the source shows */
         fl &= FCO_FOLD | FCO_ALGEBRA | FCO_COMPARE | FCO_CASTS | FCO_CANON | FCO_STRENGTH | FCO_BOOL;
         jumps = 0;
@@ -4656,7 +6297,12 @@ void opt_function(Sym *f, int debugged)
         fl &= ~(uint64_t)FCO_CSE;
     }
     if (!no_cfg && use_flow && (fl & FCO_TAILREC)) {
-        tail_recursion(f);
+        tail_phase(f);
+        walk(f->body, scan_node, NULL);
+    }
+    if ((fl & (FCO_UNROLL | FCO_UNSWITCH)) && !has_goto && !debugged) {
+        unswitch_count = 0;
+        walk(f->body, lx_cb, NULL);
         walk(f->body, scan_node, NULL);
     }
     uint64_t all = fl;
@@ -4696,6 +6342,9 @@ void opt_function(Sym *f, int debugged)
     }
     if (fl & FCO_CSE) {
         walk(f->body, cse_cb, NULL);
+    }
+    if ((fl & FCO_UNROLL) && !has_goto && !debugged && !no_cfg) {
+        walk(f->body, partial_cb, NULL);
     }
 }
 
@@ -4841,4 +6490,681 @@ void opt_regalloc(Sym *f, int debugged)
         f->regmask |= 1 << (chosen - 1);
         f->rsave[chosen - 1] = ra_slot(f);
     }
+}
+
+/* ------------------------------------------------------------------ */
+/* whole program: call graph, recursion, purity, interprocedural passes */
+/* ------------------------------------------------------------------ */
+typedef struct CgNode {
+    int *to, n, cap;       /* the functions it calls directly */
+    int low, idx, onstack; /* Tarjan's strongly connected components */
+    int impure;            /* does something with a side effect itself */
+    int mentions, calls;   /* uses of the name; how many of them are direct calls */
+} CgNode;
+
+static CgNode *cg;
+static Sym **wp_fn;          /* the functions with a body */
+static int wp_n, wp_stack_n, wp_counter;
+static int *wp_stack;
+static Sym *wp_cur;
+
+/* Returns true if the lvalue is a local variable (or part of one). */
+static int lv_is_local(Node *l)
+{
+    while (l && l->kind == N_MEMBER) {
+        l = l->l;
+    }
+    return l && l->kind == N_VAR && l->sym->kind == SY_VAR && !l->sym->global;
+}
+
+/* Walker callback: notes calls, mentions of function names and side effects of wp_cur. */
+static void wp_scan_cb(Node *n, void *ud)
+{
+    (void)ud;
+    CgNode *me = &cg[wp_cur->fidx];
+    switch (n->kind) {
+    case N_CALL:
+        if (n->sym && n->sym->kind == SY_FUNC) {
+            Sym *c = n->sym;
+            if (c->fidx >= 0 && c->fidx < wp_n && wp_fn[c->fidx] == c) {
+                cg[c->fidx].calls++;
+                if (me->n == me->cap) {
+                    me->cap = me->cap ? me->cap * 2 : 4;
+                    me->to = realloc(me->to, me->cap * sizeof *me->to);
+                }
+                me->to[me->n++] = c->fidx;
+            } else {
+                me->impure = 1; /* a function without a body: unknown */
+            }
+        } else {
+            me->impure = 1; /* a call through a pointer */
+        }
+        break;
+    case N_VAR:
+        if (n->sym && n->sym->kind == SY_FUNC && n->sym->fidx >= 0 && n->sym->fidx < wp_n &&
+            wp_fn[n->sym->fidx] == n->sym) {
+            cg[n->sym->fidx].mentions++;
+        }
+        break;
+    case N_ASSIGN:
+    case N_ASSIGNOP:
+    case N_PREINC:
+    case N_POSTINC:
+    case N_PREDEC:
+    case N_POSTDEC:
+        if (!lv_is_local(n->l)) {
+            me->impure = 1;
+        }
+        break;
+    case S_GOTO:
+        me->impure = 1; /* may loop for ever */
+        break;
+    case S_WHILE:
+    case S_DO:
+        if (!n->l || n->l->kind == N_NUM) {
+            me->impure = 1;
+        }
+        break;
+    case S_FOR:
+        if (!n->l || n->l->kind == N_NUM) {
+            me->impure = 1;
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+/* Tarjan's algorithm: marks the functions that take part in a cycle of calls. */
+static void wp_scc(int v)
+{
+    cg[v].idx = cg[v].low = ++wp_counter;
+    wp_stack[wp_stack_n++] = v;
+    cg[v].onstack = 1;
+    for (int i = 0; i < cg[v].n; i++) {
+        int w = cg[v].to[i];
+        if (!cg[w].idx) {
+            wp_scc(w);
+            if (cg[w].low < cg[v].low) {
+                cg[v].low = cg[w].low;
+            }
+        } else if (cg[w].onstack && cg[w].idx < cg[v].low) {
+            cg[v].low = cg[w].idx;
+        }
+    }
+    if (cg[v].low == cg[v].idx) {
+        int members = 0, start = wp_stack_n;
+        while (wp_stack[--start] != v) {
+            members++;
+        }
+        members++;
+        for (int i = start; i < wp_stack_n; i++) {
+            int w = wp_stack[i];
+            cg[w].onstack = 0;
+            if (members > 1) {
+                wp_fn[w]->rec = 2;
+            }
+        }
+        wp_stack_n = start;
+    }
+}
+
+static void wp_free(void)
+{
+    for (int i = 0; i < wp_n; i++) {
+        free(cg[i].to);
+    }
+    free(cg);
+    free(wp_fn);
+    free(wp_stack);
+    cg = NULL;
+    wp_fn = NULL;
+    wp_stack = NULL;
+    wp_n = 0;
+}
+
+/* Builds the call graph of the functions that have a body and decides which are recursive and
+ * which are pure. */
+static void wp_analyze(void)
+{
+    wp_free();
+    wp_fn = calloc(PG.nfuncs + 1, sizeof *wp_fn);
+    for (int i = 0; i < PG.nfuncs; i++) {
+        Sym *f = PG.funcs[i];
+        f->fidx = -1;
+        if (f->body && f->defined && !f->is_builtin) {
+            f->fidx = wp_n;
+            wp_fn[wp_n++] = f;
+        }
+        f->rec = f->pure = f->ncalls = f->fn_addr = 0;
+    }
+    cg = calloc(wp_n + 1, sizeof *cg);
+    for (int i = 0; i < wp_n; i++) {
+        wp_cur = wp_fn[i];
+        walk(wp_cur->body, wp_scan_cb, NULL);
+    }
+    for (int i = 0; i < wp_n; i++) {
+        Sym *f = wp_fn[i];
+        f->ncalls = cg[i].calls;
+        f->fn_addr = cg[i].mentions > cg[i].calls || (f->reach & 2) || !strcmp(f->name, "main") ||
+                     f->from_rt;
+    }
+    for (int i = 0; i < PG.ndrel; i++) {
+        if (PG.drel[i].kind == 2 && PG.drel[i].fn->kind == SY_FUNC && PG.drel[i].fn->fidx >= 0) {
+            PG.drel[i].fn->fn_addr = 1;
+        }
+    }
+    wp_stack = malloc((wp_n + 1) * sizeof *wp_stack);
+    wp_stack_n = wp_counter = 0;
+    for (int i = 0; i < wp_n; i++) {
+        if (!cg[i].idx) {
+            wp_scc(i);
+        }
+        for (int k = 0; k < cg[i].n; k++) {
+            if (cg[i].to[k] == i) {
+                wp_fn[i]->rec = wp_fn[i]->rec ? wp_fn[i]->rec : 1;
+            }
+        }
+    }
+    for (int i = 0; i < wp_n; i++) { /* purity: the greatest fixed point */
+        wp_fn[i]->pure = !cg[i].impure;
+    }
+    for (int again = 1; again;) {
+        again = 0;
+        for (int i = 0; i < wp_n; i++) {
+            if (!wp_fn[i]->pure) {
+                continue;
+            }
+            for (int k = 0; k < cg[i].n; k++) {
+                if (!wp_fn[cg[i].to[k]]->pure) {
+                    wp_fn[i]->pure = 0;
+                    again = 1;
+                    break;
+                }
+            }
+        }
+    }
+}
+
+/* ---- interprocedural constant propagation ---- */
+enum { IP_UNSEEN, IP_CONST, IP_VARIES };
+
+static struct {
+    Sym *f;
+    Sym *params[MAXPARAM];
+    int np, state[MAXPARAM], discarded;
+    long long val[MAXPARAM];
+    double fval[MAXPARAM];
+} ip;
+
+/* Walker callback: collects what the call sites pass. */
+static void ip_call_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (n->kind != N_CALL || n->sym != ip.f) {
+        return;
+    }
+    Node *a = n->r;
+    for (int i = 0; i < ip.np; i++, a = a ? a->next : NULL) {
+        if (!a) {
+            ip.state[i] = IP_VARIES;
+            continue;
+        }
+        if (ip.state[i] == IP_VARIES) {
+            continue;
+        }
+        if (a->kind == N_VAR && wp_cur == ip.f && a->sym == ip.params[i]) {
+            continue; /* a recursive call that passes the parameter on */
+        }
+        if (a->kind == N_NUM && a->ty->kind != TY_FLOAT && a->ty->kind != TY_DOUBLE) {
+            if (ip.state[i] == IP_UNSEEN) {
+                ip.state[i] = IP_CONST;
+                ip.val[i] = a->val;
+            } else if (ip.val[i] != a->val) {
+                ip.state[i] = IP_VARIES;
+            }
+        } else {
+            ip.state[i] = IP_VARIES;
+        }
+    }
+}
+
+/* Walker callback: counts the assignments to and address-takings of a parameter. */
+static Sym *ip_target;
+static int ip_modified;
+static void ip_mod_cb(Node *n, void *ud)
+{
+    (void)ud;
+    switch (n->kind) {
+    case N_ASSIGN:
+    case N_ASSIGNOP:
+    case N_PREINC:
+    case N_POSTINC:
+    case N_PREDEC:
+    case N_POSTDEC:
+        if (n->l && n->l->kind == N_VAR && n->l->sym == ip_target) {
+            ip_modified = 1;
+        }
+        break;
+    case N_ADDR:
+        if (n->l && n->l->kind == N_VAR && n->l->sym == ip_target) {
+            ip_modified = 1;
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+static struct {
+    Sym *sym;
+    long long val;
+    int count;
+} ip_sub;
+
+/* Walker callback: replaces uses of a parameter by the constant. */
+static void ip_sub_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (n->kind == N_VAR && n->sym == ip_sub.sym) {
+        rep(n, num(ip_sub.val, n->ty, n->line));
+        ip_sub.count++;
+    }
+}
+
+/* Walker callback: counts the uses of a parameter. */
+static void ip_use_cb(Node *n, void *ud)
+{
+    if (n->kind == N_VAR && n->sym == ud) {
+        inl_count++;
+    }
+}
+
+/* Walker callback: replaces an argument that the callee never reads by 0. */
+static void ip_arg_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (n->kind != N_CALL || n->sym != ip.f) {
+        return;
+    }
+    Node *a = n->r;
+    for (int i = 0; i < ip.np && a; i++, a = a->next) {
+        if (ip.state[i] == IP_UNSEEN && a->kind != N_NUM && pure(a) && scalar_ty(a->ty) &&
+            a->ty->kind != TY_FLOAT && a->ty->kind != TY_DOUBLE && is_int(a->ty)) {
+            rep(a, num(0, a->ty, a->line)); /* state UNSEEN is reused to mean "never read" */
+            ip.discarded++;
+        }
+    }
+}
+
+/* Walker callback: counts S_EXPR statements that discard the value of a call of ip.f. */
+static int ip_disc;
+static void ip_disc_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (n->kind == S_EXPR && n->l && n->l->kind == N_CALL && n->l->sym == ip.f) {
+        ip_disc++;
+    }
+}
+
+/* Walker callback: drops the value that a function returns when no caller uses it. */
+static void ip_ret_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (n->kind == S_RETURN && n->l) {
+        Node *e = n->l;
+        if (pure(e)) {
+            n->l = NULL;
+        } else {
+            Node *st = new_node(S_EXPR, NULL, n->line);
+            st->l = e;
+            Node *keep = copy_node(n);
+            keep->l = NULL;
+            keep->next = NULL;
+            st->next = keep;
+            Node *blk = new_node(S_BLOCK, NULL, n->line);
+            blk->cmpty_uns = n->line;
+            blk->l = st;
+            rep(n, blk);
+        }
+        changed = 1;
+    }
+}
+
+/* Walker callback: removes statements that call a pure function and discard the result. */
+static void ip_purecall_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (n->kind == S_EXPR && n->l && n->l->kind == N_CALL && n->l->sym && n->l->sym->pure &&
+        n->l->sym->fidx >= 0) {
+        for (Node *a = n->l->r; a; a = a->next) {
+            if (!pure(a)) {
+                return;
+            }
+        }
+        make_nop(n);
+    }
+}
+
+/* Walker callback: lists the functions a body still names. */
+static Sym *keep_list[256];
+static int nkeep;
+static void keep_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (n->kind == N_VAR && n->sym && n->sym->kind == SY_FUNC && nkeep < 256) {
+        keep_list[nkeep++] = n->sym;
+    }
+}
+
+/* Interprocedural passes over the whole program.  Run once before the code of any function is
+ * generated. */
+void opt_program(int debugged)
+{
+    uint64_t flags = CX->opt.opt_flags;
+    if (debugged || PG.uses_volatile ||
+        !(flags & (FCO_INLINE | FCO_IPCP | FCO_IPDCE | FCO_RECUR))) {
+        return;
+    }
+    fl = flags;
+    wp_analyze();
+    if (flags & FCO_INLINE) { /* inlining first: the small functions then lose their callers */
+        for (int i = 0; i < wp_n; i++) {
+            if (!wp_fn[i]->from_rt) {
+                cur_fn = wp_fn[i];
+                fl = opt_fn_size(cur_fn) ? flags | FCO_SIZE : flags;
+                inline_calls(cur_fn);
+            }
+        }
+        wp_analyze();
+    }
+    if (flags & FCO_IPCP) {
+        for (int i = 0; i < wp_n; i++) {
+            Sym *f = wp_fn[i];
+            if (f->from_rt || f->fn_addr || f->ncalls == 0 || f->ty->variadic || f->ty->noproto) {
+                continue;
+            }
+            memset(&ip, 0, sizeof ip);
+            ip.f = f;
+            for (int k = 0; k < f->ndbg; k++) {
+                if (f->dbgvars[k]->is_param && ip.np < MAXPARAM) {
+                    ip.params[ip.np++] = f->dbgvars[k];
+                }
+            }
+            if (ip.np != f->ty->nparams || ip.np == 0) {
+                continue;
+            }
+            for (int c = 0; c < wp_n; c++) {
+                if (!wp_fn[c]->from_rt) {
+                    wp_cur = wp_fn[c];
+                    walk(wp_cur->body, ip_call_cb, NULL);
+                }
+            }
+            for (int k = 0; k < ip.np; k++) {
+                if (ip.state[k] != IP_CONST || !scalar_ty(ip.params[k]->ty) ||
+                    !is_int(ip.params[k]->ty)) {
+                    continue;
+                }
+                ip_target = ip.params[k];
+                ip_modified = 0;
+                walk(f->body, ip_mod_cb, NULL);
+                if (ip_modified) {
+                    continue;
+                }
+                ip_sub.sym = ip.params[k];
+                ip_sub.val = ip.val[k];
+                ip_sub.count = 0;
+                walk(f->body, ip_sub_cb, NULL);
+            }
+        }
+    }
+    if (flags & FCO_IPDCE) {
+        for (int i = 0; i < wp_n; i++) { /* arguments that the callee never reads */
+            Sym *f = wp_fn[i];
+            if (f->from_rt || f->fn_addr || f->ncalls == 0 || f->ty->variadic || f->ty->noproto) {
+                continue;
+            }
+            memset(&ip, 0, sizeof ip);
+            ip.f = f;
+            for (int k = 0; k < f->ndbg; k++) {
+                if (f->dbgvars[k]->is_param && ip.np < MAXPARAM) {
+                    ip.params[ip.np++] = f->dbgvars[k];
+                }
+            }
+            if (ip.np != f->ty->nparams || ip.np == 0) {
+                continue;
+            }
+            int any = 0;
+            for (int k = 0; k < ip.np; k++) {
+                inl_count = 0;
+                walk(f->body, ip_use_cb, ip.params[k]);
+                ip.state[k] = (inl_count == 0 && !ip.params[k]->esc) ? IP_UNSEEN : IP_VARIES;
+                any |= ip.state[k] == IP_UNSEEN;
+            }
+            if (any) {
+                for (int c = 0; c < wp_n; c++) {
+                    walk(wp_fn[c]->body, ip_arg_cb, NULL);
+                }
+            }
+        }
+        for (int i = 0; i < wp_n; i++) { /* results that no caller uses */
+            Sym *f = wp_fn[i];
+            if (f->from_rt || f->fn_addr || f->ncalls == 0 || f->rec == 1 || !scalar_ty(f->ty->ret) ||
+                f->ty->ret->kind == TY_VOID) {
+                continue;
+            }
+            ip.f = f;
+            ip_disc = 0;
+            for (int c = 0; c < wp_n; c++) {
+                walk(wp_fn[c]->body, ip_disc_cb, NULL);
+            }
+            if (ip_disc == f->ncalls) {
+                walk(f->body, ip_ret_cb, NULL);
+            }
+        }
+        for (int i = 0; i < wp_n; i++) { /* calls of pure functions whose value is not used */
+            if (!wp_fn[i]->from_rt) {
+                walk(wp_fn[i]->body, ip_purecall_cb, NULL);
+            }
+        }
+        wp_analyze();
+        for (int i = 0; i < wp_n; i++) { /* forget the references to functions no longer called */
+            Sym *f = wp_fn[i];
+            if (f->from_rt) {
+                continue;
+            }
+            nkeep = 0;
+            walk(f->body, keep_cb, NULL);
+            int w = 0;
+            for (int r = 0; r < f->nrefs; r++) {
+                Sym *t = f->refs[r];
+                int drop = t->kind == SY_FUNC && t->fidx >= 0 && !t->from_rt && t != f;
+                for (int k = 0; k < nkeep && drop; k++) {
+                    if (keep_list[k] == t) {
+                        drop = 0;
+                    }
+                }
+                if (nkeep == 256) {
+                    drop = 0;
+                }
+                if (!drop) {
+                    f->refs[w++] = t;
+                }
+            }
+            f->nrefs = w;
+        }
+    }
+    wp_free();
+}
+
+/* ------------------------------------------------------------------ */
+/* profile-guided optimization                                         */
+/* ------------------------------------------------------------------ */
+static struct PgoEnt {
+    char key[48];
+    long count;
+} *pgo_tab;
+static int pgo_n, pgo_cap, pgo_loaded;
+
+/* Reads the profile written by a program compiled with -Pg.  Lines have the form "key count";
+ * counters with the same key (the copies of an unrolled loop) are added. */
+void opt_profile_load(const char *file)
+{
+    FILE *fp = fopen(file, "r");
+    if (!fp) {
+        return;
+    }
+    char line[160];
+    while (fgets(line, sizeof line, fp)) {
+        char key[48];
+        long count;
+        if (sscanf(line, "%47s %ld", key, &count) != 2) {
+            continue;
+        }
+        int i;
+        for (i = 0; i < pgo_n && strcmp(pgo_tab[i].key, key); i++) {
+        }
+        if (i == pgo_n) {
+            if (pgo_n == pgo_cap) {
+                pgo_cap = pgo_cap ? pgo_cap * 2 : 256;
+                pgo_tab = realloc(pgo_tab, pgo_cap * sizeof *pgo_tab);
+            }
+            snprintf(pgo_tab[pgo_n].key, sizeof pgo_tab[pgo_n].key, "%s", key);
+            pgo_tab[pgo_n++].count = 0;
+        }
+        pgo_tab[i].count += count;
+    }
+    fclose(fp);
+    pgo_loaded = pgo_n > 0;
+    for (int i = 0; i < PG.nfuncs; i++) {
+        Sym *f = PG.funcs[i];
+        f->prof = -1;
+    }
+}
+
+/* Returns the recorded count of an instrumented place, or -1 if the profile has no entry. */
+static long pgo_count(const char *fn, int kind, int id, int which)
+{
+    char key[64];
+    snprintf(key, sizeof key, "%.20s/%c/%d/%c", fn, kind, id, which);
+    for (int i = 0; i < pgo_n; i++) {
+        if (!strcmp(pgo_tab[i].key, key)) {
+            return pgo_tab[i].count;
+        }
+    }
+    return -1;
+}
+
+/* Sets the call count of the user functions from the profile. */
+static void pgo_set_counts(void)
+{
+    for (int i = 0; i < PG.nfuncs; i++) {
+        Sym *f = PG.funcs[i];
+        f->prof = (pgo_loaded && !f->from_rt) ? pgo_count(f->name, 'F', 0, 'E') : -1;
+    }
+}
+
+/* Puts the functions the profile found hot first, the hottest of them at the very start, so that
+ * they stay together in the instruction cache. */
+void opt_profile_order(void)
+{
+    if (!pgo_loaded) {
+        return;
+    }
+    pgo_set_counts();
+    Sym **sorted = malloc((PG.nfuncs + 1) * sizeof *sorted);
+    int n = 0;
+    for (int i = 0; i < PG.nfuncs; i++) {
+        if (PG.funcs[i]->prof > 0) {
+            sorted[n++] = PG.funcs[i];
+        }
+    }
+    for (int i = 1; i < n; i++) { /* stable insertion sort, hottest first */
+        Sym *v = sorted[i];
+        int j = i;
+        while (j > 0 && sorted[j - 1]->prof < v->prof) {
+            sorted[j] = sorted[j - 1];
+            j--;
+        }
+        sorted[j] = v;
+    }
+    Sym **all = malloc((PG.nfuncs + 1) * sizeof *all);
+    int w = 0;
+    for (int i = 0; i < n; i++) {
+        all[w++] = sorted[i];
+    }
+    for (int i = 0; i < PG.nfuncs; i++) {
+        if (PG.funcs[i]->prof <= 0) {
+            all[w++] = PG.funcs[i];
+        }
+    }
+    memcpy(PG.funcs, all, w * sizeof *all);
+    free(sorted);
+    free(all);
+}
+
+static int pgo_next_id;
+
+/* Walker callback: numbers the places that the instrumentation counts. */
+static void pgo_number_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (n->kind == S_IF || n->kind == S_WHILE || n->kind == S_DO || n->kind == S_FOR) {
+        n->bsh = ++pgo_next_id;
+    }
+}
+
+/* Gives every if and loop of the function a number that stays the same however the function is
+ * optimized: -Pg counts by it, -Pu finds the counts again. */
+void opt_pgo_number(Sym *f)
+{
+    pgo_next_id = 0;
+    walk(f->body, pgo_number_cb, NULL);
+}
+
+/* Returns true if the function is code that the profile saw never run (or -Os is on). */
+int opt_fn_size(Sym *f)
+{
+    if (CX->opt.opt_flags & FCO_SIZE) {
+        return 1;
+    }
+    return pgo_loaded && !f->from_rt && f->prof == 0;
+}
+
+/* Walker callback: makes the likely arm of an if statement the fall-through one. */
+static void pgo_if_cb(Node *n, void *ud)
+{
+    Sym *f = ud;
+    if (n->kind != S_IF || n->bsh <= 0 || !n->r) {
+        return;
+    }
+    long e = pgo_count(f->name, 'I', n->bsh, 'E'), t = pgo_count(f->name, 'I', n->bsh, 'T');
+    if (e > 0 && t >= 0 && t * 2 < e) { /* the else arm is taken more often */
+        Node *neg = new_node(N_NOT, ty_int, n->line);
+        neg->l = n->c;
+        n->c = neg;
+        Node *x = n->l;
+        n->l = n->r;
+        n->r = x;
+        changed = 1;
+    }
+}
+
+/* Applies the branch profile to a function. */
+static void pgo_function(Sym *f)
+{
+    if (pgo_loaded && !f->from_rt && f->prof >= 0) {
+        walk(f->body, pgo_if_cb, f);
+    }
+}
+
+/* Returns true if a loop ran on average often enough per entry that unrolling pays; loops the
+ * profile does not know are judged by their shape alone. */
+static int pgo_loop_hot(Sym *f, Node *loop)
+{
+    if (!pgo_loaded || f->from_rt || f->prof < 0 || loop->bsh <= 0) {
+        return 1;
+    }
+    long e = pgo_count(f->name, 'L', loop->bsh, 'E'), t = pgo_count(f->name, 'L', loop->bsh, 'T');
+    return e < 0 || t < 0 || (e > 0 && t >= 3 * e);
 }
