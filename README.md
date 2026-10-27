@@ -111,6 +111,11 @@ docs/           the documentation, and the screenshots used in it
 analysis/       the study of the reference IDE
 ```
 
+## Contributing
+
+Bug reports and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow,
+code style and tests.
+
 ## Tests
 
 `make test` runs, in order: the compiler against `gcc` (`tests/run.sh`), the diagnostics text
