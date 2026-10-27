@@ -44,6 +44,19 @@ source ──► lexer/preprocessor ──► parser + type checker ──► x8
   data-flow passes are skipped for functions with `goto`/labels, `setjmp`, or `volatile` in the program. With debug
   info (`-v`) propagation, dead stores, CSE and unreachable-code removal are skipped. `tests/opt.sh` checks each
   pass; `tests/optfuzz.py` compiles random programs with and without optimizations and compares their output.
+* **Control-flow optimizations (`opt.c`)**: `cfg_build` splits a function into basic blocks (expression, condition,
+  return and jump "atoms"; blocks for `if`, loops, `switch`/`case`, `break`/`continue`, `goto`/labels) and `cfg_solve`
+  runs an optimistic work-list analysis over it. What is known at the start of each block (constants and copies of
+  non-escaping local scalars) is the intersection over the incoming edges that can be taken; a branch whose condition
+  evaluates to a constant takes only one edge (conditional constant propagation). `cfg_apply` then propagates the
+  facts into the reachable blocks and removes the code and labels of the blocks that were never reached.
+  `cfg_live_dce` computes live variables backwards over the same graph and replaces assignments whose value is dead
+  by their right-hand side. Jump threading retargets a `goto` whose label only holds another `goto`; labels that no
+  `goto` names any more are removed, which merges their block into the one before it; `if (c) goto L; L:` loses the
+  jump. Tail-recursion elimination turns `return f(args);` inside `f` into assignments to the parameters (through
+  temporaries) and a `goto` to a label at the start of the body; it only applies when every local and parameter is a
+  scalar whose address is never taken. Functions with `setjmp` skip all of this; with debug info only expression
+  level passes run.
 * **Code generator optimizations (`-O`, `-Z`)**: `-Z` keeps a constant right operand in `rcx` instead of `push rax` / `pop rax` and
   removes `push rax; pop` pairs that are not separated by a label or line mark; `-O` drops a `jmp` to the next
   instruction and then relaxes the jumps of each function (rel32 to rel8 until a fixed point), remapping labels,

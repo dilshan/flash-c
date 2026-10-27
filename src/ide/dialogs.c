@@ -120,6 +120,18 @@ void opt_command(int cmd)
             "Common subexpression elimination",
             "Strength reduction",
             "Boolean simplification",
+            "Basic-block construction",
+            "Global constant propagation",
+            "Conditional constant propagation",
+            "Control-flow simplification",
+            "Unreachable block elimination",
+            "Global dead code elimination",
+            "Global copy propagation",
+            "Basic-block merging",
+            "Jump threading",
+            "Live-variable analysis",
+            "Branch simplification",
+            "Tail-recursion elimination",
             "Jump optimization",
             "Suppress redundant loads",
         };
@@ -136,6 +148,18 @@ void opt_command(int cmd)
             "Compute an expression that occurs several times only once",
             "Replace multiplication, division and modulo by shifts and masks",
             "Simplify conditions: !!x, x == 0, c ? 1 : 0, constant && and ||",
+            "Split the function into basic blocks (needed by the global optimizations below)",
+            "Propagate constants through branches, joins and loops",
+            "Ignore branches that a known constant condition never takes",
+            "Remove jumps to the next statement and empty statements",
+            "Remove blocks that no path reaches, including their labels",
+            "Remove assignments that are never read on any path, using live variables",
+            "Replace a variable by the variable it was copied from, across blocks",
+            "Merge a block into its predecessor when its label is no longer a jump target",
+            "Send a goto straight to its final target, or to a simple return",
+            "Find which variables can still be read (used by global dead code elimination)",
+            "Remove a conditional jump to the next statement",
+            "Turn return f(...) inside f into a jump to the start of the function",
             "Remove jumps to the next instruction and use short jumps where the target is near",
             "Keep constant operands in a register instead of saving and restoring the left operand",
         };
@@ -145,9 +169,9 @@ void opt_command(int cmd)
         }
         on[NOPT] = cfg.jump_opt;
         on[NOPT + 1] = cfg.red_loads;
-        db_start(&d, " Optimization Options ", 60);
+        db_start(&d, " Optimization Options ", 64);
         dlg_static(&d, 2, 2, "Select the optimizations to apply:");
-        DItem *list = dlg_list(&d, 2, 3, 42, 11, labels, NOPT + 2, NULL);
+        DItem *list = dlg_list(&d, 2, 3, 46, 11, labels, NOPT + 2, NULL);
         list->val = on; /* check list: Space or a click on the box switches an entry */
         list->helps = helps;
         db_finish(&d, 1);

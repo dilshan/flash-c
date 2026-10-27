@@ -39,6 +39,8 @@ static int jumps;        /* redundant jump elimination enabled (the -O switch) *
 static Sym *cur_fn;      /* the function */
 static int use_flow;     /* data-flow passes (propagation, dead stores, CSE) are allowed */
 static int changed;      /* set whenever a pass changed the tree */
+static int has_goto;     /* the function has goto statements or labels */
+static int no_cfg;       /* the control-flow graph passes must not run (setjmp) */
 
 /* Returns the representation-relevant size of a scalar type. */
 static int same_rep(Type *a, Type *b)
@@ -202,11 +204,12 @@ static void scan_node(Node *n, void *ud)
     case N_CALL:
         if (n->sym && n->sym->is_builtin && !strcmp(n->sym->name, "__setjmp")) {
             use_flow = 0;
+            no_cfg = 1;
         }
         break;
     case S_LABEL:
     case S_GOTO:
-        use_flow = 0;
+        has_goto = 1;
         break;
     default:
         break;
@@ -1501,11 +1504,33 @@ static void simp_list(Node **head)
             dead = 1;
         }
         /* goto L; L:  ->  L: */
-        if (jumps && s->kind == S_GOTO && s->next && s->next->kind == S_LABEL &&
+        if ((jumps || (fl & FCO_CFS)) && s->kind == S_GOTO && s->next && s->next->kind == S_LABEL &&
             s->next->str == s->str) {
             *pp = s->next;
             changed = 1;
             continue;
+        }
+        /* if (c) goto L; L:  ->  if (c) ; L: */
+        if ((fl & FCO_BRANCH) && s->kind == S_IF && is_nop(s->r) && !is_nop(s->l)) {
+            Node *g = s->l;
+            while (g && g->kind == S_BLOCK && g->l && !g->l->next) {
+                g = g->l;
+            }
+            Node *nx = s->next;
+            while (nx && nx->kind == S_NOP) {
+                nx = nx->next;
+            }
+            if (g && g->kind == S_GOTO && nx && nx->kind == S_LABEL && nx->str == g->str) {
+                make_nop(s->l);
+                if (effect_free(s->c, 0)) {
+                    make_nop(s);
+                } else {
+                    s->kind = S_EXPR; /* the condition is still evaluated */
+                    s->l = s->c;
+                    s->c = s->r = NULL;
+                }
+                changed = 1;
+            }
         }
         pp = &s->next;
     }
@@ -2025,8 +2050,930 @@ static void cse_cb(Node *n, void *ud)
 }
 
 /* ------------------------------------------------------------------ */
+/* control-flow graph: basic blocks, global data flow                  */
+/* ------------------------------------------------------------------ */
+
+/* Returns a copy of an expression tree (not of the nodes after it in a list). */
+static Node *clone_chain(Node *n);
+
+static Node *clone_expr(Node *n)
+{
+    if (!n) {
+        return NULL;
+    }
+    Node *c = copy_node(n);
+    c->l = clone_chain(n->l);
+    c->r = clone_chain(n->r);
+    c->c = clone_chain(n->c);
+    return c;
+}
+
+/* Returns a copy of an expression list (call arguments are chained through next). */
+static Node *clone_chain(Node *n)
+{
+    Node *head = NULL, **tail = &head;
+    for (; n; n = n->next) {
+        *tail = clone_expr(n);
+        tail = &(*tail)->next;
+    }
+    return head;
+}
+
+/* What a basic block executes, in order.  The expression of an atom is *slot. */
+enum {
+    A_EXPR,   /* expression statement (can be removed as a whole) */
+    A_VALUE,  /* expression that is part of a statement, such as the step of a for loop */
+    A_COND,   /* condition of if/while/do/for; the block ends in a two-way branch */
+    A_SWITCH, /* controlling expression of a switch */
+    A_RET,    /* return with a value */
+    A_JUMP    /* goto, break, continue, return without value */
+};
+
+typedef struct Atom {
+    int kind;
+    Node *stmt;
+    Node **slot;
+} Atom;
+
+enum { T_FALL, T_JUMP, T_BRANCH, T_RET, T_SWITCH };
+
+/* A basic block: straight-line code that is entered only at its start. */
+typedef struct Block {
+    Atom *atoms;
+    int natoms, capatoms;
+    int term;               /* how the block ends (T_*) */
+    int succ[2], nsucc;     /* successors; for a branch: [0] condition true, [1] false */
+    int *multi, nmulti, capmulti; /* successors of a switch */
+    Node **labels;          /* goto labels placed at the start of the block */
+    int nlabels, caplabels;
+    int vis;                /* reached by the data-flow analysis */
+    Env in;                 /* what is known at the start of the block */
+} Block;
+
+static Block *bl;
+static int nbl, capbl;
+static int cur;           /* block being built */
+static int cfg_ok;        /* the graph could be built */
+static struct LabelMap {
+    char *name;
+    int blk;
+} *lmap;
+static int nlmap, caplmap;
+enum { MAXNEST = 64 };
+static int brk_stk[MAXNEST], cont_stk[MAXNEST], sw_stk[MAXNEST], sw_def[MAXNEST];
+static int nbrk, ncont, nsw;
+
+/* Appends a new empty block and returns its number. */
+static int new_block(void)
+{
+    if (nbl == capbl) {
+        capbl = capbl ? capbl * 2 : 64;
+        bl = realloc(bl, capbl * sizeof *bl);
+    }
+    memset(&bl[nbl], 0, sizeof bl[nbl]);
+    return nbl++;
+}
+
+/* Releases the graph. */
+static void cfg_free(void)
+{
+    for (int i = 0; i < nbl; i++) {
+        free(bl[i].atoms);
+        free(bl[i].multi);
+        free(bl[i].labels);
+    }
+    free(bl);
+    free(lmap);
+    bl = NULL;
+    lmap = NULL;
+    nbl = capbl = nlmap = caplmap = 0;
+}
+
+/* Adds an atom to the current block. */
+static void add_atom(int kind, Node *stmt, Node **slot)
+{
+    Block *b = &bl[cur];
+    if (b->natoms == b->capatoms) {
+        b->capatoms = b->capatoms ? b->capatoms * 2 : 4;
+        b->atoms = realloc(b->atoms, b->capatoms * sizeof *b->atoms);
+    }
+    b->atoms[b->natoms].kind = kind;
+    b->atoms[b->natoms].stmt = stmt;
+    b->atoms[b->natoms].slot = slot;
+    b->natoms++;
+}
+
+/* Adds the edge from -> to. */
+static void add_edge(int from, int to)
+{
+    Block *b = &bl[from];
+    if (b->term == T_SWITCH) {
+        if (b->nmulti == b->capmulti) {
+            b->capmulti = b->capmulti ? b->capmulti * 2 : 4;
+            b->multi = realloc(b->multi, b->capmulti * sizeof *b->multi);
+        }
+        b->multi[b->nmulti++] = to;
+    } else if (b->nsucc < 2) {
+        b->succ[b->nsucc++] = to;
+    }
+}
+
+/* Lets the current block run on into block to, unless it already ends in a jump. */
+static void fall_to(int to)
+{
+    if (bl[cur].term == T_FALL && bl[cur].nsucc == 0) {
+        add_edge(cur, to);
+    }
+}
+
+/* Ends the current block with an unconditional jump and starts an unreachable one. */
+static void jump_block(int to)
+{
+    bl[cur].term = T_JUMP;
+    add_edge(cur, to);
+    cur = new_block();
+}
+
+/* Returns the block of a goto label, creating it on first use. */
+static int label_block(char *name)
+{
+    for (int i = 0; i < nlmap; i++) {
+        if (lmap[i].name == name) {
+            return lmap[i].blk;
+        }
+    }
+    if (nlmap == caplmap) {
+        caplmap = caplmap ? caplmap * 2 : 8;
+        lmap = realloc(lmap, caplmap * sizeof *lmap);
+    }
+    lmap[nlmap].name = name;
+    lmap[nlmap].blk = new_block();
+    return lmap[nlmap++].blk;
+}
+
+/* Ends the current block with a two-way branch. */
+static void branch_block(int on_true, int on_false)
+{
+    bl[cur].term = T_BRANCH;
+    add_edge(cur, on_true);
+    add_edge(cur, on_false);
+}
+
+static void build_stmt(Node *s);
+
+static void build_list(Node *s)
+{
+    for (; s; s = s->next) {
+        build_stmt(s);
+    }
+}
+
+/* Appends the blocks of a statement to the graph. */
+static void build_stmt(Node *s)
+{
+    if (!s || !cfg_ok) {
+        return;
+    }
+    switch (s->kind) {
+    case S_EXPR:
+        if (s->l) {
+            add_atom(A_EXPR, s, &s->l);
+        }
+        return;
+    case S_BLOCK:
+        build_list(s->l);
+        return;
+    case S_IF: {
+        add_atom(A_COND, s, &s->c);
+        int head = cur, tb = new_block(), fb = new_block(), join = new_block();
+        branch_block(tb, fb);
+        cur = tb;
+        build_stmt(s->l);
+        fall_to(join);
+        cur = fb;
+        build_stmt(s->r);
+        fall_to(join);
+        cur = join;
+        (void)head;
+        return;
+    }
+    case S_WHILE:
+    case S_DO:
+    case S_FOR: {
+        if (nbrk >= MAXNEST || ncont >= MAXNEST) {
+            cfg_ok = 0;
+            return;
+        }
+        if (s->kind == S_FOR) {
+            build_list(s->d);
+        }
+        int body = new_block(), exit = new_block(), head = new_block();
+        int step = s->kind == S_FOR ? new_block() : head; /* where continue goes */
+        if (s->kind == S_DO) {
+            fall_to(body);
+            step = head; /* the test comes after the body */
+        } else {
+            fall_to(head);
+        }
+        if (s->kind != S_DO) {
+            cur = head;
+            if (s->c) {
+                add_atom(A_COND, s, &s->c);
+                branch_block(body, exit);
+            } else {
+                bl[cur].term = T_JUMP;
+                add_edge(cur, body);
+            }
+        }
+        brk_stk[nbrk++] = exit;
+        cont_stk[ncont++] = step;
+        cur = body;
+        build_stmt(s->l);
+        if (s->kind == S_FOR) {
+            fall_to(step);
+            cur = step;
+            if (s->r) {
+                add_atom(A_VALUE, s, &s->r);
+            }
+            fall_to(head);
+        } else if (s->kind == S_DO) {
+            fall_to(head);
+            cur = head;
+            add_atom(A_COND, s, &s->c);
+            branch_block(body, exit);
+        } else {
+            fall_to(head);
+        }
+        nbrk--;
+        ncont--;
+        cur = exit;
+        return;
+    }
+    case S_SWITCH: {
+        if (nbrk >= MAXNEST || nsw >= MAXNEST) {
+            cfg_ok = 0;
+            return;
+        }
+        add_atom(A_SWITCH, s, &s->c);
+        int head = cur, exit = new_block();
+        bl[head].term = T_SWITCH;
+        sw_stk[nsw] = head;
+        sw_def[nsw++] = 0;
+        brk_stk[nbrk++] = exit;
+        cur = new_block(); /* nothing falls into the first case from the test */
+        build_stmt(s->l);
+        fall_to(exit);
+        nbrk--;
+        nsw--;
+        if (!sw_def[nsw]) {
+            add_edge(head, exit);
+        }
+        cur = exit;
+        return;
+    }
+    case S_CASE:
+    case S_DEFAULT: {
+        if (nsw == 0) {
+            cfg_ok = 0;
+            return;
+        }
+        int cb = new_block();
+        fall_to(cb);
+        add_edge(sw_stk[nsw - 1], cb);
+        if (s->kind == S_DEFAULT) {
+            sw_def[nsw - 1] = 1;
+        }
+        cur = cb;
+        build_stmt(s->l);
+        return;
+    }
+    case S_BREAK:
+        if (nbrk == 0) {
+            cfg_ok = 0;
+            return;
+        }
+        add_atom(A_JUMP, s, NULL);
+        jump_block(brk_stk[nbrk - 1]);
+        return;
+    case S_CONTINUE:
+        if (ncont == 0) {
+            cfg_ok = 0;
+            return;
+        }
+        add_atom(A_JUMP, s, NULL);
+        jump_block(cont_stk[ncont - 1]);
+        return;
+    case S_GOTO:
+        add_atom(A_JUMP, s, NULL);
+        jump_block(label_block(s->str));
+        return;
+    case S_LABEL: {
+        int lb = label_block(s->str);
+        fall_to(lb);
+        cur = lb;
+        Block *b = &bl[lb];
+        if (b->nlabels == b->caplabels) {
+            b->caplabels = b->caplabels ? b->caplabels * 2 : 2;
+            b->labels = realloc(b->labels, b->caplabels * sizeof *b->labels);
+        }
+        b->labels[b->nlabels++] = s;
+        build_stmt(s->l);
+        return;
+    }
+    case S_RETURN:
+        if (s->l) {
+            add_atom(A_RET, s, &s->l);
+        } else {
+            add_atom(A_JUMP, s, NULL);
+        }
+        bl[cur].term = T_RET;
+        cur = new_block();
+        return;
+    default:
+        return; /* S_NOP, S_ZERO */
+    }
+}
+
+/* Builds the graph of the function body; block 0 is the entry. */
+static int cfg_build(Node *body)
+{
+    cfg_ok = 1;
+    nbrk = ncont = nsw = 0;
+    cur = new_block();
+    build_stmt(body);
+    if (!cfg_ok) {
+        cfg_free();
+    }
+    return cfg_ok;
+}
+
+/* Returns the number of successors of a block. */
+static int succ_count(Block *b)
+{
+    return b->term == T_SWITCH ? b->nmulti : b->nsucc;
+}
+
+/* Returns the i-th successor of a block. */
+static int succ_at(Block *b, int i)
+{
+    return b->term == T_SWITCH ? b->multi[i] : b->succ[i];
+}
+
+/* Runs the atoms of a block on copies of their expressions and updates env.  Returns which
+ * successors can be reached: bit 0 the first, bit 1 the second (only decided for a branch whose
+ * condition turns out to be constant). */
+static int cfg_transfer(Block *b, Env *env, unsigned analysis_flags)
+{
+    unsigned saved = fl;
+    int taken = 3;
+    fl = analysis_flags;
+    for (int i = 0; i < b->natoms; i++) {
+        Atom *a = &b->atoms[i];
+        if (a->kind == A_JUMP || !*a->slot) {
+            continue;
+        }
+        Node *c = clone_expr(*a->slot);
+        ex(c, env, a->kind == A_COND);
+        if (a->kind == A_COND && b->term == T_BRANCH && (saved & FCO_CCP)) {
+            if (c->kind == N_NUM) {
+                taken = c->val ? 1 : 2;
+            } else if (c->kind == N_FNUM) {
+                taken = c->fval != 0 ? 1 : 2;
+            }
+        }
+    }
+    fl = saved;
+    return taken;
+}
+
+/* Finds what is known at the start of every block that can be reached (optimistic: a block is
+ * only entered along edges that can be taken).  Returns 0 if it does not settle. */
+static int cfg_solve(void)
+{
+    unsigned aflags = fl | FCO_CONSTPROP | FCO_COPYPROP | FCO_FOLD | FCO_ALGEBRA | FCO_COMPARE |
+                      FCO_BOOL;
+    int *queue = malloc((nbl + 1) * sizeof *queue);
+    char *queued = calloc(nbl, 1);
+    int qh = 0, qt = 0, count = 0, ok = 1;
+    long budget = (long)nbl * 60 + 1000;
+    bl[0].vis = 1;
+    bl[0].in.n = 0;
+    queue[qt++] = 0;
+    queued[0] = 1;
+    count = 1;
+    while (count > 0) {
+        if (--budget < 0) {
+            ok = 0;
+            break;
+        }
+        int id = queue[qh];
+        qh = (qh + 1) % (nbl + 1);
+        count--;
+        queued[id] = 0;
+        Block *b = &bl[id];
+        Env env = b->in;
+        int taken = cfg_transfer(b, &env, aflags);
+        int ns = succ_count(b);
+        for (int k = 0; k < ns; k++) {
+            if (b->term == T_BRANCH && !(taken & (1 << k))) {
+                continue;
+            }
+            Block *s = &bl[succ_at(b, k)];
+            int sid = succ_at(b, k);
+            int push = 0;
+            if (!s->vis) {
+                s->vis = 1;
+                s->in = env;
+                push = 1;
+            } else {
+                int before = s->in.n;
+                env_join(&s->in, &env);
+                push = s->in.n != before;
+            }
+            if (push && !queued[sid]) {
+                queued[sid] = 1;
+                queue[qt] = sid;
+                qt = (qt + 1) % (nbl + 1);
+                count++;
+            }
+        }
+    }
+    free(queue);
+    free(queued);
+    return ok;
+}
+
+/* Applies the result of the analysis: propagates constants and copies into the reachable blocks and
+ * removes the code of the blocks that can never run. */
+static void cfg_apply(void)
+{
+    unsigned saved = fl;
+    fl &= ~(unsigned)(FCO_CONSTPROP | FCO_COPYPROP);
+    if (saved & FCO_GCONST) {
+        fl |= FCO_CONSTPROP;
+    }
+    if (saved & FCO_GCOPY) {
+        fl |= FCO_COPYPROP;
+    }
+    for (int id = 0; id < nbl; id++) {
+        Block *b = &bl[id];
+        if (b->vis) {
+            Env env = b->in;
+            for (int i = 0; i < b->natoms; i++) {
+                Atom *a = &b->atoms[i];
+                if (a->kind != A_JUMP && *a->slot) {
+                    ex(*a->slot, &env, a->kind == A_COND);
+                }
+            }
+            continue;
+        }
+        if (!(saved & FCO_UBLOCK)) {
+            continue;
+        }
+        for (int i = 0; i < b->natoms; i++) {
+            Atom *a = &b->atoms[i];
+            switch (a->kind) {
+            case A_EXPR:
+            case A_RET:
+            case A_JUMP:
+                make_nop(a->stmt);
+                break;
+            case A_COND:
+                if (pure(*a->slot) && !((*a->slot)->kind == N_NUM && !(*a->slot)->val)) {
+                    *a->slot = num(0, ty_int, a->stmt->line);
+                    changed = 1;
+                }
+                break;
+            default:
+                break;
+            }
+        }
+        for (int i = 0; i < b->nlabels; i++) {
+            Node *lab = b->labels[i];
+            if (lab->kind == S_LABEL && lab->l && lab->l->kind != S_CASE &&
+                lab->l->kind != S_DEFAULT) {
+                rep(lab, lab->l);
+            }
+        }
+    }
+    fl = saved;
+}
+
+/* ------------------------------------------------------------------ */
+/* live variables and global dead code elimination                     */
+/* ------------------------------------------------------------------ */
+enum { MAXLIVE = 512 };
+static Sym *lv_syms[MAXLIVE];
+static int nlv, lv_words, lv_over;
+
+/* Returns the number of a tracked variable, or -1. */
+static int lv_index(Sym *s)
+{
+    for (int i = 0; i < nlv; i++) {
+        if (lv_syms[i] == s) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/* Walker callback: collects the variables whose liveness is tracked. */
+static void lv_collect_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (n->kind == N_VAR && trackable(n->sym) && lv_index(n->sym) < 0) {
+        if (nlv == MAXLIVE) {
+            lv_over = 1;
+        } else {
+            lv_syms[nlv++] = n->sym;
+        }
+    }
+}
+
+static void lv_use_chain(Node *n, uint64_t *set);
+
+/* Marks the variables an expression reads (the target of a plain assignment is not read). */
+static void lv_use(Node *n, uint64_t *set)
+{
+    if (!n) {
+        return;
+    }
+    if (n->kind == N_VAR) {
+        int i = trackable(n->sym) ? lv_index(n->sym) : -1;
+        if (i >= 0) {
+            set[i / 64] |= 1ULL << (i % 64);
+        }
+        return;
+    }
+    if (n->kind == N_ASSIGN && n->l->kind == N_VAR) {
+        lv_use_chain(n->r, set);
+        return;
+    }
+    lv_use_chain(n->l, set);
+    lv_use_chain(n->r, set);
+    lv_use_chain(n->c, set);
+}
+
+static void lv_use_chain(Node *n, uint64_t *set)
+{
+    for (; n; n = n->next) {
+        lv_use(n, set);
+    }
+}
+
+/* Returns the number of the variable that the expression statement x = e assigns, or -1. */
+static int lv_def(Node *root)
+{
+    if (root && root->kind == N_ASSIGN && root->l->kind == N_VAR && trackable(root->l->sym)) {
+        return lv_index(root->l->sym);
+    }
+    return -1;
+}
+
+/* Moves the set of live variables backwards over one atom. */
+static void lv_atom(uint64_t *set, Atom *a)
+{
+    if (a->kind == A_JUMP || !*a->slot) {
+        return;
+    }
+    Node *root = *a->slot;
+    int d = (a->kind == A_EXPR || a->kind == A_VALUE) ? lv_def(root) : -1;
+    if (d >= 0) {
+        set[d / 64] &= ~(1ULL << (d % 64));
+        lv_use(root->r, set);
+    } else {
+        lv_use(root, set);
+    }
+}
+
+/* Removes the assignments whose value is never used, using the live variables at each point. */
+static void cfg_live_dce(Node *body)
+{
+    nlv = lv_over = 0;
+    walk(body, lv_collect_cb, NULL);
+    if (lv_over || nlv == 0) {
+        return;
+    }
+    int w = lv_words = (nlv + 63) / 64;
+    uint64_t *in = calloc((size_t)nbl * w, sizeof *in), *out = calloc((size_t)nbl * w, sizeof *out);
+    uint64_t tmp[MAXLIVE / 64];
+    int again = 1;
+    for (int round = 0; again && round < 200; round++) {
+        again = 0;
+        for (int id = nbl - 1; id >= 0; id--) {
+            Block *b = &bl[id];
+            uint64_t *o = out + (size_t)id * w;
+            for (int k = 0; k < w; k++) {
+                o[k] = 0;
+            }
+            for (int k = 0; k < succ_count(b); k++) {
+                uint64_t *si = in + (size_t)succ_at(b, k) * w;
+                for (int j = 0; j < w; j++) {
+                    o[j] |= si[j];
+                }
+            }
+            memcpy(tmp, o, w * sizeof *tmp);
+            for (int i = b->natoms - 1; i >= 0; i--) {
+                lv_atom(tmp, &b->atoms[i]);
+            }
+            uint64_t *bi = in + (size_t)id * w;
+            if (memcmp(bi, tmp, w * sizeof *tmp)) {
+                memcpy(bi, tmp, w * sizeof *tmp);
+                again = 1;
+            }
+        }
+    }
+    if (!again) { /* only trust a settled result */
+        for (int id = 0; id < nbl; id++) {
+            Block *b = &bl[id];
+            memcpy(tmp, out + (size_t)id * w, w * sizeof *tmp);
+            for (int i = b->natoms - 1; i >= 0; i--) {
+                Atom *a = &b->atoms[i];
+                int d = (a->kind == A_EXPR || a->kind == A_VALUE) ? lv_def(*a->slot) : -1;
+                if (d >= 0 && !(tmp[d / 64] >> (d % 64) & 1)) {
+                    Node *root = *a->slot;
+                    if (same_value_rep(root->r->ty, root->ty)) {
+                        Type *t = root->ty;
+                        rep(root, root->r);
+                        root->ty = t;
+                    }
+                }
+                lv_atom(tmp, a);
+            }
+        }
+    }
+    free(in);
+    free(out);
+}
+
+/* ------------------------------------------------------------------ */
+/* jump threading, label merging                                       */
+/* ------------------------------------------------------------------ */
+static Node **label_nodes;
+static int nlabs, caplabs;
+
+/* Walker callback: collects the goto labels. */
+static void label_collect_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (n->kind == S_LABEL) {
+        if (nlabs == caplabs) {
+            caplabs = caplabs ? caplabs * 2 : 16;
+            label_nodes = realloc(label_nodes, caplabs * sizeof *label_nodes);
+        }
+        label_nodes[nlabs++] = n;
+    }
+}
+
+/* Returns the label node with the given name, or NULL. */
+static Node *find_label(char *name)
+{
+    for (int i = 0; i < nlabs; i++) {
+        if (label_nodes[i]->str == name) {
+            return label_nodes[i];
+        }
+    }
+    return NULL;
+}
+
+/* Walker callback: sends a goto straight to where the label it names would jump on. */
+static void thread_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (n->kind != S_GOTO) {
+        return;
+    }
+    char *target = n->str;
+    for (int hops = 0; hops < 16; hops++) {
+        Node *lab = find_label(target);
+        if (!lab) {
+            break;
+        }
+        Node *x = lab->l;
+        while (x && x->kind == S_LABEL) {
+            x = x->l;
+        }
+        if (x && x->kind == S_GOTO && x->str != target) {
+            target = x->str;
+            continue;
+        }
+        break;
+    }
+    if (target != n->str) {
+        n->str = target;
+        changed = 1;
+    }
+}
+
+/* Walker callback: counts the gotos that name a label (stored in the label's val field). */
+static void label_ref_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (n->kind == S_GOTO) {
+        Node *lab = find_label(n->str);
+        if (lab) {
+            lab->val++;
+        }
+    }
+}
+
+/* Walker callback: removes a label that no goto names, which merges its block into the block
+ * that falls into it. */
+static void label_merge_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (n->kind == S_LABEL && n->val == 0 && n->l && n->l->kind != S_CASE &&
+        n->l->kind != S_DEFAULT) {
+        rep(n, n->l);
+    }
+}
+
+/* Threads jumps and merges blocks whose label is no longer a jump target. */
+static void cfg_threading(Node *body, int thread, int merge)
+{
+    nlabs = 0;
+    walk(body, label_collect_cb, NULL);
+    if (nlabs == 0) {
+        return;
+    }
+    if (thread) {
+        walk(body, thread_cb, NULL);
+    }
+    if (merge) {
+        for (int i = 0; i < nlabs; i++) {
+            label_nodes[i]->val = 0;
+        }
+        walk(body, label_ref_cb, NULL);
+        walk(body, label_merge_cb, NULL);
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* tail-recursion elimination                                          */
+/* ------------------------------------------------------------------ */
+enum { MAXTAIL = 64, MAXPARAM = 16 };
+static Node *tail_rets[MAXTAIL];
+static int ntail, tail_bad;
+static Sym *tail_fn;
+
+/* Walker callback: finds the returns of a direct call of the function itself and the constructs
+ * that make reusing the frame unsafe (variables whose address could be held). */
+static void tail_scan_cb(Node *n, void *ud)
+{
+    (void)ud;
+    if (n->kind == N_VAR && n->sym && n->sym->kind == SY_VAR && !n->sym->global &&
+        (!scalar_ty(n->sym->ty) || n->sym->esc)) {
+        tail_bad = 1;
+    } else if (n->kind == S_ZERO) {
+        tail_bad = 1;
+    } else if (n->kind == S_RETURN && n->l && n->l->kind == N_CALL && n->l->sym == tail_fn) {
+        if (ntail < MAXTAIL) {
+            tail_rets[ntail++] = n;
+        }
+    }
+}
+
+/* Turns every "return f(args);" of a function f into assignments to its parameters and a jump to
+ * the start of the body. */
+static void tail_recursion(Sym *f)
+{
+    Type *ft = f->ty;
+    if (ft->variadic || ft->noproto || is_agg(ft->ret) || ft->nparams > MAXPARAM) {
+        return;
+    }
+    Sym *params[MAXPARAM];
+    int np = 0;
+    for (int i = 0; i < f->ndbg; i++) {
+        if (f->dbgvars[i]->is_param) {
+            if (np == MAXPARAM) {
+                return;
+            }
+            params[np++] = f->dbgvars[i];
+        }
+    }
+    if (np != ft->nparams) {
+        return;
+    }
+    tail_fn = f;
+    ntail = tail_bad = 0;
+    walk(f->body, tail_scan_cb, NULL);
+    for (int i = 0; i < np; i++) {
+        if (!scalar_ty(params[i]->ty) || params[i]->esc) {
+            tail_bad = 1;
+        }
+    }
+    if (tail_bad || ntail == 0) {
+        return;
+    }
+    char *top = intern("$tail", 5);
+    int done = 0;
+    for (int t = 0; t < ntail; t++) {
+        Node *ret = tail_rets[t], *call = ret->l;
+        Node *args[MAXPARAM];
+        int na = 0;
+        for (Node *a = call->r; a && na <= MAXPARAM; a = a->next) {
+            if (na < MAXPARAM) {
+                args[na] = a;
+            }
+            na++;
+        }
+        if (na != np) {
+            continue;
+        }
+        int ok = 1;
+        for (int i = 0; i < np; i++) {
+            if (!same_value_rep(args[i]->ty, params[i]->ty)) {
+                ok = 0;
+            }
+        }
+        if (!ok) {
+            continue;
+        }
+        int line = ret->line;
+        Node *blk = new_node(S_BLOCK, NULL, line), **tail = &blk->l;
+        blk->cmpty_uns = line;
+        Node *rhs[MAXPARAM];
+        for (int i = 0; i < np; i++) {
+            args[i]->next = NULL;
+        }
+        for (int i = 0; i < np; i++) { /* arguments may use the parameters: go through temporaries */
+            rhs[i] = args[i];
+            if (np > 1 && args[i]->kind != N_NUM && args[i]->kind != N_FNUM) {
+                Node *tv = new_temp(params[i]->ty, line);
+                Node *as = new_node(N_ASSIGN, params[i]->ty, line);
+                as->l = copy_node(tv);
+                as->r = args[i];
+                Node *st = new_node(S_EXPR, NULL, line);
+                st->l = as;
+                *tail = st;
+                tail = &st->next;
+                rhs[i] = copy_node(tv);
+            }
+        }
+        for (int i = 0; i < np; i++) {
+            Node *pv = new_node(N_VAR, params[i]->ty, line);
+            pv->sym = params[i];
+            Node *as = new_node(N_ASSIGN, params[i]->ty, line);
+            as->l = pv;
+            as->r = rhs[i];
+            Node *st = new_node(S_EXPR, NULL, line);
+            st->l = as;
+            *tail = st;
+            tail = &st->next;
+        }
+        Node *go = new_node(S_GOTO, NULL, line);
+        go->str = top;
+        *tail = go;
+        rep(ret, blk);
+        done++;
+    }
+    if (done) {
+        Node *lab = new_node(S_LABEL, NULL, f->body->line);
+        lab->str = top;
+        lab->l = new_node(S_NOP, NULL, f->body->line);
+        lab->next = f->body->l;
+        f->body->l = lab;
+    }
+}
+
+/* ------------------------------------------------------------------ */
 /* driver                                                              */
 /* ------------------------------------------------------------------ */
+
+/* Runs the passes that work on the control-flow graph. */
+static void cfg_phase(Sym *f)
+{
+    unsigned value_passes = FCO_GCONST | FCO_GCOPY | FCO_CCP | FCO_UBLOCK;
+    for (int round = 0; round < 3; round++) {
+        changed = 0;
+        if (fl & value_passes) {
+            if (cfg_build(f->body) && cfg_solve()) {
+                cfg_apply();
+            }
+            cfg_free();
+        }
+        if (fl & (FCO_THREAD | FCO_MERGE)) {
+            cfg_threading(f->body, (fl & FCO_THREAD) != 0, (fl & FCO_MERGE) != 0);
+        }
+        simp_list(&f->body->l);
+        if (!changed) {
+            break;
+        }
+    }
+    if ((fl & FCO_GDCE) && (fl & FCO_LIVE) && use_flow) {
+        for (int round = 0; round < 3; round++) {
+            changed = 0;
+            if (cfg_build(f->body)) {
+                cfg_live_dce(f->body);
+            }
+            cfg_free();
+            simp_list(&f->body->l);
+            if (!changed) {
+                break;
+            }
+        }
+    }
+}
 
 /* Optimizes the body of function f.  debugged says that debug information is recorded for it. */
 void opt_function(Sym *f, int debugged)
@@ -2038,9 +2985,10 @@ void opt_function(Sym *f, int debugged)
     }
     cur_fn = f;
     use_flow = 1;
+    has_goto = no_cfg = 0;
     int volatile_fn = PG.uses_volatile && !f->from_rt;
     if (debugged) { /* keep the statements and variable values the source shows */
-        fl &= ~(unsigned)(FCO_CONSTPROP | FCO_COPYPROP | FCO_DEADSTORE | FCO_CSE | FCO_UNREACH);
+        fl &= FCO_FOLD | FCO_ALGEBRA | FCO_COMPARE | FCO_CASTS | FCO_CANON | FCO_STRENGTH | FCO_BOOL;
         jumps = 0;
     }
     walk(f->body, scan_node, NULL);
@@ -2048,24 +2996,40 @@ void opt_function(Sym *f, int debugged)
         use_flow = 0;
         fl &= ~(unsigned)FCO_CSE;
     }
-    if (!use_flow) {
+    if (!no_cfg && use_flow && (fl & FCO_TAILREC)) {
+        tail_recursion(f);
+        walk(f->body, scan_node, NULL);
+    }
+    unsigned all = fl;
+    if (!use_flow || has_goto) { /* the tree walking data-flow passes need structured code */
         fl &= ~(unsigned)(FCO_CONSTPROP | FCO_COPYPROP | FCO_DEADSTORE);
     }
     for (int pass = 0; pass < 3; pass++) {
         changed = 0;
         Env e;
         e.n = 0;
-        flow_stmt(f->body, &e);
+        if (use_flow && !has_goto) {
+            flow_stmt(f->body, &e);
+        }
         simp_list(&f->body->l);
         if (!changed) {
             break;
         }
     }
+    fl = all;
+    if ((fl & FCO_CFG) && !no_cfg) {
+        cfg_phase(f);
+    }
+    if (!use_flow || has_goto) {
+        fl &= ~(unsigned)(FCO_CONSTPROP | FCO_COPYPROP | FCO_DEADSTORE);
+    }
     if (fl & FCO_DEADSTORE) {
         nrd = 0;
         count_reads(f->body);
         walk(f->body, drop_unread_cb, NULL);
-        dead_list(f->body->l, 1);
+        if (!has_goto) {
+            dead_list(f->body->l, 1);
+        }
         simp_list(&f->body->l);
     }
     if (fl & FCO_CSE) {

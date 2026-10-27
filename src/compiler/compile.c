@@ -35,6 +35,10 @@ static const struct {
     {"constprop", FCO_CONSTPROP}, {"copyprop", FCO_COPYPROP}, {"deadstore", FCO_DEADSTORE},
     {"unreachable", FCO_UNREACH}, {"casts", FCO_CASTS},       {"canon", FCO_CANON},
     {"cse", FCO_CSE},           {"strength", FCO_STRENGTH},   {"bool", FCO_BOOL},
+    {"cfg", FCO_CFG},           {"gconst", FCO_GCONST},       {"ccp", FCO_CCP},
+    {"cfs", FCO_CFS},           {"ublock", FCO_UBLOCK},       {"gdce", FCO_GDCE},
+    {"gcopy", FCO_GCOPY},       {"merge", FCO_MERGE},         {"thread", FCO_THREAD},
+    {"live", FCO_LIVE},         {"branch", FCO_BRANCH},       {"tailrec", FCO_TAILREC},
 };
 
 /* Applies the list of an -O:name,name option: a name switches an optimization on, -name off.  The

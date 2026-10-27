@@ -23,6 +23,7 @@ class Gen:
         self.r = rnd
         self.vars = []          # (name, type)
         self.loopvars = 0
+        self.labels = 0
         self.depth_limit = 4
 
     def var(self):
@@ -71,8 +72,10 @@ class Gen:
             return '(%s ? %s : %s)' % (e(), e(), e())
         if k < 0.91:
             return '%s%s' % (self.cast(), e())
-        if k < 0.95:
+        if k < 0.93:
             return 'f%d(%s, %s)' % (r.randint(1, 3), e(), e())
+        if k < 0.96:
+            return 'tr((%s) & 15, %s)' % (e(), e())
         return '(%s, %s)' % (e(), e())
 
     def lvalue(self):
@@ -139,6 +142,19 @@ class Gen:
                 self.simple_stmt())
         if k < 0.80 and loop:
             return 'if (%s) %s;' % (self.expr(2), r.choice(['break', 'continue']))
+        if k < 0.78:
+            self.labels += 1
+            n = self.labels
+            return 'if (%s) goto L%d; %s L%d: ;' % (self.expr(2), n, self.block(depth, loop), n)
+        if k < 0.82:
+            self.labels += 1
+            n = self.labels
+            i = 'i%d' % self.loopvars
+            self.loopvars += 1
+            return '%s = %d; L%d: %s %s--; if (%s > 0) goto L%d;' % (i, r.randint(1, 4), n,
+                                                                    self.block(depth, False), i, i, n)
+        if k < 0.84:
+            return 'while (1) { %s break; }' % self.block(depth, False)
         if k < 0.86:
             return 'do { %s } while (0);' % self.block(depth, loop)
         if k < 0.90:
@@ -158,6 +174,7 @@ class Gen:
             body.append('dump();')
         nloops = self.loopvars
         out = ['#include <stdio.h>', 'int g = 3; int arr[8] = {1,2,3,4,5,6,7,8};']
+        out.append('static int tr(int n, int a) { if (n <= 0) return a; return tr(n - 1, a + n * 3); }')
         for i in (1, 2, 3):
             out.append('static int f%d(int a, int b) { return %s; }' % (
                 i, ['a * 2 + b', '(a ^ b) + 1', 'a - b * 3'][i - 1]))

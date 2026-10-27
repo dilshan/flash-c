@@ -26,7 +26,19 @@ enum {
     FCO_CSE = 1 << 9,       /* local common subexpression elimination */
     FCO_STRENGTH = 1 << 10, /* strength reduction */
     FCO_BOOL = 1 << 11,     /* boolean and conditional simplification */
-    FCO_ALL = (1 << 12) - 1
+    FCO_CFG = 1 << 12,      /* basic-block construction (needed by the passes below) */
+    FCO_GCONST = 1 << 13,   /* global constant propagation */
+    FCO_CCP = 1 << 14,      /* conditional constant propagation */
+    FCO_CFS = 1 << 15,      /* control-flow simplification */
+    FCO_UBLOCK = 1 << 16,   /* unreachable basic-block elimination */
+    FCO_GDCE = 1 << 17,     /* global dead code elimination */
+    FCO_GCOPY = 1 << 18,    /* global copy propagation */
+    FCO_MERGE = 1 << 19,    /* basic-block merging */
+    FCO_THREAD = 1 << 20,   /* jump threading */
+    FCO_LIVE = 1 << 21,     /* live-variable analysis */
+    FCO_BRANCH = 1 << 22,   /* branch simplification */
+    FCO_TAILREC = 1 << 23,  /* tail-recursion elimination */
+    FCO_ALL = (1 << 24) - 1
 };
 
 /* All settings of one compilation; fc_options_default() gives the defaults. */
