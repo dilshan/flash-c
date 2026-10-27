@@ -232,6 +232,10 @@ typedef struct Sym {
     int used, assigned, is_param, from_rt, line, fileid;
     int is_builtin; /* __syscall */
     int esc;        /* local whose address is taken (optimizer) */
+    int reg;        /* local kept in a register: 0 = no, else 1..5 (rbx, r12..r15) */
+    int regmask;    /* function: callee-saved registers it saves (bit i = register i + 1) */
+    int rsave[5];   /* function: frame offsets of the saved registers */
+    int tail_ok;    /* function: its frame can be dropped by a tail call */
     int hidden;     /* runtime symbol not yet declared by user code */
     Node *body;
     int frame; /* function */
@@ -386,6 +390,7 @@ Node *parse_expr_only(TokVec *tv);
 
 /* optimizer */
 void opt_function(Sym *f, int debugged);
+void opt_regalloc(Sym *f, int debugged);
 
 /* codegen */
 int gen_program(const char *outpath, char *err, int errlen, int mapmode);

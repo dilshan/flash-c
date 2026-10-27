@@ -117,6 +117,41 @@ check cfs cfg,cfs same <<'X'
 #include <stdio.h>
 int main(void) { int i; for (i = 0; i < 3; i++) { if (i == 1) continue; printf("%d\n", i); } return 0; }
 X
+check gcse cfg,avail,gcse,cse smaller <<'X'
+#include <stdio.h>
+int main(int c, char **v) { int a = c * 7 + 3, b; if (c > 1) b = c * 7 + 3 + a; else b = c * 7 + 3; printf("%d %d\n", a, b + c * 7 + 3); return 0; }
+X
+check pre cfg,avail,pre,gcse same <<'X'
+#include <stdio.h>
+int main(int c, char **v) { int a = c + 5, x = 0, y; if (c > 1) x = c * 9 + 1; y = c * 9 + 1; printf("%d %d %d\n", a, x, y); return 0; }
+X
+check licm cfg,loops,licm,rd,live same <<'X'
+#include <stdio.h>
+int main(int c, char **v) { int i, k = c + 3, t, s = 0; for (i = 0; i < 20; i++) { t = k * 9 + 2; s += t + i * (k + 7); } printf("%d %d\n", s, t); return 0; }
+X
+check iv cfg,loops,iv same <<'X'
+#include <stdio.h>
+int a[64];
+int main(int c, char **v) { int i; long s = 0; for (i = 0; i < 40; i += 3) { a[i] = i * 12; s += (long)i * 8 + c; } printf("%ld %d %d\n", s, a[9], i); return 0; }
+X
+check inline inline same <<'X'
+#include <stdio.h>
+static int sq(int x) { return x * x; }
+static int mix(int a, int b) { return sq(a) + sq(b) + a * b; }
+int main(int c, char **v) { printf("%d %d\n", mix(c, 3), mix(c + 1, c)); return 0; }
+X
+check regalloc regalloc smaller <<'X'
+#include <stdio.h>
+int main(int c, char **v) { int i, s = 0; for (i = 0; i < 1000; i++) s += i ^ c; printf("%d\n", s); return 0; }
+X
+check isel isel smaller <<'X'
+#include <stdio.h>
+int main(int c, char **v) { int i, s = 0; for (i = 0; i < 100; i++) { if (i > 5 && c < 9) s += i * 3; s = s + 7; } printf("%d\n", s); return 0; }
+X
+check layout layout smaller <<'X'
+#include <stdio.h>
+int main(int c, char **v) { int i = 0, s = 0; while (i < 50) { s += i; i++; } for (i = 0; i < c + 9; i++) s -= i; printf("%d\n", s); return 0; }
+X
 
 # tail recursion: 20 million nested calls only work when the frame is reused
 cat > "$TMP/tail.c" <<'X'
@@ -126,6 +161,17 @@ int main(void) { printf("%ld\n", sum(20000000L, 0)); return 0; }
 X
 $FCC -w- -O:tailrec -e"$TMP/tail" "$TMP/tail.c" > /dev/null 2>&1
 if [ "$("$TMP/tail" 2>&1)" = "200000010000000" ]; then echo "ok   tailrec (20000000 calls in constant stack)"; else echo "FAIL tailrec"; fail=1; fi
+
+# tail calls between different functions: only a reused frame survives 3 million nested calls
+cat > "$TMP/tc.c" <<'X'
+#include <stdio.h>
+static long b(long n, long s);
+static long a(long n, long s) { if (n == 0) return s; return b(n - 1, s + 1); }
+static long b(long n, long s) { if (n == 0) return s; return a(n - 1, s + 2); }
+int main(void) { printf("%ld\n", a(3000000L, 0)); return 0; }
+X
+$FCC -w- -O:tailcall,regalloc -e"$TMP/tc" "$TMP/tc.c" > /dev/null 2>&1
+if [ "$("$TMP/tc" 2>&1)" = "4500000" ]; then echo "ok   tailcall (3000000 calls in constant stack)"; else echo "FAIL tailcall"; fail=1; fi
 
 rm -rf "$TMP"
 [ $fail -eq 0 ] && echo "all optimization checks passed"

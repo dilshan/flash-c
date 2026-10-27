@@ -194,7 +194,8 @@ fcc [options] file.c [file2.c ...]     * several files are compiled as one progr
   -O / -O-        all optimizations on / off (jump optimization plus the tree optimizations)
   -O:name,-name   single optimizations: fold algebra compare constprop copyprop deadstore
                   unreachable casts canon cse strength bool  cfg gconst ccp cfs ublock gdce
-                  gcopy merge thread live branch tailrec  jumps peephole all none
+                  gcopy merge thread live branch tailrec  rd avail gcse pre inline tailcall
+                  loops licm iv regalloc isel layout  jumps peephole all none
   -Z              suppress redundant loads (constant operands stay in a register)
   -A              ANSI keywords only: no // comments, near/far/huge/cdecl/pascal/interrupt are identifiers
   -Uname          undefine a macro

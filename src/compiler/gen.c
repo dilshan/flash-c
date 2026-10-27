@@ -134,6 +134,7 @@ static void dln_set_last_pos(int pos);
 static int mark_pos = -1;                  /* ncode at the last label placement or line mark */
 static int last_push = -1;                 /* ncode right after the last 'push rax' */
 static int pl_pos = -1, pl_n, pl_list[32]; /* labels placed at pl_pos */
+static int last_jump_pos = -1, last_jump_pinned; /* where the last jump starts, and whether a label or line mark is at that spot */
 
 /*
  * Binds label l to the current code position.  A jump that would only skip to this very
@@ -158,6 +159,30 @@ static void place(int l)
         pl_pos = -1;
         last_push = -1;
     }
+    if ((CX->opt.opt_flags & FCO_LAYOUT) && njfix >= 2 && ncode >= 11 && code[ncode - 5] == 0xE9 &&
+        jfix[njfix - 1].pos == ncode - 4 && !jfix[njfix - 1].rel8 &&
+        jfix[njfix - 2].pos == ncode - 9 && !jfix[njfix - 2].rel8 && jfix[njfix - 2].label == l &&
+        code[ncode - 11] == 0x0F && (code[ncode - 10] & 0xF0) == 0x80 && last_jump_pos == ncode - 5 && !last_jump_pinned &&
+        !(pl_pos == ncode && pl_n >= 32)) {
+        /* branch folding:  jcc l; jmp m; l:  ->  jncc m; l: */
+        code[ncode - 10] = 0x80 | ((code[ncode - 10] & 0x0F) ^ 1);
+        jfix[njfix - 2].label = jfix[njfix - 1].label;
+        if (pl_pos == ncode) {
+            for (int i = 0; i < pl_n; i++) {
+                lpos[pl_list[i]] = ncode - 5;
+            }
+        }
+        if (ndln && dln_last_pos() == (uint32_t)ncode) {
+            dln_set_last_pos(ncode - 5);
+        }
+        ncode -= 5;
+        njfix--;
+        pl_pos = -1;
+        last_push = -1;
+        if (mark_pos > ncode) {
+            mark_pos = ncode;
+        }
+    }
     if (pl_pos != ncode) {
         pl_pos = ncode;
         pl_n = 0;
@@ -171,6 +196,8 @@ static void place(int l)
 
 static void jump_to(int l, int cond) /* cond < 0: jmp; else 0F 8x */
 {
+    last_jump_pos = ncode;
+    last_jump_pinned = mark_pos == ncode;
     if (cond < 0) {
         b1(0xE9);
     } else {
@@ -425,9 +452,10 @@ static void load_ind(Type *t)
     }
 }
 
-/* rax = local at [rbp+off] */
-static void load_local(int off, Type *t)
+/* reg (0 = rax, 1 = rcx) = local at [rbp+off] */
+static void load_local_r(int off, Type *t, int reg)
 {
+    int m = 0x85 | (reg << 3);
     if (t->kind == TY_FLOAT) {
         b4(0xF3, 0x0F, 0x10, 0x85);
         d32(off);
@@ -438,29 +466,94 @@ static void load_local(int off, Type *t)
     switch (t->size) {
     case 1:
         if (t->uns) {
-            b3(0x0F, 0xB6, 0x85);
+            b3(0x0F, 0xB6, m);
         } else {
-            b4(0x48, 0x0F, 0xBE, 0x85);
+            b4(0x48, 0x0F, 0xBE, m);
         }
         break;
     case 2:
         if (t->uns) {
-            b3(0x0F, 0xB7, 0x85);
+            b3(0x0F, 0xB7, m);
         } else {
-            b4(0x48, 0x0F, 0xBF, 0x85);
+            b4(0x48, 0x0F, 0xBF, m);
         }
         break;
     case 4:
         if (t->uns) {
-            b2(0x8B, 0x85);
+            b2(0x8B, m);
         } else {
-            b3(0x48, 0x63, 0x85);
+            b3(0x48, 0x63, m);
         }
         break;
     default:
-        b3(0x48, 0x8B, 0x85);
+        b3(0x48, 0x8B, m);
     }
     d32(off);
+}
+
+/* rax = local at [rbp+off] */
+static void load_local(int off, Type *t)
+{
+    load_local_r(off, t, 0);
+}
+
+/* ---- register variables: rbx, r12, r13, r14, r15 hold the locals chosen by opt_regalloc ---- */
+static const int reg_num[6] = {0, 3, 12, 13, 14, 15};
+
+/* rax = register variable r */
+static void mov_rax_reg(int r)
+{
+    int n = reg_num[r];
+    b3(0x48 | (n >= 8 ? 4 : 0), 0x89, 0xC0 | ((n & 7) << 3));
+}
+
+/* register variable r = rax */
+static void mov_reg_rax(int r)
+{
+    int n = reg_num[r];
+    b3(0x48 | (n >= 8 ? 1 : 0), 0x89, 0xC0 | (n & 7));
+}
+
+/* rcx = register variable r */
+static void mov_rcx_reg(int r)
+{
+    int n = reg_num[r];
+    b3(0x48 | (n >= 8 ? 4 : 0), 0x89, 0xC1 | ((n & 7) << 3));
+}
+
+/* [rbp+off] = register r, or (load != 0) register r = [rbp+off] */
+static void reg_frame(int r, int off, int load)
+{
+    int n = reg_num[r];
+    b3(0x48 | (n >= 8 ? 4 : 0), load ? 0x8B : 0x89, 0x85 | ((n & 7) << 3));
+    d32(off);
+}
+
+/* Returns true for a local integer or pointer variable (in memory or in a register). */
+static int simple_local(Node *n)
+{
+    return n->kind == N_VAR && n->sym->kind == SY_VAR && !n->sym->global &&
+           (is_int(n->ty) || is_ptr(n->ty));
+}
+
+/* rax = value of the local variable n (see simple_local) */
+static void load_simple(Node *n)
+{
+    if (n->sym->reg) {
+        mov_rax_reg(n->sym->reg);
+    } else {
+        load_local(n->sym->off, n->ty);
+    }
+}
+
+/* rcx = value of the local variable n, leaving rax alone */
+static void load_simple_rcx(Node *n)
+{
+    if (n->sym->reg) {
+        mov_rcx_reg(n->sym->reg);
+    } else {
+        load_local_r(n->sym->off, n->ty, 1);
+    }
 }
 
 /* *(type*)rcx = rax */
@@ -515,6 +608,16 @@ static void store_local(int off, Type *t)
         b3(0x48, 0x89, 0x85);
     }
     d32(off);
+}
+
+/* The local variable n (see simple_local) = rax */
+static void store_simple(Node *n)
+{
+    if (n->sym->reg) {
+        mov_reg_rax(n->sym->reg);
+    } else {
+        store_local(n->sym->off, n->ty);
+    }
 }
 
 /* ---------- bit fields: a field lives in a 32-bit unit at the member offset ---------- */
@@ -702,8 +805,14 @@ static void gen_addr(Node *n)
     }
 }
 
-/* Emits the binary operation n on n->l and n->r; the result is left in rax. */
-static void gen_bin(Node *n)
+/* Returns true if v can be an immediate operand of a 64-bit instruction. */
+static int fits_imm32(long long v)
+{
+    return v >= -0x80000000LL && v <= 0x7fffffffLL;
+}
+
+/* Evaluates the operands of the binary operation n: rax = left, rcx = right. */
+static void gen_operands(Node *n)
 {
     if (CX->opt.redundant_loads && (n->r->kind == N_NUM || n->r->kind == N_FNUM)) {
         /* -Z: a constant right operand goes straight into rcx; no save/restore of the left value */
@@ -714,6 +823,10 @@ static void gen_bin(Node *n)
         }
         gen_expr(n->l);
         load_imm_rcx(bits);
+    } else if ((CX->opt.opt_flags & FCO_ISEL) && simple_local(n->r)) {
+        /* a local variable as right operand is loaded straight into rcx */
+        gen_expr(n->l);
+        load_simple_rcx(n->r);
     } else {
         gen_expr(n->l);
         push_rax();
@@ -721,6 +834,92 @@ static void gen_bin(Node *n)
         mov_rcx_rax();
         pop_rax();
     }
+}
+
+/* Returns the condition code that is true after cmp for the comparison operator op. */
+static int cmp_cc(int op, int u)
+{
+    switch (op) {
+    case B_EQ:
+        return CC_E;
+    case B_NE:
+        return CC_NE;
+    case B_LT:
+        return u ? CC_B : CC_L;
+    case B_LE:
+        return u ? CC_BE : CC_LE;
+    case B_GT:
+        return u ? CC_A : CC_G;
+    default:
+        return u ? CC_AE : CC_GE;
+    }
+}
+
+/* Emits the comparison n (integers or pointers) and returns the condition code of its result. */
+static int gen_cmp(Node *n)
+{
+    if ((CX->opt.opt_flags & FCO_ISEL) && n->r->kind == N_NUM && fits_imm32(n->r->val)) {
+        gen_expr(n->l);
+        b2(0x48, 0x3D); /* cmp rax, imm32 */
+        d32((int)n->r->val);
+    } else {
+        gen_operands(n);
+        b3(0x48, 0x39, 0xC8); /* cmp rax, rcx */
+    }
+    return cmp_cc(n->op, n->cmpty_uns);
+}
+
+/* Emits the binary operation n on n->l and n->r; the result is left in rax. */
+static void gen_bin(Node *n)
+{
+    if (!is_flt(n->l->ty) && n->op >= B_EQ) {
+        int cc = gen_cmp(n);
+        b3(0x0F, 0x90 + cc, 0xC0);
+        b3(0x0F, 0xB6, 0xC0);
+        return;
+    }
+    if ((CX->opt.opt_flags & FCO_ISEL) && !is_flt(n->l->ty) && n->r->kind == N_NUM &&
+        fits_imm32(n->r->val)) {
+        long long v = n->r->val;
+        int done = 1;
+        switch (n->op) {
+        case B_ADD:
+        case B_SUB:
+        case B_AND:
+        case B_OR:
+        case B_XOR:
+            gen_expr(n->l);
+            b2(0x48, n->op == B_ADD   ? 0x05
+                     : n->op == B_SUB ? 0x2D
+                     : n->op == B_AND ? 0x25
+                     : n->op == B_OR  ? 0x0D
+                                      : 0x35);
+            d32((int)v);
+            break;
+        case B_MUL:
+            gen_expr(n->l);
+            b3(0x48, 0x69, 0xC0); /* imul rax, rax, imm32 */
+            d32((int)v);
+            break;
+        case B_SHL:
+        case B_SHR:
+            if (v < 0 || v > 63) {
+                done = 0;
+                break;
+            }
+            gen_expr(n->l);
+            b3(0x48, 0xC1, n->op == B_SHL ? 0xE0 : (n->cmpty_uns ? 0xE8 : 0xF8));
+            b1((int)v);
+            break;
+        default:
+            done = 0;
+        }
+        if (done) {
+            gen_norm(n->ty);
+            return;
+        }
+    }
+    gen_operands(n);
     int u = n->cmpty_uns;
     if (is_flt(n->l->ty)) {
         if (n->op >= B_EQ) {
@@ -961,6 +1160,20 @@ static void gen_incdec(Node *n)
     int inc = n->kind == N_PREINC || n->kind == N_POSTINC;
     Type *t = n->l->ty;
     int bf = is_bf(n->l);
+    if (simple_local(n->l) && ((CX->opt.opt_flags & FCO_ISEL) || n->l->sym->reg)) {
+        load_simple(n->l); /* rax = old */
+        if (!pre) {
+            push_rax();
+        }
+        b2(0x48, inc ? 0x05 : 0x2D);
+        d32((int)n->val);
+        gen_norm(t);
+        store_simple(n->l);
+        if (!pre) {
+            pop_rax();
+        }
+        return;
+    }
     gen_addr(n->l);
     push_rax(); /* [addr] */
     if (bf) {
@@ -1019,6 +1232,17 @@ static void gen_assignop(Node *n)
 {
     Type *lt = n->l->ty, *ct = n->cty;
     int bf = is_bf(n->l);
+    if (simple_local(n->l) && !is_flt(ct) && ((CX->opt.opt_flags & FCO_ISEL) || n->l->sym->reg)) {
+        gen_expr(n->r);
+        mov_rcx_rax();
+        load_simple(n->l);
+        gen_cast(lt, ct);
+        gen_op_rr(n->op, ct->uns);
+        gen_norm(ct);
+        gen_cast(ct, lt);
+        store_simple(n->l);
+        return;
+    }
     gen_addr(n->l);
     push_rax();
     gen_expr(n->r);
@@ -1051,6 +1275,54 @@ static void gen_assignop(Node *n)
     }
 }
 
+/* Emits a jump to label when the truth value of c equals "when" (and runs on otherwise).  With
+ * instruction selection a comparison becomes cmp + jcc, and ! && || turn into jumps. */
+static void gen_branch(Node *c, int label, int when)
+{
+    if (!(CX->opt.opt_flags & FCO_ISEL)) {
+        gen_truth(c);
+        test_rax();
+        jump_to(label, when ? CC_NE : CC_E);
+        return;
+    }
+    switch (c->kind) {
+    case N_NUM:
+        if ((c->val != 0) == (when != 0)) {
+            jump_to(label, -1);
+        }
+        return;
+    case N_NOT:
+        gen_branch(c->l, label, !when);
+        return;
+    case N_LOGAND:
+    case N_LOGOR: {
+        int and = c->kind == N_LOGAND;
+        if (and == !when) { /* and-false or or-true: either operand decides */
+            gen_branch(c->l, label, when);
+            gen_branch(c->r, label, when);
+        } else {
+            int skip = newlabel();
+            gen_branch(c->l, skip, !when);
+            gen_branch(c->r, label, when);
+            place(skip);
+        }
+        return;
+    }
+    case N_BIN:
+        if (c->op >= B_EQ && !is_flt(c->l->ty)) {
+            int cc = gen_cmp(c);
+            jump_to(label, when ? cc : (cc ^ 1));
+            return;
+        }
+        break;
+    default:
+        break;
+    }
+    gen_truth(c);
+    test_rax();
+    jump_to(label, when ? CC_NE : CC_E);
+}
+
 /* Emits code that evaluates the expression n; the result is left in rax (doubles as raw bits). */
 static void gen_expr(Node *n)
 {
@@ -1074,7 +1346,11 @@ static void gen_expr(Node *n)
             return;
         }
         if (!n->sym->global && n->sym->kind == SY_VAR) {
-            load_local(n->sym->off, n->ty);
+            if (n->sym->reg) {
+                mov_rax_reg(n->sym->reg);
+            } else {
+                load_local(n->sym->off, n->ty);
+            }
             return;
         }
         gen_addr(n);
@@ -1110,7 +1386,12 @@ static void gen_expr(Node *n)
         }
         gen_expr(n->r);
         if (n->l->kind == N_VAR && !n->l->sym->global) {
-            store_local(n->l->sym->off, n->l->ty);
+            if (n->l->sym->reg) {
+                gen_norm(n->l->ty);
+                mov_reg_rax(n->l->sym->reg);
+            } else {
+                store_local(n->l->sym->off, n->l->ty);
+            }
             return;
         }
         push_rax();
@@ -1128,9 +1409,7 @@ static void gen_expr(Node *n)
         return;
     case N_COND: {
         int lf = newlabel(), le = newlabel();
-        gen_truth(n->c);
-        test_rax();
-        jump_to(lf, CC_E);
+        gen_branch(n->c, lf, 0);
         gen_expr(n->l);
         jump_to(le, -1);
         place(lf);
@@ -1273,6 +1552,61 @@ static void note_line(int line)
 
 static void gen_stmt(Node *n);
 
+/* Restores the callee-saved registers the function saved in its prologue. */
+static void gen_restore_regs(void)
+{
+    for (int r = 1; r <= 5; r++) {
+        if (gen_fn->regmask & (1 << (r - 1))) {
+            reg_frame(r, gen_fn->rsave[r - 1], 1);
+        }
+    }
+}
+
+/* Tail-call optimization: "return g(args);" stores the arguments into the argument slots of this
+ * function, restores the registers, removes the frame and jumps to g.  g then returns straight to
+ * the caller of this function, which removes the slots.  Returns 0 if the call does not qualify. */
+static int gen_tailcall(Node *call)
+{
+    Sym *g = call->sym;
+    Type *ft = gen_fn->ty;
+    if (!(CX->opt.opt_flags & FCO_TAILCALL) || dbg_rec || !gen_fn->tail_ok || call->kind != N_CALL ||
+        !g || g->kind != SY_FUNC || g->is_builtin || is_agg(call->ty) || is_agg(ft->ret) ||
+        ft->noproto) {
+        return 0;
+    }
+    Node *args[256];
+    int argc = 0;
+    for (Node *a = call->r; a && argc < 256; a = a->next) {
+        if (is_agg(a->ty)) {
+            return 0;
+        }
+        args[argc++] = a;
+    }
+    if (argc > ft->nparams || argc >= 256) {
+        return 0;
+    }
+    for (int i = argc - 1; i >= 0; i--) { /* as in a call: last argument first */
+        gen_expr(args[i]);
+        if (args[i]->ty->kind == TY_FLOAT) {
+            movq_x0_rax();
+            cvt_sd2ss();
+            b1(0x66);
+            b3(0x0F, 0x7E, 0xC0); /* movd eax,xmm0 */
+        }
+        push_rax();
+    }
+    for (int i = 0; i < argc; i++) {
+        pop_rax();
+        b3(0x48, 0x89, 0x85);
+        d32(16 + 8 * i); /* mov [rbp+16+8*i], rax */
+    }
+    gen_restore_regs();
+    b1(0xC9); /* leave */
+    b1(0xE9);
+    add_cfix(3, g, 0); /* jmp g */
+    return 1;
+}
+
 /* Emits a list of statements. */
 static void gen_list(Node *n)
 {
@@ -1307,9 +1641,7 @@ static void gen_stmt(Node *n)
     case S_IF: {
         int lelse = newlabel(), lend = newlabel();
         note_line(n->line);
-        gen_truth(n->c);
-        test_rax();
-        jump_to(lelse, CC_E);
+        gen_branch(n->c, lelse, 0);
         gen_stmt(n->l);
         if (n->r) {
             jump_to(lend, -1);
@@ -1323,11 +1655,25 @@ static void gen_stmt(Node *n)
     }
     case S_WHILE: {
         int ltop = newlabel(), lend = newlabel();
+        if ((CX->opt.opt_flags & FCO_LAYOUT) && !dbg_rec && n->c->kind != N_NUM) {
+            /* loop rotation: the test sits at the bottom, one conditional jump per iteration */
+            int lcond = newlabel();
+            note_line(n->line);
+            jump_to(lcond, -1);
+            place(ltop);
+            brk_label[++ctl_sp] = lend;
+            cont_label[ctl_sp] = lcond;
+            gen_stmt(n->l);
+            ctl_sp--;
+            place(lcond);
+            note_line(n->line);
+            gen_branch(n->c, ltop, 1);
+            place(lend);
+            return;
+        }
         place(ltop);
         note_line(n->line);
-        gen_truth(n->c);
-        test_rax();
-        jump_to(lend, CC_E);
+        gen_branch(n->c, lend, 0);
         brk_label[++ctl_sp] = lend;
         cont_label[ctl_sp] = ltop;
         gen_stmt(n->l);
@@ -1345,9 +1691,7 @@ static void gen_stmt(Node *n)
         ctl_sp--;
         place(lcont);
         note_line(n->c->line);
-        gen_truth(n->c);
-        test_rax();
-        jump_to(ltop, CC_NE);
+        gen_branch(n->c, ltop, 1);
         place(lend);
         return;
     }
@@ -1355,12 +1699,30 @@ static void gen_stmt(Node *n)
         int ltop = newlabel(), lcont = newlabel(), lend = newlabel();
         note_line(n->line);
         gen_list(n->d);
+        if ((CX->opt.opt_flags & FCO_LAYOUT) && !dbg_rec && n->c && n->c->kind != N_NUM) {
+            /* loop rotation: the test sits at the bottom, one conditional jump per iteration */
+            int lcond = newlabel();
+            jump_to(lcond, -1);
+            place(ltop);
+            brk_label[++ctl_sp] = lend;
+            cont_label[ctl_sp] = lcont;
+            gen_stmt(n->l);
+            ctl_sp--;
+            place(lcont);
+            note_line(n->line);
+            if (n->r) {
+                gen_expr(n->r);
+            }
+            place(lcond);
+            note_line(n->line);
+            gen_branch(n->c, ltop, 1);
+            place(lend);
+            return;
+        }
         place(ltop);
         note_line(n->line);
         if (n->c) {
-            gen_truth(n->c);
-            test_rax();
-            jump_to(lend, CC_E);
+            gen_branch(n->c, lend, 0);
         }
         brk_label[++ctl_sp] = lend;
         cont_label[ctl_sp] = lcont;
@@ -1377,6 +1739,9 @@ static void gen_stmt(Node *n)
     }
     case S_RETURN:
         note_line(n->line);
+        if (n->l && gen_tailcall(n->l)) {
+            return;
+        }
         if (n->l) {
             gen_expr(n->l);
         }
@@ -1577,6 +1942,8 @@ static void gen_function(Sym *f)
     njfix = 0;
     dbg_rec = CX->opt.debug && fid_class(f->fileid) == FC_USER && !file_without_debug(f->fileid);
     cont_label[0] = -1;
+    opt_function(f, dbg_rec);
+    opt_regalloc(f, dbg_rec);
     b1(0x55);
     b3(0x48, 0x89, 0xE5);
     b3(0x48, 0x81, 0xEC);
@@ -1593,7 +1960,18 @@ static void gen_function(Sym *f)
             add_cfix(3, over, 0); /* call __fc_stkover */
         }
     }
-    opt_function(f, dbg_rec);
+    for (int r = 1; r <= 5; r++) { /* save the callee-saved registers used for variables */
+        if (f->regmask & (1 << (r - 1))) {
+            reg_frame(r, f->rsave[r - 1], 0);
+        }
+    }
+    for (int i = 0; i < f->ndbg; i++) { /* parameters that live in registers */
+        Sym *p = f->dbgvars[i];
+        if (p->is_param && p->reg) {
+            load_local(p->off, p->ty);
+            mov_reg_rax(p->reg);
+        }
+    }
     ret_label = newlabel();
     gen_stmt(f->body);
     b2(0x31, 0xC0); /* falling off the end returns 0 */
@@ -1602,6 +1980,7 @@ static void gen_function(Sym *f)
     if (f->ty->ret && f->ty->ret->kind == TY_VOID && !strcmp(f->name, "main")) {
         b2(0x31, 0xC0); /* void main exits with 0 */
     }
+    gen_restore_regs();
     b2(0xC9, 0xC3); /* leave; ret */
     if (CX->opt.jump_opt) {
         relax_jumps(f->codepos, cfix0, dln0);

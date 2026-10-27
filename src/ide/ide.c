@@ -277,7 +277,7 @@ void ide_fill_options(FcOptions *o)
     o->opt_flags = 0;
     for (int i = 0; i < NOPT; i++) {
         if (cfg.opt[i]) {
-            o->opt_flags |= 1u << i;
+            o->opt_flags |= 1ULL << i;
         }
     }
     o->redundant_loads = cfg.red_loads;

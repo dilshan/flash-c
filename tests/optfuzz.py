@@ -131,6 +131,14 @@ class Gen:
             self.loopvars += 1
             return 'for (%s = 0; %s < %d; %s++) { %s }' % (i, i, r.randint(1, 5), i,
                                                            self.block(depth, True))
+        if k < 0.62:
+            # loops over the array with an invariant part and a scaled counter
+            i = 'i%d' % self.loopvars
+            self.loopvars += 1
+            a, b = self.var(), self.var()
+            step = r.choice(['%s++', '%s += 2', '%s += 3'])
+            return ('for (%s = %d; %s < %d; %s) { arr[(%s * 3 + (%s)) & 7] += (%s * %s) + (%s << 1) + %s * 8; %s }'
+                    % (i, r.randint(0, 2), i, r.randint(3, 12), step % i, i, a, a, b, b, i, self.simple_stmt()))
         if k < 0.66:
             i = 'i%d' % self.loopvars
             self.loopvars += 1
@@ -213,7 +221,8 @@ def main():
     count = int(sys.argv[1]) if len(sys.argv) > 1 else 200
     seed = int(sys.argv[2]) if len(sys.argv) > 2 else 1
     singles = ['fold', 'algebra', 'compare', 'constprop', 'copyprop', 'deadstore', 'unreachable',
-               'casts', 'canon', 'cse', 'strength', 'bool']
+               'casts', 'canon', 'cse', 'strength', 'bool', 'gcse', 'pre', 'licm', 'iv', 'inline',
+               'regalloc', 'isel', 'layout', 'tailcall']
     bad = 0
     with tempfile.TemporaryDirectory(prefix='fc-optfuzz-') as tmp:
         for n in range(count):

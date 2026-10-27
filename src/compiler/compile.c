@@ -29,7 +29,7 @@ void fc_options_default(FcOptions *o)
 /* Names of the optimizations for -O:name (see FCO_* in fc.h). */
 static const struct {
     const char *name;
-    unsigned bit;
+    uint64_t bit;
 } opt_names[] = {
     {"fold", FCO_FOLD},         {"algebra", FCO_ALGEBRA},     {"compare", FCO_COMPARE},
     {"constprop", FCO_CONSTPROP}, {"copyprop", FCO_COPYPROP}, {"deadstore", FCO_DEADSTORE},
@@ -39,6 +39,10 @@ static const struct {
     {"cfs", FCO_CFS},           {"ublock", FCO_UBLOCK},       {"gdce", FCO_GDCE},
     {"gcopy", FCO_GCOPY},       {"merge", FCO_MERGE},         {"thread", FCO_THREAD},
     {"live", FCO_LIVE},         {"branch", FCO_BRANCH},       {"tailrec", FCO_TAILREC},
+    {"rd", FCO_RD},             {"avail", FCO_AVAIL},         {"gcse", FCO_GCSE},
+    {"pre", FCO_PRE},           {"inline", FCO_INLINE},       {"tailcall", FCO_TAILCALL},
+    {"loops", FCO_LOOPS},       {"licm", FCO_LICM},           {"iv", FCO_IV},
+    {"regalloc", FCO_REGALLOC}, {"isel", FCO_ISEL},           {"layout", FCO_LAYOUT},
 };
 
 /* Applies the list of an -O:name,name option: a name switches an optimization on, -name off.  The
@@ -51,7 +55,7 @@ static int fc_apply_opt_list(FcOptions *o, const char *list)
     for (char *t = strtok(buf, ",;"); t; t = strtok(NULL, ",;")) {
         int on = t[0] != '-';
         const char *name = t + !on;
-        unsigned bit = 0;
+        uint64_t bit = 0;
         if (!strcmp(name, "all") || !strcmp(name, "none")) {
             on = !strcmp(name, "all") ? on : !on;
             o->opt_flags = on ? FCO_ALL : 0;

@@ -57,6 +57,29 @@ source ──► lexer/preprocessor ──► parser + type checker ──► x8
   temporaries) and a `goto` to a label at the start of the body; it only applies when every local and parameter is a
   scalar whose address is never taken. Functions with `setjmp` skip all of this; with debug info only expression
   level passes run.
+* **Loop and expression optimizations (`opt.c`, `cfg_phase2`)**: on the same block graph `graph_build` computes
+  reachability, predecessors and dominators, and `loops_find` turns every back edge `t -> h` (h dominates t) into a
+  natural loop, keeping it only when it comes from a `while`/`do`/`for` statement and every block is dominated by the
+  header. Reaching definitions (a bit set over the assignments, with the value at entry as extra definitions) and the
+  live variables decide whether an invariant assignment can leave a loop. Available expressions are a forward
+  must-analysis over a universe of at most 128 pure, non-trapping expressions of local scalars (an atom that assigns
+  one of the variables kills it). Global CSE rewrites every computation of an expression that is reused to
+  `(t = e)` and every use that is available to `t`; partial redundancy elimination first copies `e` to the end of a
+  predecessor that lacks it. Loop-invariant code motion hoists an invariant assignment (when its variable is dead
+  after the loop and every use sees only that definition) or an invariant subexpression into a block placed before
+  the loop; induction-variable optimization replaces `i * c`, `i << c`, `(long)i * c` and `inv + i` by a temporary
+  that is initialised before the loop and advanced next to the single update of `i`. Each transformation changes the
+  tree, so the graph is rebuilt and the analyses are repeated (at most 24 rounds). Function inlining runs before
+  everything else: a call of a function whose body is `return expr;` over its scalar parameters is replaced by `expr`,
+  with arguments that are not simple evaluated into temporaries first (at most three nested levels, never
+  with debug info or `volatile`).
+* **Register allocation and instruction selection (`opt_regalloc`, `gen.c`)**: locals chosen by use count (weighted
+  by loop depth) live in `rbx`, `r12`-`r15`, which the prologue saves and the epilogue restores. Instruction
+  selection uses immediate operands, loads a simple right operand straight into `rcx`, fuses a comparison with the
+  branch that uses it, and branches on `!`, `&&` and `||` without materializing a boolean. Block layout folds
+  `jcc l; jmp m; l:` into `jncc m` and rotates `while`/`for` loops so the test sits at the bottom. A tail call to
+  another function pops its arguments into the caller's own argument slots, restores the registers, runs `leave`
+  and jumps (only when every variable in the frame is a scalar whose address is never taken).
 * **Code generator optimizations (`-O`, `-Z`)**: `-Z` keeps a constant right operand in `rcx` instead of `push rax` / `pop rax` and
   removes `push rax; pop` pairs that are not separated by a label or line mark; `-O` drops a `jmp` to the next
   instruction and then relaxes the jumps of each function (rel32 to rel8 until a fixed point), remapping labels,

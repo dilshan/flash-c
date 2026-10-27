@@ -203,4 +203,5 @@ reloads, `-r` register variables, `-d` merge duplicate strings) and its data-flo
 "Condition is always %s", "'%s' is assigned a value that is never used", "Code has no effect", "Constant out of
 range in comparison"). The binary is a 16-bit NE executable that REA cannot open, so its optimizer could not be
 disassembled; the optimizations in `src/compiler/opt.c` are original work that follows the behaviours named above
-and the list requested for the project, not a copy of the reference implementation.
+and the list requested for the project, not a copy of the reference implementation. The same holds for the
+loop, expression, inlining, register-allocation and instruction-selection passes.

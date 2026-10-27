@@ -8,38 +8,50 @@
 #ifndef FC_H
 #define FC_H
 
+#include <stdint.h>
+
 #define FC_VERSION "1.0"
 
 enum { FC_WARNING = 0, FC_ERROR = 1, FC_FATAL = 2 };
 
 /* Optimization passes of the syntax-tree optimizer (see opt.c); each can be switched on its own. */
-enum {
-    FCO_FOLD = 1 << 0,      /* constant folding */
-    FCO_ALGEBRA = 1 << 1,   /* algebraic simplification */
-    FCO_COMPARE = 1 << 2,   /* constant comparison evaluation */
-    FCO_CONSTPROP = 1 << 3, /* local constant propagation */
-    FCO_COPYPROP = 1 << 4,  /* local copy propagation */
-    FCO_DEADSTORE = 1 << 5, /* dead assignment elimination */
-    FCO_UNREACH = 1 << 6,   /* unreachable statement elimination */
-    FCO_CASTS = 1 << 7,     /* redundant cast elimination */
-    FCO_CANON = 1 << 8,     /* expression canonicalization */
-    FCO_CSE = 1 << 9,       /* local common subexpression elimination */
-    FCO_STRENGTH = 1 << 10, /* strength reduction */
-    FCO_BOOL = 1 << 11,     /* boolean and conditional simplification */
-    FCO_CFG = 1 << 12,      /* basic-block construction (needed by the passes below) */
-    FCO_GCONST = 1 << 13,   /* global constant propagation */
-    FCO_CCP = 1 << 14,      /* conditional constant propagation */
-    FCO_CFS = 1 << 15,      /* control-flow simplification */
-    FCO_UBLOCK = 1 << 16,   /* unreachable basic-block elimination */
-    FCO_GDCE = 1 << 17,     /* global dead code elimination */
-    FCO_GCOPY = 1 << 18,    /* global copy propagation */
-    FCO_MERGE = 1 << 19,    /* basic-block merging */
-    FCO_THREAD = 1 << 20,   /* jump threading */
-    FCO_LIVE = 1 << 21,     /* live-variable analysis */
-    FCO_BRANCH = 1 << 22,   /* branch simplification */
-    FCO_TAILREC = 1 << 23,  /* tail-recursion elimination */
-    FCO_ALL = (1 << 24) - 1
-};
+#define FCO_FOLD (1ULL << 0) /* constant folding */
+#define FCO_ALGEBRA (1ULL << 1) /* algebraic simplification */
+#define FCO_COMPARE (1ULL << 2) /* constant comparison evaluation */
+#define FCO_CONSTPROP (1ULL << 3) /* local constant propagation */
+#define FCO_COPYPROP (1ULL << 4) /* local copy propagation */
+#define FCO_DEADSTORE (1ULL << 5) /* dead assignment elimination */
+#define FCO_UNREACH (1ULL << 6) /* unreachable statement elimination */
+#define FCO_CASTS (1ULL << 7) /* redundant cast elimination */
+#define FCO_CANON (1ULL << 8) /* expression canonicalization */
+#define FCO_CSE (1ULL << 9) /* local common subexpression elimination */
+#define FCO_STRENGTH (1ULL << 10) /* strength reduction */
+#define FCO_BOOL (1ULL << 11) /* boolean and conditional simplification */
+#define FCO_CFG (1ULL << 12) /* basic-block construction (needed by the passes below) */
+#define FCO_GCONST (1ULL << 13) /* global constant propagation */
+#define FCO_CCP (1ULL << 14) /* conditional constant propagation */
+#define FCO_CFS (1ULL << 15) /* control-flow simplification */
+#define FCO_UBLOCK (1ULL << 16) /* unreachable basic-block elimination */
+#define FCO_GDCE (1ULL << 17) /* global dead code elimination */
+#define FCO_GCOPY (1ULL << 18) /* global copy propagation */
+#define FCO_MERGE (1ULL << 19) /* basic-block merging */
+#define FCO_THREAD (1ULL << 20) /* jump threading */
+#define FCO_LIVE (1ULL << 21) /* live-variable analysis */
+#define FCO_BRANCH (1ULL << 22) /* branch simplification */
+#define FCO_TAILREC (1ULL << 23) /* tail-recursion elimination */
+#define FCO_RD (1ULL << 24) /* reaching definitions analysis */
+#define FCO_AVAIL (1ULL << 25) /* available expressions analysis */
+#define FCO_GCSE (1ULL << 26) /* global common subexpression elimination */
+#define FCO_PRE (1ULL << 27) /* partial redundancy elimination */
+#define FCO_INLINE (1ULL << 28) /* function inlining */
+#define FCO_TAILCALL (1ULL << 29) /* tail-call optimization */
+#define FCO_LOOPS (1ULL << 30) /* loop detection */
+#define FCO_LICM (1ULL << 31) /* loop-invariant code motion */
+#define FCO_IV (1ULL << 32) /* induction-variable optimization */
+#define FCO_REGALLOC (1ULL << 33) /* register allocation */
+#define FCO_ISEL (1ULL << 34) /* instruction selection */
+#define FCO_LAYOUT (1ULL << 35) /* branch folding and block layout */
+#define FCO_ALL ((1ULL << 36) - 1)
 
 /* All settings of one compilation; fc_options_default() gives the defaults. */
 typedef struct FcOptions {
@@ -74,7 +86,7 @@ typedef struct FcOptions {
     int stack_kb;        /* stack size in KB applied at start-up, 0 = system default (-ls) */
     int elf_symtab;      /* write section headers with .symtab/.strtab (-lt) */
     int wx;              /* separate R+X code and R+W data segments (-lw) */
-    unsigned opt_flags;      /* FCO_* optimization passes (-O:name) */
+    uint64_t opt_flags;     /* FCO_* optimization passes (-O:name) */
     int w_unreach;       /* unreachable code                         */
     int w_amb;           /* ambiguous operators need parentheses     */
     int w_structval;     /* structure passed by value                */
