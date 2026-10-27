@@ -520,6 +520,7 @@ extern int find_opts[8]; /* case, whole, regex, prompt, direction, scope, origin
 
 /* help */
 void help_show(const char *topic);
+void help_modal(const char *topic);
 void help_contents(void);
 void help_index(void);
 void help_topic_search(const char *word);

@@ -22,7 +22,7 @@ static int opt_run(Dialog *d, const char *helptopic)
     do {
         r = dlg_run(d);
         if (r == cmHelp) {
-            help_show(helptopic ? helptopic : "Compiler options");
+            help_modal(helptopic ? helptopic : "Compiler options");
         }
     } while (r == cmHelp);
     if (r != cmOK) {
@@ -543,7 +543,7 @@ int dlg_find_text(int replace)
     do {
         r = dlg_run(&d);
         if (r == cmHelp) {
-            help_show("The editor");
+            help_modal("The editor");
         }
     } while (r == cmHelp);
     return r;

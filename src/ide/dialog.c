@@ -1318,6 +1318,9 @@ int file_dialog(const char *title, const char *mask, char *out, int outcap, int 
     int r;
     do {
         r = dlg_run(&d);
+        if (r == cmHelp) {
+            help_modal("Using the IDE");
+        }
     } while (r == cmHelp);
     int ok = (r == cmOpen || r == cmReplace);
     if (ok) {
