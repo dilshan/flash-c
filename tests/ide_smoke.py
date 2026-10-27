@@ -182,7 +182,7 @@ try:
     s.send('\x1bhi'); s.type('strcpy'); s.send('ENTER')
     def mouse(code, x, y, end='M'): s.send('\x1b[<%d;%d;%d%s' % (code, x, y, end))
     sel_cells = lambda: sum(1 for row in s.screen.at for a in row if a == 0x71)
-    mouse(0, 6, 7); mouse(32, 20, 7); mouse(0, 20, 7, 'm')
+    mouse(0, 3, 7); mouse(32, 17, 7); mouse(0, 17, 7, 'm')
     check('Help: dragging the mouse selects text', sel_cells() > 5, s)
     s.send('\x1b[2;5~')                       # Ctrl+Ins
     s.send('ESC')

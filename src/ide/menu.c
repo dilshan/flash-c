@@ -116,7 +116,7 @@ static const MItem comp_opt_items[] = {
     IT("~C~ode generation...", NULL, cmOptCodeGen,
        "Specify enums, strings, structure layout, stack test, floating point and macros"),
     IT("~O~ptimizations...", NULL, cmOptOptimize,
-       "Specify jump optimization and redundant-load removal"),
+       "Choose which optimizations the compiler applies"),
     IT("~S~ource...", NULL, cmOptSource, "Specify source code related options"),
     SUB("~M~essages", msg_menu, "Specify how the IDE handles errors and warnings"),
 };

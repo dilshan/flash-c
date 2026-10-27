@@ -1571,7 +1571,7 @@ static Win *help_window(void)
         win_activate(w);
         return w;
     }
-    int ww = SW > 80 ? 76 : 72, hh = SH - 6;
+    int ww = SW >= 80 ? 78 : 72, hh = SH - 6;
     if (nwins >= MAXWIN) {
         return NULL;
     }
