@@ -27,7 +27,19 @@ Flash C compiles **C (ANSI C89)** with a few C99 conveniences. C++ is not suppor
 
 ## Quick start
 
-You need a C compiler (gcc or clang), `make`, and a terminal of at least 80×25 with UTF-8. 24-bit
+**Install a release (Linux x86-64):** download `flash-c-<version>-linux-x86_64.tar.gz` from the
+[Releases](../../releases) page, then
+
+```
+tar xzf flash-c-*.tar.gz
+cd flash-c-*/
+./install.sh              # installs to ~/.local; use --prefix DIR or run as root for /usr/local
+```
+
+`./install.sh --uninstall` removes it again. Installing is optional: the unpacked folder also runs
+in place with `./bin/fc` and `./bin/fcc`. See [releasing](docs/RELEASING.md) for how releases are made.
+
+**Build from source:** you need a C compiler (gcc or clang), `make`, and a terminal of at least 80×25 with UTF-8. 24-bit
 colour is used when `COLORTERM=truecolor`; otherwise 16 ANSI colours.
 
 ```

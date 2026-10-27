@@ -81,6 +81,19 @@ install: all
 	install -d $(PREFIX)/share/flashc/help
 	install -m 644 help/*.fch $(PREFIX)/share/flashc/help
 
+# Release tarball (build/dist/flash-c-VERSION-linux-x86_64.tar.gz): binaries, help files, docs and install.sh.
+DIST_NAME := flash-c-$(VERSION)-linux-$(shell uname -m)
+dist: all
+	rm -rf $(BUILD)/dist/$(DIST_NAME)
+	mkdir -p $(BUILD)/dist/$(DIST_NAME)/bin $(BUILD)/dist/$(DIST_NAME)/help
+	install -s $(BUILD)/fc $(BUILD)/fcc $(BUILD)/dist/$(DIST_NAME)/bin
+	install -m 644 help/*.fch $(BUILD)/dist/$(DIST_NAME)/help
+	cp -R docs $(BUILD)/dist/$(DIST_NAME)/docs
+	install -m 644 README.md LICENSE $(BUILD)/dist/$(DIST_NAME)
+	install -m 755 tools/dist/install.sh $(BUILD)/dist/$(DIST_NAME)
+	echo '$(VERSION)' > $(BUILD)/dist/$(DIST_NAME)/VERSION
+	tar -C $(BUILD)/dist -czf $(BUILD)/dist/$(DIST_NAME).tar.gz $(DIST_NAME)
+
 clean:
 	rm -rf $(BUILD)
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
@@ -88,4 +101,4 @@ clean:
 help:
 	python3 tools/helpgen/gen.py help
 
-.PHONY: FORCE version format all test install clean help
+.PHONY: FORCE version dist format all test install clean help

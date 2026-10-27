@@ -1,0 +1,49 @@
+name: Release
+
+# Publishes a GitHub release when a version tag such as v1.2.3 is pushed.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # The oldest supported runner, so the binaries run on older glibc versions too.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential python3
+
+      - name: Build
+        run: make -j"$(nproc)"
+
+      - name: Test
+        env:
+          TERM: xterm-256color
+        run: make test
+
+      - name: Package
+        run: |
+          make dist
+          cd build/dist
+          sha256sum flash-c-*.tar.gz > SHA256SUMS
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=""
+          case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" $prerelease \
+            --title "Flash C ${GITHUB_REF_NAME#v}" \
+            --generate-notes \
+            build/dist/flash-c-*.tar.gz build/dist/SHA256SUMS
