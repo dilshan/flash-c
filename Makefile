@@ -4,6 +4,14 @@ CFLAGS  ?= -O2 -std=gnu11 -D_GNU_SOURCE -Wall -Wno-unused-function -Wno-unused-v
 BUILD   := build
 PREFIX  ?= /usr/local
 
+# Version comes from the latest git tag (v1.2.3 -> 1.2.3; commits past the tag add -N-gHASH, a dirty tree adds -dirty).
+# Override on the command line with `make VERSION=x.y.z`, e.g. for source tarballs without .git.
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//')
+ifeq ($(strip $(VERSION)),)
+VERSION := 0.0.0-unknown
+endif
+CFLAGS  += -DFC_VERSION='"$(VERSION)"'
+
 COMP_SRC := $(wildcard src/compiler/*.c)
 IDE_SRC  := $(wildcard src/ide/*.c)
 HEADERS  := $(wildcard runtime/include/*.h) $(wildcard runtime/include/sys/*.h)
@@ -19,6 +27,16 @@ IDE_OBJ  := $(patsubst src/%.c,$(BUILD)/%.o,$(IDE_SRC))
 
 all: $(BUILD)/fcc $(BUILD)/fc
 
+# The stamp changes only when the version does, so a new tag or commit rebuilds just what embeds it.
+$(BUILD)/version.stamp: FORCE
+	@mkdir -p $(BUILD)
+	@echo '$(VERSION)' | cmp -s - $@ || echo '$(VERSION)' > $@
+
+FORCE:
+
+version:
+	@echo $(VERSION)
+
 $(BUILD)/embed: tools/embed.c
 	@mkdir -p $(BUILD)
 	$(CC) -O1 -o $@ $<
@@ -31,7 +49,7 @@ $(BUILD)/compiler/embedded.c: $(BUILD)/embed $(HEADERS) $(LIB_SRC)
 $(BUILD)/compiler/embedded.o: $(BUILD)/compiler/embedded.c
 	$(CC) $(CFLAGS) -Isrc/compiler -c -o $@ $<
 
-$(BUILD)/%.o: src/%.c $(wildcard src/compiler/*.h) $(wildcard src/ide/*.h)
+$(BUILD)/%.o: src/%.c $(wildcard src/compiler/*.h) $(wildcard src/ide/*.h) $(BUILD)/version.stamp
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -Isrc/compiler -Isrc/ide -c -o $@ $<
 
@@ -70,4 +88,4 @@ clean:
 help:
 	python3 tools/helpgen/gen.py help
 
-.PHONY: format all test install clean help
+.PHONY: FORCE version format all test install clean help

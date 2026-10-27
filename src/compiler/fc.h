@@ -10,7 +10,10 @@
 
 #include <stdint.h>
 
-#define FC_VERSION "1.0"
+/* The Makefile passes -DFC_VERSION from the latest git tag; this is the fallback for builds outside a checkout. */
+#ifndef FC_VERSION
+#define FC_VERSION "0.0.0-unknown"
+#endif
 
 enum { FC_WARNING = 0, FC_ERROR = 1, FC_FATAL = 2 };
 
