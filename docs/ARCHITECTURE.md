@@ -103,6 +103,13 @@ Design points:
   through a callback and are appended to the Message list; the first error is tracked in the
   editor automatically.
 
+### Code style
+
+The IDE sources are formatted with `clang-format` using the rules in `.clang-format` (4-space
+indent, 100 columns, braces on every block, a blank line between definitions); run `make format`
+after editing. Every function has a comment that says what it does, what its parameters mean and
+what it returns. Structures in `ide.h` document their fields.
+
 ## 3. Tests
 
 * `tests/run.sh` compiles each `tests/cases/*.c` with Flash C and with the host `gcc` and compares

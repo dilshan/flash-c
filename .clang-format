@@ -1,0 +1,24 @@
+# Formatting rules for the IDE sources (src/ide).  Run `make format` to apply.
+BasedOnStyle: LLVM
+Language: Cpp
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+BreakBeforeBraces: Linux
+InsertBraces: true
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+IndentCaseLabels: false
+SortIncludes: Never
+AlignConsecutiveMacros: None
+AlignConsecutiveAssignments: None
+AlignTrailingComments: true
+PointerAlignment: Right
+ReflowComments: true
+BinPackArguments: true
+BinPackParameters: true
+SeparateDefinitionBlocks: Always

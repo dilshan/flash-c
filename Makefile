@@ -41,6 +41,10 @@ $(BUILD)/fcc: $(COMP_OBJ) $(BUILD)/cli/fcc.o
 $(BUILD)/fc: $(COMP_OBJ) $(IDE_OBJ)
 	$(CC) $(LDFLAGS) -o $@ $^ -lutil
 
+# Reformat the IDE sources with clang-format (rules in .clang-format).
+format:
+	clang-format -i src/ide/*.c src/ide/*.h
+
 test: $(BUILD)/fcc $(BUILD)/fc
 	sh tests/run.sh
 	sh tests/diag.sh
@@ -64,4 +68,4 @@ clean:
 help:
 	python3 tools/helpgen/gen.py help
 
-.PHONY: all test install clean help
+.PHONY: format all test install clean help
