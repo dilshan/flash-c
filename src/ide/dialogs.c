@@ -107,17 +107,58 @@ void opt_command(int cmd)
         break;
     }
     case cmOptOptimize: {
-        db_start(&d, " Optimization Options ", 56);
-        db_group(&d, "Optimizations", 2);
-        db_check(&d, "~S~uppress redundant loads", &cfg.red_loads, 0,
-                 "Keep constant operands in a register instead of saving and restoring the left "
-                 "operand");
-        db_check(
-            &d, "~J~ump optimization", &cfg.jump_opt, 0,
-            "Remove jumps to the next instruction and use short jumps where the target is near");
-        db_end_group(&d);
+        static char *labels[NOPT + 2] = {
+            "Constant folding",
+            "Algebraic simplification",
+            "Constant comparison evaluation",
+            "Constant propagation",
+            "Copy propagation",
+            "Dead assignment elimination",
+            "Unreachable code elimination",
+            "Redundant cast elimination",
+            "Expression canonicalization",
+            "Common subexpression elimination",
+            "Strength reduction",
+            "Boolean simplification",
+            "Jump optimization",
+            "Suppress redundant loads",
+        };
+        static const char *helps[NOPT + 2] = {
+            "Calculate operations on constants while compiling",
+            "Simplify x+0, x*1, x-x, (x+1)+2 and similar expressions",
+            "Decide comparisons whose result is known, such as unsigned >= 0",
+            "Use the known constant values of local variables",
+            "Use the original of a local variable that was copied",
+            "Remove assignments whose value is never used",
+            "Remove statements that can never run (after return, if (0), while (0))",
+            "Remove conversions that do not change the value",
+            "Put the operands of expressions in a fixed order, constants last",
+            "Compute an expression that occurs several times only once",
+            "Replace multiplication, division and modulo by shifts and masks",
+            "Simplify conditions: !!x, x == 0, c ? 1 : 0, constant && and ||",
+            "Remove jumps to the next instruction and use short jumps where the target is near",
+            "Keep constant operands in a register instead of saving and restoring the left operand",
+        };
+        int on[NOPT + 2];
+        for (int i = 0; i < NOPT; i++) {
+            on[i] = cfg.opt[i];
+        }
+        on[NOPT] = cfg.jump_opt;
+        on[NOPT + 1] = cfg.red_loads;
+        db_start(&d, " Optimization Options ", 60);
+        dlg_static(&d, 2, 2, "Select the optimizations to apply:");
+        DItem *list = dlg_list(&d, 2, 3, 42, 11, labels, NOPT + 2, NULL);
+        list->val = on; /* check list: Space or a click on the box switches an entry */
+        list->helps = helps;
         db_finish(&d, 1);
-        opt_run(&d, "Code generation options");
+        d.h = 16;
+        if (opt_run(&d, "Optimization options")) {
+            for (int i = 0; i < NOPT; i++) {
+                cfg.opt[i] = on[i];
+            }
+            cfg.jump_opt = on[NOPT];
+            cfg.red_loads = on[NOPT + 1];
+        }
         break;
     }
     case cmOptSource: {

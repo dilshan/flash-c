@@ -415,7 +415,14 @@ static void draw_dialog(Dialog *d)
                     a = foc ? pal[P_DLG_LISTFOC] : pal[P_DLG_LISTSEL];
                     scr_fill(x, y + r, it->w - 1, 1, ' ', a);
                 }
-                scr_strn(x + 1, y + r, it->items[k], it->w - 3, a);
+                if (it->val) { /* check list: [X] before the text */
+                    scr_put(x + 1, y + r, '[', a);
+                    scr_put(x + 2, y + r, it->val[k] ? 'X' : ' ', a);
+                    scr_put(x + 3, y + r, ']', a);
+                    scr_strn(x + 5, y + r, it->items[k], it->w - 7, a);
+                } else {
+                    scr_strn(x + 1, y + r, it->items[k], it->w - 3, a);
+                }
             }
             for (int r = 0; r < it->h; r++) {
                 scr_put(x + it->w - 1, y + r, 0x2592, pal[P_ED_SCROLL]);
@@ -443,8 +450,11 @@ static void draw_dialog(Dialog *d)
 /* Shows the hint of the focused item on the status line. */
 static void dlg_hint(Dialog *d)
 {
-    if (d->focus < d->n && d->it[d->focus].hint) {
-        status_hint(d->it[d->focus].hint);
+    DItem *f = d->focus < d->n ? &d->it[d->focus] : NULL;
+    if (f && f->type == D_LIST && f->helps && f->sel >= 0 && f->sel < f->nitems) {
+        status_hint(f->helps[f->sel]);
+    } else if (f && f->hint) {
+        status_hint(f->hint);
     } else {
         status_hint(NULL);
     }
@@ -629,6 +639,12 @@ static int list_key(Dialog *d, DItem *it, int key)
     case KEY_END:
         it->sel = it->nitems - 1;
         break;
+    case ' ':
+        if (it->val) { /* check list: toggle the item */
+            it->val[it->sel] = !it->val[it->sel];
+            break;
+        }
+        return 0;
     default:
         if (base >= 32 && base < 127 && !(key & (K_CTRL | K_ALT))) { /* type-ahead */
             for (int k = 1; k <= it->nitems; k++) {
@@ -696,6 +712,9 @@ static void dlg_mouse(Dialog *d)
                     static time_t lastt;
                     int dbl = k == lastk && time(NULL) - lastt <= 1;
                     it->sel = k;
+                    if (it->val && ms.x - x < 5) { /* click on the box of a check list */
+                        it->val[k] = !it->val[k];
+                    }
                     lastk = k;
                     lastt = time(NULL);
                     if (d->on_change) {

@@ -103,6 +103,9 @@ void cfg_defaults(void)
     cfg.max_errors = 25;
     cfg.max_warnings = 100;
     cfg.warn_display = 1;
+    for (int i = 0; i < NOPT; i++) {
+        cfg.opt[i] = 1; /* all optimizations on */
+    }
     static const int on[] = {0,  1,  2,  6,  8,  15, 32,
                              34, 37, 38, 40, 43, 44, 48}; /* the warnings the compiler can switch */
     for (unsigned i = 0; i < sizeof on / sizeof on[0]; i++) {
@@ -171,6 +174,7 @@ static CfgVar vars[] = {
     I(max_warnings),
     I(warn_display),
     {"warn", cfg.warn, 2, NWARN},
+    {"opt", cfg.opt, 2, NOPT},
     I(fp),
     S(defines),
     I(check_autodep),

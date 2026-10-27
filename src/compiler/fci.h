@@ -231,6 +231,7 @@ typedef struct Sym {
     long long val; /* enum constant */
     int used, assigned, is_param, from_rt, line, fileid;
     int is_builtin; /* __syscall */
+    int esc;        /* local whose address is taken (optimizer) */
     int hidden;     /* runtime symbol not yet declared by user code */
     Node *body;
     int frame; /* function */
@@ -356,6 +357,7 @@ typedef struct Program {
     int ndata, capdata;
     int bss;
     int uses_fp; /* the program (not the library) uses float/double */
+    int uses_volatile; /* the program (not the library) declares something volatile */
 
     struct DReloc {
         int off;
@@ -381,6 +383,9 @@ void parse_init(void);
 Sym *global_lookup(const char *name);
 Sym *global_syms(void); /* all file-scope symbols, newest first (follow ->next) */
 Node *parse_expr_only(TokVec *tv);
+
+/* optimizer */
+void opt_function(Sym *f, int debugged);
 
 /* codegen */
 int gen_program(const char *outpath, char *err, int errlen, int mapmode);

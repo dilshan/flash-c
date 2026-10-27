@@ -1593,6 +1593,7 @@ static void gen_function(Sym *f)
             add_cfix(3, over, 0); /* call __fc_stkover */
         }
     }
+    opt_function(f, dbg_rec);
     ret_label = newlabel();
     gen_stmt(f->body);
     b2(0x31, 0xC0); /* falling off the end returns 0 */

@@ -12,6 +12,23 @@
 
 enum { FC_WARNING = 0, FC_ERROR = 1, FC_FATAL = 2 };
 
+/* Optimization passes of the syntax-tree optimizer (see opt.c); each can be switched on its own. */
+enum {
+    FCO_FOLD = 1 << 0,      /* constant folding */
+    FCO_ALGEBRA = 1 << 1,   /* algebraic simplification */
+    FCO_COMPARE = 1 << 2,   /* constant comparison evaluation */
+    FCO_CONSTPROP = 1 << 3, /* local constant propagation */
+    FCO_COPYPROP = 1 << 4,  /* local copy propagation */
+    FCO_DEADSTORE = 1 << 5, /* dead assignment elimination */
+    FCO_UNREACH = 1 << 6,   /* unreachable statement elimination */
+    FCO_CASTS = 1 << 7,     /* redundant cast elimination */
+    FCO_CANON = 1 << 8,     /* expression canonicalization */
+    FCO_CSE = 1 << 9,       /* local common subexpression elimination */
+    FCO_STRENGTH = 1 << 10, /* strength reduction */
+    FCO_BOOL = 1 << 11,     /* boolean and conditional simplification */
+    FCO_ALL = (1 << 12) - 1
+};
+
 /* All settings of one compilation; fc_options_default() gives the defaults. */
 typedef struct FcOptions {
     int nested_comments; /* allow nested comments                    */
@@ -45,6 +62,7 @@ typedef struct FcOptions {
     int stack_kb;        /* stack size in KB applied at start-up, 0 = system default (-ls) */
     int elf_symtab;      /* write section headers with .symtab/.strtab (-lt) */
     int wx;              /* separate R+X code and R+W data segments (-lw) */
+    unsigned opt_flags;      /* FCO_* optimization passes (-O:name) */
     int w_unreach;       /* unreachable code                         */
     int w_amb;           /* ambiguous operators need parentheses     */
     int w_structval;     /* structure passed by value                */

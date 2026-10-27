@@ -109,6 +109,8 @@ typedef struct TransferItem {
     int hotkey;
 } TransferItem;
 
+enum { NOPT = 12 }; /* number of switchable optimizations (FCO_* bits in the compiler) */
+
 typedef struct Config {
     /* compiler / source */
     int nested_comments, unsigned_char, ident_len;
@@ -117,6 +119,7 @@ typedef struct Config {
     int stack_kb, elf_symtab, wx_segments;                           /* linker */
     char undefs[120];
     int max_errors, max_warnings, warn_display; /* 0 none, 1 selected, 2 all */
+    int opt[NOPT];                                                   /* FCO_* passes, by bit number */
     int warn[NWARN];                            /* only the entries used by ide_fill_options() */
     int fp;                                     /* 0 no floating point, 1 floating point */
     char defines[200];
@@ -327,7 +330,8 @@ typedef struct DItem {
     int disabled, defbtn, link;
     const char *hint;
     char **items;
-    int nitems, sel, top; /* list */
+    const char **helps;   /* check list: hint of every item */
+    int nitems, sel, top; /* list; with val set it is a check list over the ints val[0..nitems) */
     void (*draw)(struct Dialog *, struct DItem *, int focused);
     int (*onkey)(struct Dialog *, struct DItem *, int key);
     int cpos, scroll, selall; /* input state */

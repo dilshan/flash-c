@@ -186,7 +186,7 @@ the five warning pages, Linker, Segment Names) are the source.
 | Duplicate strings merged (`-d`) | yes | `Code generation`, `-d` |
 | Word alignment (`-a`) | adapted | "Align structure members" (default on); off packs structs, `-a-` |
 | Test stack overflow (`-N`) | yes | `Code generation`, `-N`, run-time check against the `RLIMIT_STACK` based limit |
-| Jump optimization (`-O`), Suppress redundant loads (`-Z`) | yes | new `Optimizations` dialog |
+| Jump optimization (`-O`), Suppress redundant loads (`-Z`) | yes | `Optimizations` dialog, which also switches the twelve tree optimizations of `opt.c` |
 | Keywords: Turbo C++ / ANSI (`-A`) | partly | `Source`: Flash C / ANSI (UNIX V and K&R keyword sets have no meaning here) |
 | Undefine macro (`-U`) | yes | `Code generation`, Undefine symbols |
 | Warnings `-rch -amb -stv -cln -ucp -cpt` | yes | the matching pages of `Messages` |
@@ -195,3 +195,12 @@ the five warning pages, Linker, Segment Names) are the source.
 | `-y`/`-v` debug info in OBJs | adapted | `Linker`: ELF symbol table (`.symtab`) for `nm`/`gdb`/`perf` |
 | (none in the reference) | new | `Linker`: Protect code (W^X) for the ELF output |
 | Memory models, instruction sets (`-1 -2`), Pascal calls (`-p`), standard stack frame (`-k`), register variables (`-r`), underscores (`-u`), overlays, assembler output (`-B -S`), C++ switches | no | meaningless for flat x86-64 Linux code |
+
+## Optimizer (evidence limits)
+
+Strings in the reference compiler show its optimization switches (`-G` speed, `-O` jumps, `-Z` register
+reloads, `-r` register variables, `-d` merge duplicate strings) and its data-flow messages ("Unreachable code",
+"Condition is always %s", "'%s' is assigned a value that is never used", "Code has no effect", "Constant out of
+range in comparison"). The binary is a 16-bit NE executable that REA cannot open, so its optimizer could not be
+disassembled; the optimizations in `src/compiler/opt.c` are original work that follows the behaviours named above
+and the list requested for the project, not a copy of the reference implementation.

@@ -26,6 +26,55 @@ void fc_options_default(FcOptions *o)
     o->w_unreach = o->w_cond = o->w_ucp = o->w_cpt = 1;
 }
 
+/* Names of the optimizations for -O:name (see FCO_* in fc.h). */
+static const struct {
+    const char *name;
+    unsigned bit;
+} opt_names[] = {
+    {"fold", FCO_FOLD},         {"algebra", FCO_ALGEBRA},     {"compare", FCO_COMPARE},
+    {"constprop", FCO_CONSTPROP}, {"copyprop", FCO_COPYPROP}, {"deadstore", FCO_DEADSTORE},
+    {"unreachable", FCO_UNREACH}, {"casts", FCO_CASTS},       {"canon", FCO_CANON},
+    {"cse", FCO_CSE},           {"strength", FCO_STRENGTH},   {"bool", FCO_BOOL},
+};
+
+/* Applies the list of an -O:name,name option: a name switches an optimization on, -name off.  The
+ * names jumps and peephole stand for the -O and -Z code generator optimizations, all and none for
+ * everything.  Returns 0 if a name is unknown. */
+static int fc_apply_opt_list(FcOptions *o, const char *list)
+{
+    char buf[256];
+    snprintf(buf, sizeof buf, "%s", list);
+    for (char *t = strtok(buf, ",;"); t; t = strtok(NULL, ",;")) {
+        int on = t[0] != '-';
+        const char *name = t + !on;
+        unsigned bit = 0;
+        if (!strcmp(name, "all") || !strcmp(name, "none")) {
+            on = !strcmp(name, "all") ? on : !on;
+            o->opt_flags = on ? FCO_ALL : 0;
+            o->jump_opt = o->redundant_loads = on;
+            continue;
+        }
+        if (!strcmp(name, "jumps")) {
+            o->jump_opt = on;
+            continue;
+        }
+        if (!strcmp(name, "peephole")) {
+            o->redundant_loads = on;
+            continue;
+        }
+        for (unsigned i = 0; i < sizeof opt_names / sizeof opt_names[0]; i++) {
+            if (!strcmp(name, opt_names[i].name)) {
+                bit = opt_names[i].bit;
+            }
+        }
+        if (!bit) {
+            return 0;
+        }
+        o->opt_flags = on ? o->opt_flags | bit : o->opt_flags & ~bit;
+    }
+    return 1;
+}
+
 /* Applies one command-line switch (the same switches fcc takes) to the options. */
 int fc_apply_switch(FcOptions *o, const char *arg)
 {
@@ -57,7 +106,11 @@ int fc_apply_switch(FcOptions *o, const char *arg)
         o->stack_check = arg[2] != '-';
         break;
     case 'O':
+        if (arg[2] == ':') { /* -O:name,name,-name  switches single optimizations */
+            return fc_apply_opt_list(o, arg + 3);
+        }
         o->jump_opt = arg[2] != '-';
+        o->opt_flags = arg[2] != '-' ? FCO_ALL : 0;
         break;
     case 'Z':
         o->redundant_loads = arg[2] != '-';

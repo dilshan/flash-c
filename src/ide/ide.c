@@ -274,6 +274,12 @@ void ide_fill_options(FcOptions *o)
     o->stack_check = cfg.stack_check;
     o->ansi_keywords = cfg.ansi_kw;
     o->jump_opt = cfg.jump_opt;
+    o->opt_flags = 0;
+    for (int i = 0; i < NOPT; i++) {
+        if (cfg.opt[i]) {
+            o->opt_flags |= 1u << i;
+        }
+    }
     o->redundant_loads = cfg.red_loads;
     o->stack_kb = cfg.stack_kb > 0 ? cfg.stack_kb : 0;
     o->elf_symtab = cfg.elf_symtab;

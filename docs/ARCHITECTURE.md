@@ -34,7 +34,17 @@ source ──► lexer/preprocessor ──► parser + type checker ──► x8
   addresses with fixups resolved after layout; entry stub calls the runtime function `_fc_start`
   which calls `main` and `exit`. System calls are made through the intrinsic
   `__syscall(n, args…)`; `__sqrt(x)` is the other intrinsic.
-* **Optimizer (`-O`, `-Z`)**: `-Z` keeps a constant right operand in `rcx` instead of `push rax` / `pop rax` and
+* **Tree optimizer (`src/compiler/opt.c`, `-O`, `-O:name`)**: `opt_function` runs on the tree of each function at the
+  start of `gen_function`. Twelve passes can be switched one by one (`FcOptions.opt_flags`, `FCO_*`): constant
+  folding, algebraic simplification, constant comparison evaluation, local constant and copy propagation, dead
+  assignment elimination, unreachable statement elimination, redundant cast elimination, canonicalization, local
+  common subexpression elimination (repeated pure expressions go through a new frame temporary), strength
+  reduction and boolean/conditional simplification. Data-flow facts exist only for local scalars whose address is
+  never taken; they are joined at `if`, dropped for variables assigned in loops, `&&`/`||`/`?:` and `switch`, and the
+  data-flow passes are skipped for functions with `goto`/labels, `setjmp`, or `volatile` in the program. With debug
+  info (`-v`) propagation, dead stores, CSE and unreachable-code removal are skipped. `tests/opt.sh` checks each
+  pass; `tests/optfuzz.py` compiles random programs with and without optimizations and compares their output.
+* **Code generator optimizations (`-O`, `-Z`)**: `-Z` keeps a constant right operand in `rcx` instead of `push rax` / `pop rax` and
   removes `push rax; pop` pairs that are not separated by a label or line mark; `-O` drops a `jmp` to the next
   instruction and then relaxes the jumps of each function (rel32 to rel8 until a fixed point), remapping labels,
   fix-ups and the debugger line table. `-N` emits `cmp rsp, [__fc_stklimit]; jae; call __fc_stkover` in user functions;

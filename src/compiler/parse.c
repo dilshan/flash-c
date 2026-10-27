@@ -2566,6 +2566,11 @@ static Type *parse_declspec_inner(int *storage, int *is_typedef, int *got_type, 
             tp++;
             continue;
         case K_VOLATILE:
+            if (!in_rt) {
+                PG.uses_volatile = 1;
+            }
+            tp++;
+            continue;
         case K_IGNORE:
             tp++;
             continue;
@@ -2833,6 +2838,9 @@ static Type *parse_declarator(Type *base, char **name)
                toks[tp].kind == K_IGNORE) {
             if (toks[tp].kind == K_CONST) {
                 base = qual_const(base);
+            }
+            if (toks[tp].kind == K_VOLATILE && !in_rt) {
+                PG.uses_volatile = 1;
             }
             tp++;
         }

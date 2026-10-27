@@ -191,7 +191,9 @@ fcc [options] file.c [file2.c ...]     * several files are compiled as one progr
   -b- / -b        enums use the smallest fitting integer type / always int (default)
   -d              merge identical string literals     -a-  pack structure members (no padding)
   -N              test for stack overflow on function entry ("Stack overflow!", exit code 1)
-  -O              jump optimization (short jumps, jumps to the next instruction removed)
+  -O / -O-        all optimizations on / off (jump optimization plus the tree optimizations)
+  -O:name,-name   single optimizations: fold algebra compare constprop copyprop deadstore
+                  unreachable casts canon cse strength bool jumps peephole all none
   -Z              suppress redundant loads (constant operands stay in a register)
   -A              ANSI keywords only: no // comments, near/far/huge/cdecl/pascal/interrupt are identifiers
   -Uname          undefine a macro
