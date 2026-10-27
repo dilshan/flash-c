@@ -24,6 +24,7 @@
 #define FA_LABEL 0x08
 #define FA_DIREC 0x10
 #define FA_ARCH 0x20
+
 struct ffblk {
     char ff_reserved[64];
     char ff_attrib;
@@ -32,6 +33,7 @@ struct ffblk {
     long ff_fsize;
     char ff_name[256];
 };
+
 int chdir(const char *path);
 int findfirst(const char *path, struct ffblk *ff, int attrib);
 int findnext(struct ffblk *ff);

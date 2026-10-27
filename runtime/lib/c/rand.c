@@ -11,8 +11,13 @@
 
 static unsigned long __seed = 1;
 
-void srand(unsigned int s) { __seed = s; }
+/* Seeds the random number generator. */
+void srand(unsigned int s)
+{
+    __seed = s;
+}
 
+/* Returns a pseudo-random number. */
 int rand(void)
 {
     __seed = (__seed * 22695477UL + 1) & 0xFFFFFFFFUL;

@@ -30,11 +30,13 @@
 #define UNDERFLOW 4
 #define TLOSS 5
 #define PLOSS 6
+
 struct exception {
     int type;
     char *name;
     double arg1, arg2, retval;
 };
+
 int matherr(struct exception *e);
 int abs(int v);
 long labs(long v);

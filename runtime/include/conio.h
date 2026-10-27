@@ -38,6 +38,7 @@
 #define _NOCURSOR 0
 #define _SOLIDCURSOR 1
 #define _NORMALCURSOR 2
+
 struct text_info {
     unsigned char winleft, wintop, winright, winbottom;
     unsigned char attribute, normattr;
@@ -45,6 +46,7 @@ struct text_info {
     unsigned char screenheight, screenwidth;
     unsigned char curx, cury;
 };
+
 extern int directvideo;
 char *cgets(char *buf);
 void clreol(void);

@@ -105,10 +105,11 @@ Design points:
 
 ### Code style
 
-The IDE sources are formatted with `clang-format` using the rules in `.clang-format` (4-space
-indent, 100 columns, braces on every block, a blank line between definitions); run `make format`
-after editing. Every function has a comment that says what it does, what its parameters mean and
-what it returns. Structures in `ide.h` document their fields.
+The C sources (compiler, IDE, run-time library and tools) are formatted with `clang-format` using
+the rules in `.clang-format` (4-space indent, 100 columns, braces on every block, a blank line
+between definitions); run `make format` after editing. Every function has a comment that says what
+it does, what its parameters mean and what it returns. The main structures (`Tok`, `Type`, `Sym`,
+`Node`, `Win`, `Buf`, ...) document their fields.
 
 ## 3. Tests
 

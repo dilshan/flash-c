@@ -11,7 +11,7 @@ typedef int sig_atomic_t;
 typedef void (*__sighandler_t)(int);
 #define SIG_DFL ((__sighandler_t)0)
 #define SIG_IGN ((__sighandler_t)1)
-#define SIG_ERR ((__sighandler_t)-1)
+#define SIG_ERR ((__sighandler_t) - 1)
 #define SIGHUP 1
 #define SIGINT 2
 #define SIGQUIT 3

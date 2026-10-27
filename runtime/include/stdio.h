@@ -23,6 +23,7 @@
 #define _IOLBF 1
 #define _IONBF 2
 typedef long fpos_t;
+
 typedef struct _FILE {
     int fd, flags;
     int rpos, rlen, wlen, eof, err, unget;
@@ -31,6 +32,7 @@ typedef struct _FILE {
     char *wbuf;
     char *name;
 } FILE;
+
 /* FILE.flags */
 #define _F_READ 1
 #define _F_WRITE 2

@@ -13,11 +13,13 @@
 #define _HEAPEND 5
 #define _FREEENTRY 3
 #define _USEDENTRY 4
+
 struct heapinfo {
     void *ptr;
     unsigned long size;
     int in_use;
 };
+
 int brk(void *addr);
 void *sbrk(long incr);
 unsigned long coreleft(void);

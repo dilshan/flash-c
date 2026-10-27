@@ -41,9 +41,9 @@ $(BUILD)/fcc: $(COMP_OBJ) $(BUILD)/cli/fcc.o
 $(BUILD)/fc: $(COMP_OBJ) $(IDE_OBJ)
 	$(CC) $(LDFLAGS) -o $@ $^ -lutil
 
-# Reformat the IDE sources with clang-format (rules in .clang-format).
+# Reformat the C sources with clang-format (rules in .clang-format).
 format:
-	clang-format -i src/ide/*.c src/ide/*.h
+	clang-format -i src/compiler/*.[ch] src/cli/*.c src/ide/*.[ch] tools/*.c runtime/lib/*.[ch] runtime/lib/c/*.c runtime/lib/m/*.c runtime/include/*.h runtime/include/sys/*.h
 
 test: $(BUILD)/fcc $(BUILD)/fc
 	sh tests/run.sh

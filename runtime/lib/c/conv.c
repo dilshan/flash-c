@@ -11,11 +11,18 @@
 #include <errno.h>
 #include <limits.h>
 
+/* Returns the value of a digit character in bases up to 36, or 99 if c is not a digit. */
 static int __cv_digit(int c)
 {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'z') return c - 'a' + 10;
-    if (c >= 'A' && c <= 'Z') return c - 'A' + 10;
+    if (c >= '0' && c <= '9') {
+        return c - '0';
+    }
+    if (c >= 'a' && c <= 'z') {
+        return c - 'a' + 10;
+    }
+    if (c >= 'A' && c <= 'Z') {
+        return c - 'A' + 10;
+    }
     return 99;
 }
 
@@ -25,25 +32,54 @@ static unsigned long __strtox(const char *s, char **end, int base, int *neg, int
     unsigned long v = 0, lim;
     int d, any = 0;
     const char *start = s;
-    *neg = 0; *over = 0;
-    while (isspace((unsigned char)*s)) s++;
-    if (*s == '-' || *s == '+') { *neg = *s == '-'; s++; }
-    if ((base == 0 || base == 16) && s[0] == '0' && (s[1] == 'x' || s[1] == 'X') && __cv_digit(s[2]) < 16) { s += 2; base = 16; }
-    else if (base == 0 && s[0] == '0') base = 8;
-    else if (base == 0) base = 10;
-    if (base < 2 || base > 36) { if (end) *end = (char *)start; errno = EINVAL; return 0; }
+    *neg = 0;
+    *over = 0;
+    while (isspace((unsigned char)*s)) {
+        s++;
+    }
+    if (*s == '-' || *s == '+') {
+        *neg = *s == '-';
+        s++;
+    }
+    if ((base == 0 || base == 16) && s[0] == '0' && (s[1] == 'x' || s[1] == 'X') &&
+        __cv_digit(s[2]) < 16) {
+        s += 2;
+        base = 16;
+    } else if (base == 0 && s[0] == '0') {
+        base = 8;
+    } else if (base == 0) {
+        base = 10;
+    }
+    if (base < 2 || base > 36) {
+        if (end) {
+            *end = (char *)start;
+        }
+        errno = EINVAL;
+        return 0;
+    }
     lim = ULONG_MAX / base;
     for (;; s++) {
         d = __cv_digit((unsigned char)*s);
-        if (d >= base) break;
+        if (d >= base) {
+            break;
+        }
         any = 1;
-        if (v > lim || (v == lim && (unsigned long)d > ULONG_MAX - lim * base)) *over = 1;
-        else v = v * base + d;
+        if (v > lim || (v == lim && (unsigned long)d > ULONG_MAX - lim * base)) {
+            *over = 1;
+        } else {
+            v = v * base + d;
+        }
     }
-    if (end) *end = (char *)(any ? s : start);
+    if (end) {
+        *end = (char *)(any ? s : start);
+    }
     return v;
 }
 
+/*
+ * Converts the start of a string to a long. Returns the value. On overflow LONG_MAX or
+ * LONG_MIN is returned and errno is set to ERANGE.
+ */
 long strtol(const char *s, char **end, int base)
 {
     int neg, over;
@@ -55,39 +91,79 @@ long strtol(const char *s, char **end, int base)
     return neg ? -(long)v : (long)v;
 }
 
+/*
+ * Converts the start of a string to an unsigned long. Returns the value. On overflow ULONG_MAX
+ * is returned and errno is set to ERANGE.
+ */
 unsigned long strtoul(const char *s, char **end, int base)
 {
     int neg, over;
     unsigned long v = __strtox(s, end, base, &neg, &over);
-    if (over) { errno = ERANGE; return ULONG_MAX; }
+    if (over) {
+        errno = ERANGE;
+        return ULONG_MAX;
+    }
     return neg ? -v : v;
 }
 
-int atoi(const char *s) { return (int)strtol(s, NULL, 10); }
-long atol(const char *s) { return strtol(s, NULL, 10); }
+/* Converts a string to an int. Returns the converted value, or 0 if no conversion is possible. */
+int atoi(const char *s)
+{
+    return (int)strtol(s, NULL, 10);
+}
 
+/* Converts a string to a long. Returns the converted value, or 0 if no conversion is possible. */
+long atol(const char *s)
+{
+    return strtol(s, NULL, 10);
+}
+
+/* Converts u to text in the given base (adding a minus sign if neg); returns buf. */
 static char *__cv_utoa(unsigned long u, char *buf, int base, int neg)
 {
-    char tmp[72]; int i = 0, j = 0;
-    if (base < 2 || base > 36) base = 10;
-    if (!u) tmp[i++] = '0';
-    while (u) { int d = (int)(u % base); tmp[i++] = d < 10 ? '0' + d : 'a' + d - 10; u /= base; }
-    if (neg) buf[j++] = '-';
-    while (i) buf[j++] = tmp[--i];
+    char tmp[72];
+    int i = 0, j = 0;
+    if (base < 2 || base > 36) {
+        base = 10;
+    }
+    if (!u) {
+        tmp[i++] = '0';
+    }
+    while (u) {
+        int d = (int)(u % base);
+        tmp[i++] = d < 10 ? '0' + d : 'a' + d - 10;
+        u /= base;
+    }
+    if (neg) {
+        buf[j++] = '-';
+    }
+    while (i) {
+        buf[j++] = tmp[--i];
+    }
     buf[j] = 0;
     return buf;
 }
 
-char *ultoa(unsigned long v, char *buf, int base) { return __cv_utoa(v, buf, base, 0); }
+/* Converts an unsigned long to a string in the given base. */
+char *ultoa(unsigned long v, char *buf, int base)
+{
+    return __cv_utoa(v, buf, base, 0);
+}
 
+/* Converts a long to a string in the given base. */
 char *ltoa(long v, char *buf, int base)
 {
-    if (v < 0 && base == 10) return __cv_utoa(-(unsigned long)v, buf, base, 1);
+    if (v < 0 && base == 10) {
+        return __cv_utoa(-(unsigned long)v, buf, base, 1);
+    }
     return __cv_utoa((unsigned long)v, buf, base, 0);
 }
 
+/* Converts an int to a string in the given base. */
 char *itoa(int v, char *buf, int base)
 {
-    if (v < 0 && base == 10) return __cv_utoa(-(unsigned long)(long)v, buf, base, 1);
+    if (v < 0 && base == 10) {
+        return __cv_utoa(-(unsigned long)(long)v, buf, base, 1);
+    }
     return __cv_utoa((unsigned long)(unsigned int)v, buf, base, 0);
 }

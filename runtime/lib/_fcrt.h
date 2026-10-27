@@ -10,8 +10,8 @@
 #define __FCRT_H
 #include <_defs.h>
 
-long __syscall(long n, ...);          /* intrinsic: Linux system call, up to six arguments */
-double __sqrt(double x);              /* intrinsic: sqrtsd */
+long __syscall(long n, ...); /* intrinsic: Linux system call, up to six arguments */
+double __sqrt(double x);     /* intrinsic: sqrtsd */
 
 /* x86-64 Linux system call numbers used by the library */
 #define SYS_flock 73
@@ -71,14 +71,14 @@ extern double (*__ScanTodVector)(const char *s, char **end);
 extern void (*__abort_hook)(void);
 extern void (*__stdin_prep)(void);
 void __fp_not_linked(const char *who);
-void __fc_init(void);                 /* written by the linker: runs the #pragma startup procedures */
-void __fc_exit(void);                 /* written by the linker: runs the #pragma exit procedures */
+void __fc_init(void); /* written by the linker: runs the #pragma startup procedures */
+void __fc_exit(void); /* written by the linker: runs the #pragma exit procedures */
 
 /* errno and system call results */
 extern int errno;
 extern int _doserrno;
-long __sysret(long r);                /* r < 0: errno = -r and returns -1 */
-void __wr2(const char *s);            /* write a message to descriptor 2 */
+long __sysret(long r);     /* r < 0: errno = -r and returns -1 */
+void __wr2(const char *s); /* write a message to descriptor 2 */
 
 #define __DIM(a) ((int)(sizeof(a) / sizeof((a)[0])))
 #endif

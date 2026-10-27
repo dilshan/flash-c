@@ -11,39 +11,78 @@
 #include <_fcrt.h>
 #include <_fcio.h>
 
+/* Writes a character to a stream. Returns the character written, or EOF on error. */
 int fputc(int c, FILE *f)
 {
     unsigned char ch = (unsigned char)c;
-    if (!(f->flags & _F_WRITE)) { f->err = 1; errno = EBADF; return EOF; }
-    if (f->rlen > f->rpos) __syscall(SYS_lseek, f->fd, -(long)(f->rlen - f->rpos), 1);      /* leaving read mode */
-    f->rpos = f->rlen = 0; f->unget = 0;
-    if (!__fl_wbuf(f)) {                           /* no memory for a buffer: write the character directly */
-        if (__syscall(SYS_write, f->fd, &ch, 1) != 1) { f->err = 1; return EOF; }
+    if (!(f->flags & _F_WRITE)) {
+        f->err = 1;
+        errno = EBADF;
+        return EOF;
+    }
+    if (f->rlen > f->rpos) {
+        __syscall(SYS_lseek, f->fd, -(long)(f->rlen - f->rpos), 1); /* leaving read mode */
+    }
+    f->rpos = f->rlen = 0;
+    f->unget = 0;
+    if (!__fl_wbuf(f)) { /* no memory for a buffer: write the character directly */
+        if (__syscall(SYS_write, f->fd, &ch, 1) != 1) {
+            f->err = 1;
+            return EOF;
+        }
         return ch;
     }
     f->wbuf[f->wlen++] = ch;
-    if (f->wlen >= __BUFSZ || (f->flags & _F_RAW) || ((f->flags & _F_LINE) && ch == '\n'))
-        if (__fl_flush(f)) return EOF;
+    if (f->wlen >= __BUFSZ || (f->flags & _F_RAW) || ((f->flags & _F_LINE) && ch == '\n')) {
+        if (__fl_flush(f)) {
+            return EOF;
+        }
+    }
     return ch;
 }
 
-int putc(int c, FILE *f) { return fputc(c, f); }
-int putchar(int c) { return fputc(c, stdout); }
-int fputchar(int c) { return fputc(c, stdout); }
+/* Writes a character to a stream. Returns the character written, or EOF on error. */
+int putc(int c, FILE *f)
+{
+    return fputc(c, f);
+}
 
+/* Writes a character to stdout. Returns the character written, or EOF on error. */
+int putchar(int c)
+{
+    return fputc(c, stdout);
+}
+
+/* Writes a character to standard output (same as putchar). */
+int fputchar(int c)
+{
+    return fputc(c, stdout);
+}
+
+/* Writes a string to a stream. Returns a nonnegative value, or EOF on error. */
 int fputs(const char *s, FILE *f)
 {
-    while (*s) if (fputc((unsigned char)*s++, f) == EOF) return EOF;
+    while (*s) {
+        if (fputc((unsigned char)*s++, f) == EOF) {
+            return EOF;
+        }
+    }
     return 0;
 }
 
+/* Writes a string and a newline to stdout. Returns a nonnegative value, or EOF on error. */
 int puts(const char *s)
 {
-    if (fputs(s, stdout) == EOF) return EOF;
-    if (fputc('\n', stdout) == EOF) return EOF;
+    if (fputs(s, stdout) == EOF) {
+        return EOF;
+    }
+    if (fputc('\n', stdout) == EOF) {
+        return EOF;
+    }
     return 0;
 }
 
+/* Writes an int in the machine's binary format to a stream. */
 int putw(int w, FILE *f)
 {
     return fwrite(&w, sizeof w, 1, f) == 1 ? w : EOF;

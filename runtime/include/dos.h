@@ -8,23 +8,27 @@
 #ifndef _FC_DOS_H
 #define _FC_DOS_H
 #include <_defs.h>
+
 struct date {
     int da_year;
     char da_day;
     char da_mon;
 };
+
 struct time {
     unsigned char ti_min;
     unsigned char ti_hour;
     unsigned char ti_hund;
     unsigned char ti_sec;
 };
+
 struct dfree {
     unsigned df_avail;
     unsigned df_total;
     unsigned df_bsec;
     unsigned df_sclus;
 };
+
 void delay(unsigned milliseconds);
 unsigned sleep(unsigned seconds);
 void sound(unsigned frequency);

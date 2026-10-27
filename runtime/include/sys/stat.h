@@ -17,6 +17,7 @@
 #define S_IREAD 0400
 #define S_IWRITE 0200
 #define S_IEXEC 0100
+
 struct stat {
     short st_dev, st_ino;
     short st_mode, st_nlink;
@@ -25,6 +26,7 @@ struct stat {
     long st_size;
     long st_atime, st_mtime, st_ctime;
 };
+
 int stat(const char *path, struct stat *buf);
 int fstat(int fd, struct stat *buf);
 #endif

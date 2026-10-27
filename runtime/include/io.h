@@ -12,9 +12,12 @@
 #include <fcntl.h>
 #include <share.h>
 #include <locking.h>
+
 struct ftime {
-    unsigned ft_tsec, ft_min, ft_hour, ft_day, ft_month, ft_year;   /* ft_year counts from 1980; ft_tsec is in 2 second units */
+    unsigned ft_tsec, ft_min, ft_hour, ft_day, ft_month,
+        ft_year; /* ft_year counts from 1980; ft_tsec is in 2 second units */
 };
+
 int access(const char *path, int amode);
 int chmod(const char *path, int amode);
 int _chmod(const char *path, int func, ...);
