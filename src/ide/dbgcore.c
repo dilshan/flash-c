@@ -22,6 +22,27 @@
 #include <sys/user.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#ifdef __aarch64__
+#include <sys/uio.h>
+#include <elf.h>
+#endif
+
+#ifdef __aarch64__
+typedef uint32_t bp_insn_t;
+#define BP_SIZE 4
+#define BP_INSN 0xd4200000u
+#define REG_PC(r) ((r).pc)
+#define REG_SP(r) ((r).sp)
+#define REG_FP(r) ((r).regs[29])
+#define REG_LR(r) ((r).regs[30])
+#else
+typedef unsigned char bp_insn_t;
+#define BP_SIZE 1
+#define BP_INSN 0xCC
+#define REG_PC(r) ((r).rip)
+#define REG_SP(r) ((r).rsp)
+#define REG_FP(r) ((r).rbp)
+#endif
 
 DbgBP dbg_bps[DBG_MAXBP];
 int dbg_nbps;
@@ -264,6 +285,21 @@ int dbg_write_memory(unsigned long addr, const void *buf, size_t n)
 
 static struct user_regs_struct regs;
 
+#ifdef __aarch64__
+/* Reads the registers of the stopped program into regs; returns 0 on success. */
+static int get_regs(void)
+{
+    struct iovec iov = {&regs, sizeof regs};
+    return ptrace(PTRACE_GETREGSET, pid, (void *)(uintptr_t)NT_PRSTATUS, &iov) == 0 ? 0 : -1;
+}
+
+/* Writes regs back to the stopped program; returns 0 on success. */
+static int set_regs(void)
+{
+    struct iovec iov = {&regs, sizeof regs};
+    return ptrace(PTRACE_SETREGSET, pid, (void *)(uintptr_t)NT_PRSTATUS, &iov) == 0 ? 0 : -1;
+}
+#else
 /* Reads the registers of the stopped program into regs; returns 0 on success. */
 static int get_regs(void)
 {
@@ -275,11 +311,12 @@ static int set_regs(void)
 {
     return ptrace(PTRACE_SETREGS, pid, 0, &regs) == 0 ? 0 : -1;
 }
+#endif
 
-/* Returns the frame pointer (rbp) of the stopped program. */
+/* Returns the frame pointer (rbp / x29) of the stopped program. */
 unsigned long dbg_reg_rbp(void)
 {
-    return regs.rbp;
+    return REG_FP(regs);
 }
 
 /* ------------------------------------------------------------------ output captured from the pty
@@ -516,14 +553,14 @@ static int single_step(void)
 /* temporary breakpoints for the duration of one resume */
 typedef struct Ins {
     unsigned long addr;
-    unsigned char orig;
+    bp_insn_t orig;
     int on;
 } Ins;
 
 static Ins ins[DBG_MAXBP + 4];
 static int nins;
 
-/* Inserts an int3 breakpoint instruction at addr, remembering the original byte. */
+/* Inserts a breakpoint instruction at addr, remembering the original byte/instruction. */
 static void ins_add(unsigned long addr)
 {
     for (int i = 0; i < nins; i++) {
@@ -534,12 +571,12 @@ static void ins_add(unsigned long addr)
     if (nins >= DBG_MAXBP + 4) {
         return;
     }
-    unsigned char c = 0xCC;
-    if (rdmem(addr, &ins[nins].orig, 1)) {
+    bp_insn_t c = BP_INSN;
+    if (rdmem(addr, &ins[nins].orig, sizeof(bp_insn_t))) {
         return;
     }
     ins[nins].addr = addr;
-    if (wrmem(addr, &c, 1)) {
+    if (wrmem(addr, &c, sizeof(bp_insn_t))) {
         return;
     }
     nins++;
@@ -549,7 +586,7 @@ static void ins_add(unsigned long addr)
 static void ins_remove_all(void)
 {
     for (int i = 0; i < nins; i++) {
-        wrmem(ins[i].addr, &ins[i].orig, 1);
+        wrmem(ins[i].addr, &ins[i].orig, sizeof(bp_insn_t));
     }
     nins = 0;
 }
@@ -625,7 +662,7 @@ static int resume(unsigned long tmp, unsigned long want_rsp, int user_bps, int *
         if (get_regs()) {
             return DR_ERROR;
         }
-        unsigned long pc = regs.rip;
+        unsigned long pc = REG_PC(regs);
         /* leave the current instruction first so a breakpoint on it does not trap again at once */
         int r = single_step();
         if (r) {
@@ -634,10 +671,10 @@ static int resume(unsigned long tmp, unsigned long want_rsp, int user_bps, int *
         if (get_regs()) {
             return DR_ERROR;
         }
-        if (regs.rip == tmp && (!want_rsp || regs.rsp == want_rsp)) {
+        if (REG_PC(regs) == tmp && (!want_rsp || REG_SP(regs) == want_rsp)) {
             return 0;
         }
-        if (user_bps && user_bp_at(regs.rip) >= 0 && bp_triggers(regs.rip)) {
+        if (user_bps && user_bp_at(REG_PC(regs)) >= 0 && bp_triggers(REG_PC(regs))) {
             if (user_hit) {
                 *user_hit = 1;
             }
@@ -671,14 +708,16 @@ static int resume(unsigned long tmp, unsigned long want_rsp, int user_bps, int *
         if (get_regs()) {
             return DR_ERROR;
         }
+#ifndef __aarch64__
         regs.rip -= 1; /* the int3 has been executed */
         set_regs();
+#endif
         struct_nframes_dirty = 1;
-        if (regs.rip == tmp && (!want_rsp || regs.rsp == want_rsp)) {
+        if (REG_PC(regs) == tmp && (!want_rsp || REG_SP(regs) == want_rsp)) {
             return 0;
         }
-        if (user_bps && user_bp_at(regs.rip) >= 0) {
-            if (bp_triggers(regs.rip)) {
+        if (user_bps && user_bp_at(REG_PC(regs)) >= 0) {
+            if (bp_triggers(REG_PC(regs))) {
                 if (user_hit) {
                     *user_hit = 1;
                 }
@@ -869,11 +908,11 @@ int dbg_run_to_return(void)
         return DR_ERROR;
     }
     unsigned long ret = 0;
-    if (rdmem(regs.rbp + 8, &ret, 8)) {
+    if (rdmem(REG_FP(regs) + 8, &ret, 8)) {
         return DR_ERROR;
     }
     int uh;
-    int r = resume(ret, regs.rbp + 16, 1, &uh);
+    int r = resume(ret, REG_FP(regs) + 16, 1, &uh);
     return finish_result(r, uh, DR_STEP);
 }
 
@@ -897,18 +936,26 @@ static int step_impl(int into)
     if (state != DS_STOPPED || get_regs()) {
         return DR_ERROR;
     }
-    const FcDFunc *f0 = func_at(regs.rip);
+    const FcDFunc *f0 = func_at(REG_PC(regs));
     if (!f0) {
         return dbg_go();
     }
-    int li = line_idx(regs.rip);
+    int li = line_idx(REG_PC(regs));
     int start_line = li >= 0 ? info()->lines[li].line : 0;
     for (;;) {
-        unsigned long pc = regs.rip, rsp = regs.rsp;
+        unsigned long pc = REG_PC(regs), rsp = REG_SP(regs);
+#ifdef __aarch64__
+        uint32_t op32 = 0;
+        rdmem(pc, &op32, 4);
+        int is_call = ((op32 & 0xFC000000u) == 0x94000000u) ||
+                      ((op32 & 0xFFFFFC1Fu) == 0xd63f0000u);
+        int is_ret = ((op32 & 0xFFFFFC1Fu) == 0xd65f0000u);
+#else
         unsigned char op[2] = {0, 0};
         rdmem(pc, op, 2);
         int is_call = op[0] == 0xE8 || (op[0] == 0xFF && (op[1] & 0x38) == 0x10);
         int is_ret = op[0] == 0xC3;
+#endif
         int r = single_step();
         if (r) {
             return r;
@@ -916,7 +963,7 @@ static int step_impl(int into)
         if (get_regs()) {
             return DR_ERROR;
         }
-        unsigned long npc = regs.rip;
+        unsigned long npc = REG_PC(regs);
         if (user_bp_at(npc) >= 0 && is_line_start(npc) && bp_triggers(npc)) {
             return DR_BREAK;
         }
@@ -928,7 +975,11 @@ static int step_impl(int into)
                 return finish_result(r, uh, DR_STEP);
             }
             unsigned long ret = 0;
+#ifdef __aarch64__
+            ret = REG_LR(regs);
+#else
             rdmem(regs.rsp, &ret, 8);
+#endif
             int uh;
             r = resume(ret, rsp, 1, &uh); /* rsp after the return equals rsp before the call */
             if (r || uh) {
@@ -1039,7 +1090,7 @@ static void build_frames(void)
     if (state != DS_STOPPED || get_regs()) {
         return;
     }
-    unsigned long pc = regs.rip, fp = regs.rbp;
+    unsigned long pc = REG_PC(regs), fp = REG_FP(regs);
     for (int depth = 0; depth < 64; depth++) {
         const FcDFunc *f = func_at(pc);
         if (!f) {
@@ -1054,14 +1105,20 @@ static void build_frames(void)
         fr->line = li >= 0 ? info()->lines[li].line : f->line0;
         snprintf(fr->file, sizeof fr->file, "%s",
                  li >= 0 ? abs_file(info()->lines[li].file) : f->file);
-        /* at the very first instructions of a function rbp is still the caller's */
+        /* at the very first instructions of a function rbp/x29 is still the caller's */
         unsigned long ret = 0, nfp = 0;
         if (depth == 0 && pc == f->addr) {
+#ifdef __aarch64__
+            ret = REG_LR(regs);
+            nfp = fp;
+            fr->fp = REG_SP(regs) - 16;
+#else
             if (rdmem(regs.rsp, &ret, 8)) {
                 break;
             }
             nfp = fp;
             fr->fp = regs.rsp - 8;
+#endif
         } else {
             if (rdmem(fp + 8, &ret, 8) || rdmem(fp, &nfp, 8)) {
                 break;

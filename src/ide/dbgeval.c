@@ -1485,6 +1485,57 @@ int dbg_frame_text(int i, char *out, int n)
 }
 
 /* ---- registers */
+#ifdef __aarch64__
+static const char *regname[] = {
+    "X0",  "X1",  "X2",  "X3",  "X4",  "X5",  "X6",  "X7",
+    "X8",  "X9",  "X10", "X11", "X12", "X13", "X14", "X15",
+    "X16", "X17", "X18", "X19", "X20", "X21", "X22", "X23",
+    "X24", "X25", "X26", "X27", "X28", "FP",  "LR"
+};
+
+/* Returns the number of lines in the Register window. */
+int dbg_nregs(void)
+{
+    return 35;
+}
+
+extern unsigned long dbg_reg_rbp(void);
+extern int dbg_get_regs_copy(struct user_regs_struct *r);
+
+/* Formats line i of the Register window. */
+int dbg_reg_text(int i, char *out, int n)
+{
+    struct user_regs_struct r;
+    if (dbg_state() != DS_STOPPED || dbg_get_regs_copy(&r)) {
+        snprintf(out, n, " Registers are available only while debugging");
+        return i == 0 ? 0 : -1;
+    }
+    if (i < 31) {
+        snprintf(out, n, " %-6s %016llX", regname[i], (unsigned long long)r.regs[i]);
+        return 0;
+    }
+    if (i == 31) {
+        snprintf(out, n, " %-6s %016llX", "SP", (unsigned long long)r.sp);
+        return 0;
+    }
+    if (i == 32) {
+        snprintf(out, n, " %-6s %016llX", "PC", (unsigned long long)r.pc);
+        return 0;
+    }
+    if (i == 33) {
+        snprintf(out, n, " %-6s %016llX", "PSTATE", (unsigned long long)r.pstate);
+        return 0;
+    }
+    if (i == 34) {
+        unsigned long long s = r.pstate;
+        snprintf(out, n, " n=%d z=%d c=%d v=%d",
+                 !!(s & (1ULL << 31)), !!(s & (1ULL << 30)),
+                 !!(s & (1ULL << 29)), !!(s & (1ULL << 28)));
+        return 0;
+    }
+    return -1;
+}
+#else
 static const char *regname[] = {"RAX", "RBX", "RCX", "RDX", "RSI", "RDI", "RBP", "RSP", "R8",
                                 "R9",  "R10", "R11", "R12", "R13", "R14", "R15", "RIP", "FLAGS"};
 
@@ -1520,3 +1571,4 @@ int dbg_reg_text(int i, char *out, int n)
     }
     return -1;
 }
+#endif

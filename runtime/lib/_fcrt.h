@@ -13,6 +13,12 @@
 long __syscall(long n, ...); /* intrinsic: Linux system call, up to six arguments */
 double __sqrt(double x);     /* intrinsic: sqrtsd */
 
+#ifdef __aarch64__
+#define __FC_O_DIRECTORY 040000
+#else
+#define __FC_O_DIRECTORY 0200000
+#endif
+
 /* x86-64 Linux system call numbers used by the library */
 #define SYS_flock 73
 #define SYS_fsync 74

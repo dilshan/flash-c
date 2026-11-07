@@ -113,6 +113,14 @@ void __fc_stkover(void)
     _exit(1);
 }
 
+#ifdef __aarch64__
+#define __FC_SYS_GETRLIMIT 163
+#define __FC_SYS_SETRLIMIT 164
+#else
+#define __FC_SYS_GETRLIMIT 97
+#define __FC_SYS_SETRLIMIT 160
+#endif
+
 /* stack limit: the Linux stack grows on demand up to RLIMIT_STACK, so the size chosen under
  * Linker|Stack size is installed with setrlimit() and the same figure bounds the -N overflow test
  * (with a margin for the handler) */
@@ -121,16 +129,16 @@ static void __stack_setup(void)
     unsigned long rl[2];
     char probe;
 #ifdef _FC_STKKB
-    if (__syscall(97, 3, rl) == 0) {
+    if (__syscall(__FC_SYS_GETRLIMIT, 3, rl) == 0) {
         unsigned long want = (unsigned long)_FC_STKKB * 1024;
         if (rl[1] != ~0UL && want > rl[1]) {
             want = rl[1];
         }
         rl[0] = want;
-        __syscall(160, 3, rl);
+        __syscall(__FC_SYS_SETRLIMIT, 3, rl);
     }
 #endif
-    if (__syscall(97, 3, rl) == 0 && rl[0] != ~0UL && rl[0] > 65536) {
+    if (__syscall(__FC_SYS_GETRLIMIT, 3, rl) == 0 && rl[0] != ~0UL && rl[0] > 65536) {
         __fc_stklimit = (long)&probe - (long)rl[0] + 32768;
     }
 }

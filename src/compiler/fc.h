@@ -68,8 +68,14 @@ enum { FC_WARNING = 0, FC_ERROR = 1, FC_FATAL = 2 };
 #define FCO_SIZE (1ULL << 47)     /* optimize for code size (not part of "all") */
 #define FCO_ALL ((1ULL << 47) - 1)
 
+enum {
+    FC_ARCH_X86_64 = 0,
+    FC_ARCH_AARCH64 = 1
+};
+
 /* All settings of one compilation; fc_options_default() gives the defaults. */
 typedef struct FcOptions {
+    int target_arch;     /* target architecture: 0 = x86-64, 1 = aarch64 */
     int nested_comments; /* allow nested comments                    */
     int warn_level;      /* 0 = none, 1 = selected, 2 = all          */
     int max_errors;      /* stop after N errors   (default 25)       */

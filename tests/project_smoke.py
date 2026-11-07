@@ -33,7 +33,7 @@ try:
 
     s = Session([BIN], cwd=work, rows=25, cols=80, env={'ASAN_OPTIONS': 'detect_leaks=0'})
     s.send('\x1bp', 'o'); s.type('demo.fcp'); s.send('ENTER')
-    s.send('F9'); s.send('x')
+    s.send('F9', wait=2.0); s.send('x')
     prog = os.path.join(work, 'build', 'out', 'prog')
     check('executable is written to the Output Path (new directories are created)', os.access(prog, os.X_OK), s)
     check('the default location is not used', not os.path.exists(os.path.join(work, 'demo')))

@@ -11,6 +11,11 @@
 void fc_options_default(FcOptions *o)
 {
     memset(o, 0, sizeof *o);
+#ifdef __aarch64__
+    o->target_arch = FC_ARCH_AARCH64;
+#else
+    o->target_arch = FC_ARCH_X86_64;
+#endif
     o->warn_level = 1;
     o->fp_mode = 1;
     o->max_errors = 25;
@@ -107,6 +112,17 @@ int fc_apply_switch(FcOptions *o, const char *arg)
         break;
     case 'b':
         o->enum_int = arg[2] != '-';
+        break;
+    case 'm':
+        if (!strcmp(arg, "-maarch64") || !strcmp(arg, "-marm64") || !strcmp(arg, "-march=aarch64") ||
+            !strcmp(arg, "-march=arm64")) {
+            o->target_arch = FC_ARCH_AARCH64;
+        } else if (!strcmp(arg, "-mx86-64") || !strcmp(arg, "-mx86_64") ||
+                   !strcmp(arg, "-march=x86-64") || !strcmp(arg, "-march=x86_64")) {
+            o->target_arch = FC_ARCH_X86_64;
+        } else {
+            return 0;
+        }
         break;
     case 'd':
         o->merge_strings = arg[2] != '-';

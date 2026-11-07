@@ -63,6 +63,8 @@ A trailing `-` turns a switch off (`-b-`). A `*` marks a default in `fcc -h`.
 |---|---|
 | `-b` (default), `-b-` | Treat enums as `int`, or use the smallest integer type that fits. |
 | `-a` (default), `-a-` | Align structure members, or pack them. |
+| `-maarch64`, `-marm64` | Target ARM64 / AArch64 (ARMv8-A, e.g. Raspberry Pi 4 Cortex-A72). Default on AArch64 builds. |
+| `-mx86-64`, `-mx86_64` | Target x86-64 (AMD64). Default on x86-64 builds. |
 | `-d` | Merge identical string literals. |
 | `-N` | Test for stack overflow on function entry: the program stops with `Stack overflow!` and exit code 1. |
 | `-ls<KB>` | Stack size in KB, set at start-up with `setrlimit` (also the limit used by `-N`). |
