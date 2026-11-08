@@ -22,6 +22,25 @@ run -b- | grep -q '^enum 1 4 1' && ok enums-narrow || bad enums-narrow
 run -d | grep -q 'strings merged' && ok merge-strings || bad merge-strings
 run -a- | grep -q '^struct 14' && ok pack-structs || bad pack-structs
 
+# target architecture switches: native arch runs and compares, cross-arch only checks compile
+HOSTARCH=$(uname -m)
+if [ "$HOSTARCH" = "aarch64" ]; then
+    run -maarch64 > "$TMP/out" && diff -q "$TMP/base" "$TMP/out" > /dev/null && ok arch-arm64 || bad arch-arm64
+    run -marm64 > "$TMP/out" && diff -q "$TMP/base" "$TMP/out" > /dev/null && ok arch-arm64-alias || bad arch-arm64-alias
+    $FCC -w- -mx86-64 -e"$TMP/p" opt.c > "$TMP/log" 2>&1 && ! grep -q "Error\|Fatal\|Linker Error" "$TMP/log" && ok arch-x86-64 || bad arch-x86-64
+    $FCC -w- -mx86_64 -e"$TMP/p" opt.c > "$TMP/log" 2>&1 && ! grep -q "Error\|Fatal\|Linker Error" "$TMP/log" && ok arch-x86_64-alias || bad arch-x86_64-alias
+elif [ "$HOSTARCH" = "x86_64" ]; then
+    $FCC -w- -mx86-64 -e"$TMP/p" opt.c > "$TMP/log" 2>&1 && ! grep -q "Error\|Fatal\|Linker Error" "$TMP/log" && ok arch-x86-64 || bad arch-x86-64
+    $FCC -w- -mx86_64 -e"$TMP/p" opt.c > "$TMP/log" 2>&1 && ! grep -q "Error\|Fatal\|Linker Error" "$TMP/log" && ok arch-x86_64-alias || bad arch-x86_64-alias
+    run -maarch64 > "$TMP/out" && diff -q "$TMP/base" "$TMP/out" > /dev/null && ok arch-arm64 || bad arch-arm64
+    run -marm64 > "$TMP/out" && diff -q "$TMP/base" "$TMP/out" > /dev/null && ok arch-arm64-alias || bad arch-arm64-alias
+else
+    $FCC -w- -maarch64 -e"$TMP/p" opt.c > "$TMP/log" 2>&1 && ! grep -q "Error\|Fatal\|Linker Error" "$TMP/log" && ok arch-arm64 || bad arch-arm64
+    $FCC -w- -mx86-64 -e"$TMP/p" opt.c > "$TMP/log" 2>&1 && ! grep -q "Error\|Fatal\|Linker Error" "$TMP/log" && ok arch-x86-64 || bad arch-x86-64
+    $FCC -w- -marm64 -e"$TMP/p" opt.c > "$TMP/log" 2>&1 && ! grep -q "Error\|Fatal\|Linker Error" "$TMP/log" && ok arch-arm64-alias || bad arch-arm64-alias
+    $FCC -w- -mx86_64 -e"$TMP/p" opt.c > "$TMP/log" 2>&1 && ! grep -q "Error\|Fatal\|Linker Error" "$TMP/log" && ok arch-x86_64-alias || bad arch-x86_64-alias
+fi
+
 # the optimizer must not change behaviour
 for f in "-O" "-Z" "-O -Z" "-O -Z -lw -lt -v"; do
     run $f > "$TMP/out"
