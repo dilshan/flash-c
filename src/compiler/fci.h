@@ -366,7 +366,7 @@ typedef struct Program {
     uint8_t *data;
     int ndata, capdata;
     int bss;
-    int uses_fp; /* the program (not the library) uses float/double */
+    int uses_fp;       /* the program (not the library) uses float/double */
     int uses_volatile; /* the program (not the library) declares something volatile */
 
     struct DReloc {

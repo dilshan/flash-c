@@ -947,8 +947,8 @@ static int step_impl(int into)
 #ifdef __aarch64__
         uint32_t op32 = 0;
         rdmem(pc, &op32, 4);
-        int is_call = ((op32 & 0xFC000000u) == 0x94000000u) ||
-                      ((op32 & 0xFFFFFC1Fu) == 0xd63f0000u);
+        int is_call =
+            ((op32 & 0xFC000000u) == 0x94000000u) || ((op32 & 0xFFFFFC1Fu) == 0xd63f0000u);
         int is_ret = ((op32 & 0xFFFFFC1Fu) == 0xd65f0000u);
 #else
         unsigned char op[2] = {0, 0};

@@ -268,7 +268,8 @@ static void dln_set_last_pos(int pos);
 static int mark_pos = -1;                  /* ncode at the last label placement or line mark */
 static int last_push = -1;                 /* ncode right after the last 'push rax' */
 static int pl_pos = -1, pl_n, pl_list[32]; /* labels placed at pl_pos */
-static int last_jump_pos = -1, last_jump_pinned; /* where the last jump starts, and whether a label or line mark is at that spot */
+static int last_jump_pos = -1, last_jump_pinned; /* where the last jump starts, and whether a label
+                                                    or line mark is at that spot */
 
 /*
  * Binds label l to the current code position.  A jump that would only skip to this very
@@ -326,8 +327,8 @@ static void place(int l)
     if ((CX->opt.opt_flags & FCO_LAYOUT) && njfix >= 2 && ncode >= 11 && code[ncode - 5] == 0xE9 &&
         jfix[njfix - 1].pos == ncode - 4 && !jfix[njfix - 1].rel8 &&
         jfix[njfix - 2].pos == ncode - 9 && !jfix[njfix - 2].rel8 && jfix[njfix - 2].label == l &&
-        code[ncode - 11] == 0x0F && (code[ncode - 10] & 0xF0) == 0x80 && last_jump_pos == ncode - 5 && !last_jump_pinned &&
-        !(pl_pos == ncode && pl_n >= 32)) {
+        code[ncode - 11] == 0x0F && (code[ncode - 10] & 0xF0) == 0x80 &&
+        last_jump_pos == ncode - 5 && !last_jump_pinned && !(pl_pos == ncode && pl_n >= 32)) {
         /* branch folding:  jcc l; jmp m; l:  ->  jncc m; l: */
         code[ncode - 10] = 0x80 | ((code[ncode - 10] & 0x0F) ^ 1);
         jfix[njfix - 2].label = jfix[njfix - 1].label;
@@ -374,17 +375,28 @@ enum {
 static int a64_cc(int x86_cc)
 {
     switch (x86_cc) {
-    case CC_E:  return 0;  /* EQ */
-    case CC_NE: return 1;  /* NE */
-    case CC_AE: return 2;  /* CS */
-    case CC_B:  return 3;  /* CC */
-    case CC_A:  return 8;  /* HI */
-    case CC_BE: return 9;  /* LS */
-    case CC_GE: return 10; /* GE */
-    case CC_L:  return 11; /* LT */
-    case CC_G:  return 12; /* GT */
-    case CC_LE: return 13; /* LE */
-    default: return 0;
+    case CC_E:
+        return 0; /* EQ */
+    case CC_NE:
+        return 1; /* NE */
+    case CC_AE:
+        return 2; /* CS */
+    case CC_B:
+        return 3; /* CC */
+    case CC_A:
+        return 8; /* HI */
+    case CC_BE:
+        return 9; /* LS */
+    case CC_GE:
+        return 10; /* GE */
+    case CC_L:
+        return 11; /* LT */
+    case CC_G:
+        return 12; /* GT */
+    case CC_LE:
+        return 13; /* LE */
+    default:
+        return 0;
     }
 }
 
@@ -599,10 +611,18 @@ static void gen_fop(int op) /* rax op rcx, both doubles -> rax */
     movq_x1_rcx();
     if (IS_A64) {
         switch (op) {
-        case B_ADD: emit32(0x1e612800); break; /* fadd d0, d0, d1 */
-        case B_SUB: emit32(0x1e613800); break; /* fsub d0, d0, d1 */
-        case B_MUL: emit32(0x1e610800); break; /* fmul d0, d0, d1 */
-        case B_DIV: emit32(0x1e611800); break; /* fdiv d0, d0, d1 */
+        case B_ADD:
+            emit32(0x1e612800);
+            break; /* fadd d0, d0, d1 */
+        case B_SUB:
+            emit32(0x1e613800);
+            break; /* fsub d0, d0, d1 */
+        case B_MUL:
+            emit32(0x1e610800);
+            break; /* fmul d0, d0, d1 */
+        case B_DIV:
+            emit32(0x1e611800);
+            break; /* fdiv d0, d0, d1 */
         }
         movq_rax_x0();
         return;
@@ -633,12 +653,24 @@ static void gen_fcmp(int op)
         emit32(0x1e612000); /* fcmp d0, d1 */
         int cond = 0;
         switch (op) {
-        case B_EQ: cond = 0; break;  /* eq */
-        case B_NE: cond = 1; break;  /* ne */
-        case B_LT: cond = 4; break;  /* mi */
-        case B_LE: cond = 9; break;  /* ls */
-        case B_GT: cond = 12; break; /* gt */
-        case B_GE: cond = 10; break; /* ge */
+        case B_EQ:
+            cond = 0;
+            break; /* eq */
+        case B_NE:
+            cond = 1;
+            break; /* ne */
+        case B_LT:
+            cond = 4;
+            break; /* mi */
+        case B_LE:
+            cond = 9;
+            break; /* ls */
+        case B_GT:
+            cond = 12;
+            break; /* gt */
+        case B_GE:
+            cond = 10;
+            break; /* ge */
         }
         emit32(0x9a9f07e0 | ((cond ^ 1) << 12)); /* cset x0, cond */
         return;
@@ -757,15 +789,23 @@ static void load_local_r(int off, Type *t, int reg)
         if (t->kind == TY_FLOAT) {
             a64_mem(0xbc400000, 0, 29, off); /* ldur s0, [x29, #off] */
             emit32(0x1e22c000);              /* fcvt d0, s0 */
-            emit32(0x9e660000 | reg);         /* fmov reg, d0 */
+            emit32(0x9e660000 | reg);        /* fmov reg, d0 */
             return;
         }
         uint32_t op;
         switch (t->size) {
-        case 1: op = t->uns ? 0x38400000 : 0x38800000; break; /* ldurb / ldursb */
-        case 2: op = t->uns ? 0x78400000 : 0x78800000; break; /* ldurh / ldursh */
-        case 4: op = t->uns ? 0xb8400000 : 0xb8800000; break; /* ldur w / ldursw */
-        default: op = 0xf8400000; break;                       /* ldur x */
+        case 1:
+            op = t->uns ? 0x38400000 : 0x38800000;
+            break; /* ldurb / ldursb */
+        case 2:
+            op = t->uns ? 0x78400000 : 0x78800000;
+            break; /* ldurh / ldursh */
+        case 4:
+            op = t->uns ? 0xb8400000 : 0xb8800000;
+            break; /* ldur w / ldursw */
+        default:
+            op = 0xf8400000;
+            break; /* ldur x */
         }
         a64_mem(op, reg, 29, off);
         return;
@@ -943,19 +983,27 @@ static void store_local(int off, Type *t)
 {
     if (IS_A64) {
         if (t->kind == TY_FLOAT) {
-            emit32(0x9e670000); /* fmov d0, x0 */
-            emit32(0x1e624000); /* fcvt s0, d0 */
+            emit32(0x9e670000);              /* fmov d0, x0 */
+            emit32(0x1e624000);              /* fcvt s0, d0 */
             a64_mem(0xbc000000, 0, 29, off); /* stur s0, [x29, #off] */
-            emit32(0x1e22c000); /* fcvt d0, s0 */
-            emit32(0x9e660000); /* fmov x0, d0 */
+            emit32(0x1e22c000);              /* fcvt d0, s0 */
+            emit32(0x9e660000);              /* fmov x0, d0 */
             return;
         }
         uint32_t op;
         switch (t->size) {
-        case 1: op = 0x38000000; break; /* sturb */
-        case 2: op = 0x78000000; break; /* sturh */
-        case 4: op = 0xb8000000; break; /* stur w */
-        default: op = 0xf8000000; break; /* stur x */
+        case 1:
+            op = 0x38000000;
+            break; /* sturb */
+        case 2:
+            op = 0x78000000;
+            break; /* sturh */
+        case 4:
+            op = 0xb8000000;
+            break; /* stur w */
+        default:
+            op = 0xf8000000;
+            break; /* stur x */
         }
         a64_mem(op, 0, 29, off);
         return;
@@ -1005,9 +1053,11 @@ static void bf_extract(Node *m) /* rax = unit value -> rax = field value */
 {
     if (IS_A64) {
         if (m->buns) {
-            emit32(0xd3400000 | (m->bsh << 16) | ((m->bsh + m->bw - 1) << 10)); /* ubfx x0, x0, #sh, #w */
+            emit32(0xd3400000 | (m->bsh << 16) |
+                   ((m->bsh + m->bw - 1) << 10)); /* ubfx x0, x0, #sh, #w */
         } else {
-            emit32(0x93400000 | (m->bsh << 16) | ((m->bsh + m->bw - 1) << 10)); /* sbfx x0, x0, #sh, #w */
+            emit32(0x93400000 | (m->bsh << 16) |
+                   ((m->bsh + m->bw - 1) << 10)); /* sbfx x0, x0, #sh, #w */
         }
         return;
     }
@@ -1031,7 +1081,8 @@ static void bf_store(Node *m) /* rax = value, rcx = address of the unit -> rax =
 {
     if (IS_A64) {
         emit32(0xb9400022); /* ldr w2, [x1] */
-        emit32(0xb3400000 | (((64 - m->bsh) & 63) << 16) | ((m->bw - 1) << 10) | (0 << 5) | 2); /* bfi x2, x0, #sh, #w */
+        emit32(0xb3400000 | (((64 - m->bsh) & 63) << 16) | ((m->bw - 1) << 10) | (0 << 5) |
+               2);          /* bfi x2, x0, #sh, #w */
         emit32(0xb9000022); /* str w2, [x1] */
         bf_extract(m);
         return;
@@ -1329,20 +1380,34 @@ static void gen_op_rr(int op, int u)
 {
     if (IS_A64) {
         switch (op) {
-        case B_ADD: emit32(0x8b010000); break; /* add x0, x0, x1 */
-        case B_SUB: emit32(0xcb010000); break; /* sub x0, x0, x1 */
-        case B_MUL: emit32(0x9b017c00); break; /* mul x0, x0, x1 */
+        case B_ADD:
+            emit32(0x8b010000);
+            break; /* add x0, x0, x1 */
+        case B_SUB:
+            emit32(0xcb010000);
+            break; /* sub x0, x0, x1 */
+        case B_MUL:
+            emit32(0x9b017c00);
+            break; /* mul x0, x0, x1 */
         case B_DIV:
             emit32(u ? 0x9ac10800 : 0x9ac10c00); /* udiv / sdiv x0, x0, x1 */
             break;
         case B_MOD:
             emit32(u ? 0x9ac10802 : 0x9ac10c02); /* udiv / sdiv x2, x0, x1 */
-            emit32(0x9b018040);                   /* msub x0, x2, x1, x0 */
+            emit32(0x9b018040);                  /* msub x0, x2, x1, x0 */
             break;
-        case B_AND: emit32(0x8a010000); break; /* and x0, x0, x1 */
-        case B_OR:  emit32(0xaa010000); break; /* orr x0, x0, x1 */
-        case B_XOR: emit32(0xca010000); break; /* eor x0, x0, x1 */
-        case B_SHL: emit32(0x9ac12000); break; /* lsl x0, x0, x1 */
+        case B_AND:
+            emit32(0x8a010000);
+            break; /* and x0, x0, x1 */
+        case B_OR:
+            emit32(0xaa010000);
+            break; /* orr x0, x0, x1 */
+        case B_XOR:
+            emit32(0xca010000);
+            break; /* eor x0, x0, x1 */
+        case B_SHL:
+            emit32(0x9ac12000);
+            break; /* lsl x0, x0, x1 */
         case B_SHR:
             emit32(u ? 0x9ac12400 : 0x9ac12800); /* lsr / asr x0, x0, x1 */
             break;
@@ -1563,46 +1628,86 @@ static void gen_bin(Node *n)
 static int a64_syscall_num(int x86_num)
 {
     switch (x86_num) {
-    case 0:   return 63;  /* read */
-    case 1:   return 64;  /* write */
-    case 3:   return 57;  /* close */
-    case 5:   return 80;  /* fstat */
-    case 8:   return 62;  /* lseek */
-    case 9:   return 222; /* mmap */
-    case 11:  return 215; /* munmap */
-    case 12:  return 214; /* brk */
-    case 13:  return 134; /* rt_sigaction */
-    case 14:  return 135; /* rt_sigprocmask */
-    case 16:  return 29;  /* ioctl */
-    case 22:  return 59;  /* pipe2 */
-    case 32:  return 23;  /* dup */
-    case 35:  return 101; /* nanosleep */
-    case 39:  return 172; /* getpid */
-    case 59:  return 221; /* execve */
-    case 60:  return 93;  /* exit */
-    case 61:  return 260; /* wait4 */
-    case 62:  return 129; /* kill */
-    case 72:  return 25;  /* fcntl */
-    case 73:  return 32;  /* flock */
-    case 74:  return 82;  /* fsync */
-    case 77:  return 46;  /* ftruncate */
-    case 79:  return 17;  /* getcwd */
-    case 80:  return 49;  /* chdir */
-    case 91:  return 52;  /* fchmod */
-    case 95:  return 166; /* umask */
-    case 96:  return 169; /* gettimeofday */
-    case 97:  return 163; /* getrlimit */
-    case 99:  return 179; /* sysinfo */
-    case 110: return 173; /* getppid */
-    case 137: return 43;  /* statfs */
-    case 160: return 164; /* setrlimit */
-    case 163: return 163; /* getrlimit */
-    case 164: return 170; /* settimeofday */
-    case 217: return 61;  /* getdents64 */
-    case 228: return 113; /* clock_gettime */
-    case 231: return 94;  /* exit_group */
-    case 280: return 88;  /* utimensat */
-    default:  return x86_num;
+    case 0:
+        return 63; /* read */
+    case 1:
+        return 64; /* write */
+    case 3:
+        return 57; /* close */
+    case 5:
+        return 80; /* fstat */
+    case 8:
+        return 62; /* lseek */
+    case 9:
+        return 222; /* mmap */
+    case 11:
+        return 215; /* munmap */
+    case 12:
+        return 214; /* brk */
+    case 13:
+        return 134; /* rt_sigaction */
+    case 14:
+        return 135; /* rt_sigprocmask */
+    case 16:
+        return 29; /* ioctl */
+    case 22:
+        return 59; /* pipe2 */
+    case 32:
+        return 23; /* dup */
+    case 35:
+        return 101; /* nanosleep */
+    case 39:
+        return 172; /* getpid */
+    case 59:
+        return 221; /* execve */
+    case 60:
+        return 93; /* exit */
+    case 61:
+        return 260; /* wait4 */
+    case 62:
+        return 129; /* kill */
+    case 72:
+        return 25; /* fcntl */
+    case 73:
+        return 32; /* flock */
+    case 74:
+        return 82; /* fsync */
+    case 77:
+        return 46; /* ftruncate */
+    case 79:
+        return 17; /* getcwd */
+    case 80:
+        return 49; /* chdir */
+    case 91:
+        return 52; /* fchmod */
+    case 95:
+        return 166; /* umask */
+    case 96:
+        return 169; /* gettimeofday */
+    case 97:
+        return 163; /* getrlimit */
+    case 99:
+        return 179; /* sysinfo */
+    case 110:
+        return 173; /* getppid */
+    case 137:
+        return 43; /* statfs */
+    case 160:
+        return 164; /* setrlimit */
+    case 163:
+        return 163; /* getrlimit */
+    case 164:
+        return 170; /* settimeofday */
+    case 217:
+        return 61; /* getdents64 */
+    case 228:
+        return 113; /* clock_gettime */
+    case 231:
+        return 94; /* exit_group */
+    case 280:
+        return 88; /* utimensat */
+    default:
+        return x86_num;
     }
 }
 
@@ -1626,99 +1731,99 @@ static void gen_a64_syscall(int argc, Node **args)
     /* Check syscall number */
     int num = (argc > 0 && args[0]->kind == N_NUM) ? (int)args[0]->val : -1;
     switch (num) {
-    case 2: /* SYS_open -> openat(AT_FDCWD, path, flags, mode) */
-        a64_mov_rr(3, 2); /* mov x3, x2 (mode) */
-        a64_mov_rr(2, 1); /* mov x2, x1 (flags) */
-        a64_mov_rr(1, 0); /* mov x1, x0 (path) */
+    case 2:                    /* SYS_open -> openat(AT_FDCWD, path, flags, mode) */
+        a64_mov_rr(3, 2);      /* mov x3, x2 (mode) */
+        a64_mov_rr(2, 1);      /* mov x2, x1 (flags) */
+        a64_mov_rr(1, 0);      /* mov x1, x0 (path) */
         a64_load_imm(0, -100); /* AT_FDCWD */
         a64_load_imm(8, 56);   /* SYS_openat */
         break;
-    case 4: /* SYS_stat -> newfstatat(AT_FDCWD, path, statbuf, 0) */
+    case 4:               /* SYS_stat -> newfstatat(AT_FDCWD, path, statbuf, 0) */
         a64_mov_rr(2, 1); /* mov x2, x1 (statbuf) */
         a64_mov_rr(1, 0); /* mov x1, x0 (path) */
         a64_load_imm(0, -100);
-        emit32(0xaa1f03e3); /* mov x3, xzr (flags=0) */
-        a64_load_imm(8, 79);   /* SYS_newfstatat */
+        emit32(0xaa1f03e3);  /* mov x3, xzr (flags=0) */
+        a64_load_imm(8, 79); /* SYS_newfstatat */
         break;
-    case 6: /* SYS_lstat -> newfstatat(AT_FDCWD, path, statbuf, 0x100) */
+    case 6:               /* SYS_lstat -> newfstatat(AT_FDCWD, path, statbuf, 0x100) */
         a64_mov_rr(2, 1); /* mov x2, x1 (statbuf) */
         a64_mov_rr(1, 0); /* mov x1, x0 (path) */
         a64_load_imm(0, -100);
         a64_load_imm(3, 0x100); /* AT_SYMLINK_NOFOLLOW */
         a64_load_imm(8, 79);
         break;
-    case 21: /* SYS_access -> faccessat(AT_FDCWD, path, mode, 0) */
+    case 21:              /* SYS_access -> faccessat(AT_FDCWD, path, mode, 0) */
         a64_mov_rr(2, 1); /* mov x2, x1 (mode) */
         a64_mov_rr(1, 0); /* mov x1, x0 (path) */
         a64_load_imm(0, -100);
-        emit32(0xaa1f03e3); /* mov x3, xzr */
-        a64_load_imm(8, 48);   /* SYS_faccessat */
-        break;
-    case 22: /* SYS_pipe -> pipe2(fds, 0) */
-        emit32(0xaa1f03e1); /* mov x1, xzr */
-        a64_load_imm(8, 59);   /* SYS_pipe2 */
-        break;
-    case 33: /* SYS_dup2 -> dup3(old, new, 0) */
-        emit32(0xeb01001f); /* cmp x0, x1 */
-        emit32(0x54000060); /* b.eq +12 (if eq return x0) */
-        emit32(0xaa1f03e2); /* mov x2, xzr */
-        a64_load_imm(8, 24);   /* SYS_dup3 */
-        emit32(0xd4000001); /* svc #0 */
-        return;
-    case 57: /* SYS_fork -> clone(17, 0, 0, 0, 0) */
-        a64_load_imm(0, 17); /* SIGCHLD */
-        emit32(0xaa1f03e1);  /* mov x1, xzr */
-        emit32(0xaa1f03e2);  /* mov x2, xzr */
         emit32(0xaa1f03e3);  /* mov x3, xzr */
-        emit32(0xaa1f03e4);  /* mov x4, xzr */
-        a64_load_imm(8, 220);/* SYS_clone */
+        a64_load_imm(8, 48); /* SYS_faccessat */
         break;
-    case 82: /* SYS_rename -> renameat(AT_FDCWD, old, AT_FDCWD, new) */
+    case 22:                 /* SYS_pipe -> pipe2(fds, 0) */
+        emit32(0xaa1f03e1);  /* mov x1, xzr */
+        a64_load_imm(8, 59); /* SYS_pipe2 */
+        break;
+    case 33:                 /* SYS_dup2 -> dup3(old, new, 0) */
+        emit32(0xeb01001f);  /* cmp x0, x1 */
+        emit32(0x54000060);  /* b.eq +12 (if eq return x0) */
+        emit32(0xaa1f03e2);  /* mov x2, xzr */
+        a64_load_imm(8, 24); /* SYS_dup3 */
+        emit32(0xd4000001);  /* svc #0 */
+        return;
+    case 57:                  /* SYS_fork -> clone(17, 0, 0, 0, 0) */
+        a64_load_imm(0, 17);  /* SIGCHLD */
+        emit32(0xaa1f03e1);   /* mov x1, xzr */
+        emit32(0xaa1f03e2);   /* mov x2, xzr */
+        emit32(0xaa1f03e3);   /* mov x3, xzr */
+        emit32(0xaa1f03e4);   /* mov x4, xzr */
+        a64_load_imm(8, 220); /* SYS_clone */
+        break;
+    case 82:              /* SYS_rename -> renameat(AT_FDCWD, old, AT_FDCWD, new) */
         a64_mov_rr(3, 1); /* mov x3, x1 (new) */
         a64_mov_rr(1, 0); /* mov x1, x0 (old) */
         a64_load_imm(0, -100);
         a64_load_imm(2, -100);
-        a64_load_imm(8, 38);   /* SYS_renameat */
+        a64_load_imm(8, 38); /* SYS_renameat */
         break;
-    case 83: /* SYS_mkdir -> mkdirat(AT_FDCWD, path, mode) */
+    case 83:              /* SYS_mkdir -> mkdirat(AT_FDCWD, path, mode) */
         a64_mov_rr(2, 1); /* mov x2, x1 (mode) */
         a64_mov_rr(1, 0); /* mov x1, x0 (path) */
         a64_load_imm(0, -100);
-        a64_load_imm(8, 34);   /* SYS_mkdirat */
+        a64_load_imm(8, 34); /* SYS_mkdirat */
         break;
-    case 84: /* SYS_rmdir -> unlinkat(AT_FDCWD, path, 0x200) */
+    case 84:              /* SYS_rmdir -> unlinkat(AT_FDCWD, path, 0x200) */
         a64_mov_rr(1, 0); /* mov x1, x0 (path) */
         a64_load_imm(0, -100);
         a64_load_imm(2, 0x200); /* AT_REMOVEDIR */
         a64_load_imm(8, 35);    /* SYS_unlinkat */
         break;
-    case 87: /* SYS_unlink -> unlinkat(AT_FDCWD, path, 0) */
+    case 87:              /* SYS_unlink -> unlinkat(AT_FDCWD, path, 0) */
         a64_mov_rr(1, 0); /* mov x1, x0 (path) */
         a64_load_imm(0, -100);
-        emit32(0xaa1f03e2); /* mov x2, xzr */
-        a64_load_imm(8, 35);    /* SYS_unlinkat */
+        emit32(0xaa1f03e2);  /* mov x2, xzr */
+        a64_load_imm(8, 35); /* SYS_unlinkat */
         break;
-    case 89: /* SYS_readlink -> readlinkat(AT_FDCWD, path, buf, bufsz) */
+    case 89:              /* SYS_readlink -> readlinkat(AT_FDCWD, path, buf, bufsz) */
         a64_mov_rr(3, 2); /* mov x3, x2 (bufsz) */
         a64_mov_rr(2, 1); /* mov x2, x1 (buf) */
         a64_mov_rr(1, 0); /* mov x1, x0 (path) */
         a64_load_imm(0, -100);
-        a64_load_imm(8, 78);   /* SYS_readlinkat */
+        a64_load_imm(8, 78); /* SYS_readlinkat */
         break;
-    case 90: /* SYS_chmod -> fchmodat(AT_FDCWD, path, mode) */
+    case 90:              /* SYS_chmod -> fchmodat(AT_FDCWD, path, mode) */
         a64_mov_rr(2, 1); /* mov x2, x1 (mode) */
         a64_mov_rr(1, 0); /* mov x1, x0 (path) */
         a64_load_imm(0, -100);
-        a64_load_imm(8, 53);   /* SYS_fchmodat */
+        a64_load_imm(8, 53); /* SYS_fchmodat */
         break;
-    case 201: /* SYS_time -> clock_gettime(0, &ts) */
-        emit32(0xd10043ff); /* sub sp, sp, #16 */
-        emit32(0xaa1f03e0); /* mov x0, xzr */
-        emit32(0x910003e1); /* mov x1, sp */
+    case 201:                 /* SYS_time -> clock_gettime(0, &ts) */
+        emit32(0xd10043ff);   /* sub sp, sp, #16 */
+        emit32(0xaa1f03e0);   /* mov x0, xzr */
+        emit32(0x910003e1);   /* mov x1, sp */
         a64_load_imm(8, 113); /* SYS_clock_gettime */
-        emit32(0xd4000001); /* svc #0 */
-        emit32(0xf94003e0); /* ldr x0, [sp] (tv_sec) */
-        emit32(0x910043ff); /* add sp, sp, #16 */
+        emit32(0xd4000001);   /* svc #0 */
+        emit32(0xf94003e0);   /* ldr x0, [sp] (tv_sec) */
+        emit32(0x910043ff);   /* add sp, sp, #16 */
         return;
     default:
         if (num >= 0) {
@@ -1826,7 +1931,7 @@ static void gen_call(Node *n)
             int src_off = alloc_bytes + (i * 16);
             if (is_agg(args[i]->ty)) {
                 a64_mem(0xf8400000, 1, 31, src_off); /* ldr x1, [sp, #src_off] (src ptr) */
-                a64_addr(0, 31, cur_off);             /* dest */
+                a64_addr(0, 31, cur_off);            /* dest */
                 a64_load_imm(3, args[i]->ty->size);
                 emit32(0x38401424); /* ldrb w4, [x1], #1 */
                 emit32(0x38001404); /* strb w4, [x0], #1 */
@@ -2102,7 +2207,7 @@ static void gen_branch(Node *c, int label, int when)
     case N_LOGAND:
     case N_LOGOR: {
         int and = c->kind == N_LOGAND;
-        if (and == !when) { /* and-false or or-true: either operand decides */
+        if (and== !when) { /* and-false or or-true: either operand decides */
             gen_branch(c->l, label, when);
             gen_branch(c->r, label, when);
         } else {
@@ -2403,9 +2508,9 @@ static int gen_tailcall(Node *call)
 {
     Sym *g = call->sym;
     Type *ft = gen_fn->ty;
-    if (!(CX->opt.opt_flags & FCO_TAILCALL) || dbg_rec || !gen_fn->tail_ok || call->kind != N_CALL ||
-        !g || g->kind != SY_FUNC || g->is_builtin || is_agg(call->ty) || is_agg(ft->ret) ||
-        ft->noproto) {
+    if (!(CX->opt.opt_flags & FCO_TAILCALL) || dbg_rec || !gen_fn->tail_ok ||
+        call->kind != N_CALL || !g || g->kind != SY_FUNC || g->is_builtin || is_agg(call->ty) ||
+        is_agg(ft->ret) || ft->noproto) {
         return 0;
     }
     Node *args[256];
@@ -2446,8 +2551,8 @@ static int gen_tailcall(Node *call)
     }
     gen_restore_regs();
     if (IS_A64) {
-        emit32(0x910003bf); /* mov sp, x29 */
-        emit32(0xa8c17bfd); /* ldp x29, x30, [sp], #16 */
+        emit32(0x910003bf);       /* mov sp, x29 */
+        emit32(0xa8c17bfd);       /* ldp x29, x30, [sp], #16 */
         a64_emit_call_cfix(g, 1); /* b g */
     } else {
         b1(0xC9); /* leave */
@@ -2567,7 +2672,8 @@ static void gen_stmt(Node *n)
         note_line(n->line);
         prof_site(n, 'L', 'E');
         gen_list(n->d);
-        if ((CX->opt.opt_flags & FCO_LAYOUT) && !gen_size && !dbg_rec && n->c && n->c->kind != N_NUM) {
+        if ((CX->opt.opt_flags & FCO_LAYOUT) && !gen_size && !dbg_rec && n->c &&
+            n->c->kind != N_NUM) {
             /* loop rotation: the test sits at the bottom, one conditional jump per iteration */
             int lcond = newlabel();
             jump_to(lcond, -1);
@@ -2617,7 +2723,7 @@ static void gen_stmt(Node *n)
         }
         if (n->l &&
             is_agg(gen_fn->ty
-                       ->ret)) {  /* copy the value into the caller's buffer, return its address */
+                       ->ret)) { /* copy the value into the caller's buffer, return its address */
             if (IS_A64) {
                 emit32(0xaa0003e1); /* mov x1, x0 (src) */
                 emit32(0xf9400ba0); /* ldr x0, [x29, #16] (dest buffer) */
@@ -2628,7 +2734,7 @@ static void gen_stmt(Node *n)
                 emit32(0xd1000463); /* sub x3, x3, #1 */
                 emit32(0xb5ffffa3); /* cbnz x3, .-12 */
             } else {
-                b3(0x48, 0x89, 0xC6); /* mov rsi,rax */
+                b3(0x48, 0x89, 0xC6);       /* mov rsi,rax */
                 b4(0x48, 0x8B, 0x7D, 0x10); /* mov rdi,[rbp+16] */
                 b1(0xB9);
                 d32((int)gen_fn->ty->ret->size); /* mov ecx,size */
@@ -2823,6 +2929,7 @@ static int file_without_debug(int fileid)
 /* Emits the code of one function: prologue, body and epilogue. */
 /* ---------- profile instrumentation (-Pg) ---------- */
 enum { PROF_SLOTS = 2048, PROF_KEYLEN = 40 };
+
 static int prof_on, prof_n;
 static Sym *prof_ctr, *prof_keys, *prof_cnt, *prof_file;
 static char prof_key[PROF_SLOTS][PROF_KEYLEN];
@@ -2863,9 +2970,9 @@ static void prof_site(Node *n, int kind, int which)
              which);
     if (IS_A64) {
         a64_emit_addr_cfix(1, prof_ctr, 8L * prof_n, 0); /* x0 = &prof_ctr[prof_n] */
-        emit32(0xf9400001); /* ldr x1, [x0] */
-        emit32(0x91000421); /* add x1, x1, #1 */
-        emit32(0xf9000001); /* str x1, [x0] */
+        emit32(0xf9400001);                              /* ldr x1, [x0] */
+        emit32(0x91000421);                              /* add x1, x1, #1 */
+        emit32(0xf9000001);                              /* str x1, [x0] */
     } else {
         b4(0x48, 0x83, 0x04, 0x25); /* add qword [counter], 1 */
         add_cfix(1, prof_ctr, 8L * prof_n);
@@ -2927,10 +3034,10 @@ static void gen_function(Sym *f)
         if (lim && over) {
             if (IS_A64) {
                 a64_emit_addr_cfix(1, lim, 0, 1); /* x1 = &__fc_stklimit */
-                emit32(0xf9400021); /* ldr x1, [x1] */
-                emit32(0xeb2163ff); /* cmp sp, x1 */
-                emit32(0x54000042); /* b.cs +8 (skip call) */
-                a64_emit_call_cfix(over, 0); /* bl __fc_stkover */
+                emit32(0xf9400021);               /* ldr x1, [x1] */
+                emit32(0xeb2163ff);               /* cmp sp, x1 */
+                emit32(0x54000042);               /* b.cs +8 (skip call) */
+                a64_emit_call_cfix(over, 0);      /* bl __fc_stkover */
             } else {
                 b4(0x48, 0x3B, 0x24, 0x25);
                 add_cfix(1, lim, 0); /* cmp rsp, [__fc_stklimit] */
@@ -3191,13 +3298,13 @@ static void emit_sigstubs(void)
         t->codepos = ncode;
         t->defined = 1;
         if (IS_A64) {
-            emit32(0xd10043ff); /* sub sp, sp, #16 */
-            emit32(0xf90003e0); /* str x0, [sp] (sig) */
-            emit32(0xf90007fe); /* str x30, [sp, #8] */
+            emit32(0xd10043ff);       /* sub sp, sp, #16 */
+            emit32(0xf90003e0);       /* str x0, [sp] (sig) */
+            emit32(0xf90007fe);       /* str x30, [sp, #8] */
             a64_emit_call_cfix(d, 0); /* bl __sig_dispatch */
-            emit32(0xf94007fe); /* ldr x30, [sp, #8] */
-            emit32(0x910043ff); /* add sp, sp, #16 */
-            emit32(0xd65f03c0); /* ret -> __sigrestorer */
+            emit32(0xf94007fe);       /* ldr x30, [sp, #8] */
+            emit32(0x910043ff);       /* add sp, sp, #16 */
+            emit32(0xd65f03c0);       /* ret -> __sigrestorer */
         } else {
             b1(0x57); /* push rdi  (signal number) */
             b1(0xE8);
@@ -3713,13 +3820,13 @@ int gen_program(const char *outpath, char *err, int errlen, int mapmode)
 
     /* entry stub */
     if (IS_A64) {
-        emit32(0xd10043ff); /* sub sp, sp, #16 */
-        emit32(0xf9400be0); /* ldr x0, [sp, #16] (argc) */
-        emit32(0x910063e1); /* add x1, sp, #24 (argv) */
-        emit32(0xf90003e0); /* str x0, [sp] */
-        emit32(0xf90007e1); /* str x1, [sp, #8] */
+        emit32(0xd10043ff);            /* sub sp, sp, #16 */
+        emit32(0xf9400be0);            /* ldr x0, [sp, #16] (argc) */
+        emit32(0x910063e1);            /* add x1, sp, #24 (argv) */
+        emit32(0xf90003e0);            /* str x0, [sp] */
+        emit32(0xf90007e1);            /* str x1, [sp, #8] */
         a64_emit_call_cfix(startf, 0); /* bl _fc_start */
-        emit32(0xd4200000); /* brk #0 */
+        emit32(0xd4200000);            /* brk #0 */
     } else {
         b1(0x5F);
         b3(0x48, 0x89, 0xE6);
@@ -3773,8 +3880,8 @@ int gen_program(const char *outpath, char *err, int errlen, int mapmode)
         } else if (!(s)->defined) {                                                                \
             linker_error("Undefined symbol _%s in module %s", (s)->name,                           \
                          file_name((mainf)->fileid));                                              \
-                bad = 1;                                                                           \
-                (out) = 0;                                                                         \
+            bad = 1;                                                                               \
+            (out) = 0;                                                                             \
         } else                                                                                     \
             (out) = (s)->bss ? bssaddr + (s)->off : dataaddr + (s)->off;                           \
     } while (0)
@@ -3792,13 +3899,13 @@ int gen_program(const char *outpath, char *err, int errlen, int mapmode)
             if (f->kind == 3) {
                 int rel = (int)a - (int)(BASE + HDRSZ + f->pos);
                 int offset = rel >> 2;
-                uint32_t insn = code[f->pos] | (code[f->pos + 1] << 8) |
-                                (code[f->pos + 2] << 16) | (code[f->pos + 3] << 24);
+                uint32_t insn = code[f->pos] | (code[f->pos + 1] << 8) | (code[f->pos + 2] << 16) |
+                                (code[f->pos + 3] << 24);
                 insn = (insn & ~0x03ffffff) | ((uint32_t)offset & 0x03ffffff);
                 put32(code + f->pos, insn);
             } else {
-                uint32_t insn1 = code[f->pos] | (code[f->pos + 1] << 8) |
-                                 (code[f->pos + 2] << 16) | (code[f->pos + 3] << 24);
+                uint32_t insn1 = code[f->pos] | (code[f->pos + 1] << 8) | (code[f->pos + 2] << 16) |
+                                 (code[f->pos + 3] << 24);
                 uint32_t insn2 = code[f->pos + 4] | (code[f->pos + 5] << 8) |
                                  (code[f->pos + 6] << 16) | (code[f->pos + 7] << 24);
                 insn1 = (insn1 & ~((uint32_t)0xffff << 5)) | (((uint32_t)a & 0xffff) << 5);
@@ -3875,9 +3982,9 @@ int gen_program(const char *outpath, char *err, int errlen, int mapmode)
     put32(h + 16, 0);
     h[16] = 2;
     h[18] = IS_A64 ? 0xB7 : 0x3E; /* EM_AARCH64 (0xB7) or EM_X86_64 (0x3E) */
-    h[20] = 1;                   /* ET_EXEC, machine, version */
-    put64(h + 24, BASE + HDRSZ); /* entry */
-    put64(h + 32, 64);           /* phoff */
+    h[20] = 1;                    /* ET_EXEC, machine, version */
+    put64(h + 24, BASE + HDRSZ);  /* entry */
+    put64(h + 32, 64);            /* phoff */
     put32(h + 52, 0);
     h[52] = 64;
     h[54] = 56;

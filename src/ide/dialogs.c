@@ -187,7 +187,8 @@ void opt_command(int cmd)
             "Find which assignments can reach each use (needed to move code out of loops)",
             "Find the expressions already computed on every path (needed by the next two)",
             "Reuse an expression computed earlier on every path instead of computing it again",
-            "Compute an expression on the paths that lack it, so a later computation can be removed",
+            "Compute an expression on the paths that lack it, so a later computation can be "
+            "removed",
             "Replace calls of small functions that only return an expression by that expression",
             "Turn return g(...) into a jump to g, so the stack does not grow",
             "Find the loops of the function (needed by the two loop optimizations)",
@@ -200,9 +201,12 @@ void opt_command(int cmd)
             "Propagate constants over the SSA values, following only branches that can be taken",
             "Compute the dominator tree and dominance frontiers used by the SSA form",
             "Remove assignments that no statement with an effect depends on, even in loops",
-            "Let loads of globals, array elements and members take part in common subexpression elimination",
-            "Use an argument that every call of a function passes as a constant inside the function",
-            "Remove unused arguments and results, calls of pure functions and unreachable functions",
+            "Let loads of globals, array elements and members take part in common subexpression "
+            "elimination",
+            "Use an argument that every call of a function passes as a constant inside the "
+            "function",
+            "Remove unused arguments and results, calls of pure functions and unreachable "
+            "functions",
             "Repeat the body of a loop with few iterations, or two iterations per test",
             "Move a loop-invariant if statement out of the loop and duplicate the loop",
             "Find recursive functions; turn n * f(n - 1) and f(n - 1) + n into loops",

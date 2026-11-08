@@ -1486,12 +1486,10 @@ int dbg_frame_text(int i, char *out, int n)
 
 /* ---- registers */
 #ifdef __aarch64__
-static const char *regname[] = {
-    "X0",  "X1",  "X2",  "X3",  "X4",  "X5",  "X6",  "X7",
-    "X8",  "X9",  "X10", "X11", "X12", "X13", "X14", "X15",
-    "X16", "X17", "X18", "X19", "X20", "X21", "X22", "X23",
-    "X24", "X25", "X26", "X27", "X28", "FP",  "LR"
-};
+static const char *regname[] = {"X0",  "X1",  "X2",  "X3",  "X4",  "X5",  "X6",  "X7",
+                                "X8",  "X9",  "X10", "X11", "X12", "X13", "X14", "X15",
+                                "X16", "X17", "X18", "X19", "X20", "X21", "X22", "X23",
+                                "X24", "X25", "X26", "X27", "X28", "FP",  "LR"};
 
 /* Returns the number of lines in the Register window. */
 int dbg_nregs(void)
@@ -1528,8 +1526,7 @@ int dbg_reg_text(int i, char *out, int n)
     }
     if (i == 34) {
         unsigned long long s = r.pstate;
-        snprintf(out, n, " n=%d z=%d c=%d v=%d",
-                 !!(s & (1ULL << 31)), !!(s & (1ULL << 30)),
+        snprintf(out, n, " n=%d z=%d c=%d v=%d", !!(s & (1ULL << 31)), !!(s & (1ULL << 30)),
                  !!(s & (1ULL << 29)), !!(s & (1ULL << 28)));
         return 0;
     }
