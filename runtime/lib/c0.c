@@ -113,8 +113,6 @@ void __fc_stkover(void)
     _exit(1);
 }
 
-
-
 /* stack limit: the Linux stack grows on demand up to RLIMIT_STACK, so the size chosen under
  * Linker|Stack size is installed with setrlimit() and the same figure bounds the -N overflow test
  * (with a margin for the handler) */

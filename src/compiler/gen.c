@@ -1731,7 +1731,7 @@ static void gen_a64_syscall(int argc, Node **args)
     /* Check syscall number */
     int num = (argc > 0 && args[0]->kind == N_NUM) ? (int)args[0]->val : -1;
     switch (num) {
-    case 7: {                  /* SYS_poll -> ppoll(fds, nfds, &ts, NULL, 0) */
+    case 7: {                /* SYS_poll -> ppoll(fds, nfds, &ts, NULL, 0) */
         emit32(0xf100005f);  /* cmp x2, #0 */
         emit32(0x540000ea);  /* b.ge +28 (to L_pos) */
         emit32(0xaa1f03e2);  /* mov x2, xzr */
