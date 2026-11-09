@@ -1692,10 +1692,10 @@ static int a64_syscall_num(int x86_num)
         return 173; /* getppid */
     case 137:
         return 43; /* statfs */
+    case 7:
+        return 73; /* ppoll */
     case 160:
         return 164; /* setrlimit */
-    case 163:
-        return 163; /* getrlimit */
     case 164:
         return 170; /* settimeofday */
     case 217:
@@ -1731,6 +1731,32 @@ static void gen_a64_syscall(int argc, Node **args)
     /* Check syscall number */
     int num = (argc > 0 && args[0]->kind == N_NUM) ? (int)args[0]->val : -1;
     switch (num) {
+    case 7: {                  /* SYS_poll -> ppoll(fds, nfds, &ts, NULL, 0) */
+        emit32(0xf100005f);  /* cmp x2, #0 */
+        emit32(0x540000ea);  /* b.ge +28 (to L_pos) */
+        emit32(0xaa1f03e2);  /* mov x2, xzr */
+        emit32(0xaa1f03e3);  /* mov x3, xzr */
+        emit32(0xaa1f03e4);  /* mov x4, xzr */
+        a64_load_imm(8, 73); /* SYS_ppoll */
+        emit32(0xd4000001);  /* svc #0 */
+        emit32(0x1400000f);  /* b +60 (to L_done) */
+        /* L_pos (offset +28 from b.ge): */
+        emit32(0xd10043ff);       /* sub sp, sp, #16 */
+        a64_load_imm(3, 1000);    /* mov x3, #1000 */
+        emit32(0x9ac30c44);       /* sdiv x4, x2, x3 */
+        emit32(0x9b038885);       /* msub x5, x4, x3, x2 */
+        a64_load_imm(3, 1000000); /* mov x3, #1000000 */
+        emit32(0x9b037ca5);       /* mul x5, x5, x3 */
+        emit32(0xa90017e4);       /* stp x4, x5, [sp] */
+        emit32(0x910003e2);       /* mov x2, sp */
+        emit32(0xaa1f03e3);       /* mov x3, xzr */
+        emit32(0xaa1f03e4);       /* mov x4, xzr */
+        a64_load_imm(8, 73);      /* SYS_ppoll */
+        emit32(0xd4000001);       /* svc #0 */
+        emit32(0x910043ff);       /* add sp, sp, #16 */
+        /* L_done: */
+        return;
+    }
     case 2:                    /* SYS_open -> openat(AT_FDCWD, path, flags, mode) */
         a64_mov_rr(3, 2);      /* mov x3, x2 (mode) */
         a64_mov_rr(2, 1);      /* mov x2, x1 (flags) */
