@@ -1,0 +1,37 @@
+version: 49
+jobs:
+- name: Build
+  steps:
+  - type: CheckoutStep
+    name: Checkout
+    cloneCredential:
+      type: DefaultCredential
+    withLfs: false
+    withSubmodules: true
+    cloneDepth: 1
+    condition: SUCCESSFUL
+    optional: false
+  - type: CommandStep
+    name: Build
+    runInContainer: false
+    interpreter:
+      type: DefaultInterpreter
+      commands: |
+        make -j
+        make test
+        make dist
+        make clean
+        make CC=aarch64-linux-gnu-gcc -j
+        make CC=aarch64-linux-gnu-gcc dist
+    runAs: 0:0
+    useTTY: true
+    condition: SUCCESSFUL
+    optional: false
+  jobExecutor: RemoteBuild
+  triggers:
+  - type: BranchUpdateTrigger
+    userMatch: anyone
+  retryCondition: never
+  maxRetries: 3
+  retryDelay: 30
+  timeout: 3600

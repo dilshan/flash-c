@@ -30,10 +30,10 @@ if [ "$HOSTARCH" = "aarch64" ]; then
     $FCC -w- -mx86-64 -e"$TMP/p" opt.c > "$TMP/log" 2>&1 && ! grep -q "Error\|Fatal\|Linker Error" "$TMP/log" && ok arch-x86-64 || bad arch-x86-64
     $FCC -w- -mx86_64 -e"$TMP/p" opt.c > "$TMP/log" 2>&1 && ! grep -q "Error\|Fatal\|Linker Error" "$TMP/log" && ok arch-x86_64-alias || bad arch-x86_64-alias
 elif [ "$HOSTARCH" = "x86_64" ]; then
-    $FCC -w- -mx86-64 -e"$TMP/p" opt.c > "$TMP/log" 2>&1 && ! grep -q "Error\|Fatal\|Linker Error" "$TMP/log" && ok arch-x86-64 || bad arch-x86-64
-    $FCC -w- -mx86_64 -e"$TMP/p" opt.c > "$TMP/log" 2>&1 && ! grep -q "Error\|Fatal\|Linker Error" "$TMP/log" && ok arch-x86_64-alias || bad arch-x86_64-alias
-    run -maarch64 > "$TMP/out" && diff -q "$TMP/base" "$TMP/out" > /dev/null && ok arch-arm64 || bad arch-arm64
-    run -marm64 > "$TMP/out" && diff -q "$TMP/base" "$TMP/out" > /dev/null && ok arch-arm64-alias || bad arch-arm64-alias
+    run -mx86-64 > "$TMP/out" && diff -q "$TMP/base" "$TMP/out" > /dev/null && ok arch-x86-64 || bad arch-x86-64
+    run -mx86_64  > "$TMP/out" && diff -q "$TMP/base" "$TMP/out" > /dev/null && ok arch-x86_64-alias || bad arch-x86_64-alias
+    $FCC -w- -maarch64 -e"$TMP/p" opt.c > "$TMP/log" 2>&1 && ! grep -q "Error\|Fatal\|Linker Error" "$TMP/log" && ok arch-arm64 || bad arch-arm64
+    $FCC -w- -marm64 -e"$TMP/p" opt.c > "$TMP/log" 2>&1 && ! grep -q "Error\|Fatal\|Linker Error" "$TMP/log" && ok arch-arm64-alias || bad arch-arm64-alias
 else
     $FCC -w- -maarch64 -e"$TMP/p" opt.c > "$TMP/log" 2>&1 && ! grep -q "Error\|Fatal\|Linker Error" "$TMP/log" && ok arch-arm64 || bad arch-arm64
     $FCC -w- -mx86-64 -e"$TMP/p" opt.c > "$TMP/log" 2>&1 && ! grep -q "Error\|Fatal\|Linker Error" "$TMP/log" && ok arch-x86-64 || bad arch-x86-64
