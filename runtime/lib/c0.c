@@ -121,16 +121,16 @@ static void __stack_setup(void)
     unsigned long rl[2];
     char probe;
 #ifdef _FC_STKKB
-    if (__syscall(97, 3, rl) == 0) {
+    if (__syscall(SYS_getrlimit, 3, rl) == 0) {
         unsigned long want = (unsigned long)_FC_STKKB * 1024;
         if (rl[1] != ~0UL && want > rl[1]) {
             want = rl[1];
         }
         rl[0] = want;
-        __syscall(160, 3, rl);
+        __syscall(SYS_setrlimit, 3, rl);
     }
 #endif
-    if (__syscall(97, 3, rl) == 0 && rl[0] != ~0UL && rl[0] > 65536) {
+    if (__syscall(SYS_getrlimit, 3, rl) == 0 && rl[0] != ~0UL && rl[0] > 65536) {
         __fc_stklimit = (long)&probe - (long)rl[0] + 32768;
     }
 }

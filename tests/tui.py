@@ -113,15 +113,17 @@ class Session:
             end = max(end, time.time() + 0.05) if time.time() < end else end
             if time.time() >= end: break
     def send(self, *keys, wait=0.25):
+        scale = float(os.environ.get('TUI_SCALE', '1.0'))
         for k in keys:
             s = KEYS.get(k, k)
             os.write(self.fd, s.encode('latin1', errors='ignore') if isinstance(s, str) else s)
-            self.pump(0.06)
-        self.pump(wait)
+            self.pump(0.06 * scale)
+        self.pump(wait * scale)
     def type(self, s, wait=0.2):
+        scale = float(os.environ.get('TUI_SCALE', '1.0'))
         for ch in s:
             os.write(self.fd, ch.encode()); 
-        self.pump(wait)
+        self.pump(wait * scale)
     def show(self, title=''):
         print('=' * 20, title)
         print(self.screen.text())

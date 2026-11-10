@@ -11,10 +11,11 @@
 #define __PROF_SLOTS 2048
 #define __PROF_KEYLEN 40
 
-long __fc_prof_ctr[__PROF_SLOTS];                 /* one counter for every instrumented place */
-char __fc_prof_keys[__PROF_SLOTS * __PROF_KEYLEN] = {1}; /* their names, filled in by the compiler */
-int __fc_prof_n = 1;                              /* number of counters in use */
-char __fc_prof_file[260] = {1};                   /* name of the profile file */
+long __fc_prof_ctr[__PROF_SLOTS]; /* one counter for every instrumented place */
+char __fc_prof_keys[__PROF_SLOTS * __PROF_KEYLEN] = {
+    1};                         /* their names, filled in by the compiler */
+int __fc_prof_n = 1;            /* number of counters in use */
+char __fc_prof_file[260] = {1}; /* name of the profile file */
 
 /* Writes the counters to the profile file, one "key count" line for each. */
 static void __fc_prof_dump(void)

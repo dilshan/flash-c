@@ -616,7 +616,13 @@ void pp_init(void)
     pp_define_cmdline("__FLASHC__", "0x0100");
     pp_define_cmdline("__STDC__", "1");
     pp_define_cmdline("__linux__", "1");
-    pp_define_cmdline("__x86_64__", "1");
+    if (CX && CX->opt.target_arch == FC_ARCH_AARCH64) {
+        pp_define_cmdline("__aarch64__", "1");
+        pp_define_cmdline("__arm64__", "1");
+        pp_define_cmdline("__ARM_ARCH_8A__", "1");
+    } else {
+        pp_define_cmdline("__x86_64__", "1");
+    }
 }
 
 static Macro *msnap[MBUCK];

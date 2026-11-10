@@ -11,6 +11,11 @@
 void fc_options_default(FcOptions *o)
 {
     memset(o, 0, sizeof *o);
+#ifdef __aarch64__
+    o->target_arch = FC_ARCH_AARCH64;
+#else
+    o->target_arch = FC_ARCH_X86_64;
+#endif
     o->warn_level = 1;
     o->fp_mode = 1;
     o->max_errors = 25;
@@ -31,22 +36,54 @@ static const struct {
     const char *name;
     uint64_t bit;
 } opt_names[] = {
-    {"fold", FCO_FOLD},         {"algebra", FCO_ALGEBRA},     {"compare", FCO_COMPARE},
-    {"constprop", FCO_CONSTPROP}, {"copyprop", FCO_COPYPROP}, {"deadstore", FCO_DEADSTORE},
-    {"unreachable", FCO_UNREACH}, {"casts", FCO_CASTS},       {"canon", FCO_CANON},
-    {"cse", FCO_CSE},           {"strength", FCO_STRENGTH},   {"bool", FCO_BOOL},
-    {"cfg", FCO_CFG},           {"gconst", FCO_GCONST},       {"ccp", FCO_CCP},
-    {"cfs", FCO_CFS},           {"ublock", FCO_UBLOCK},       {"gdce", FCO_GDCE},
-    {"gcopy", FCO_GCOPY},       {"merge", FCO_MERGE},         {"thread", FCO_THREAD},
-    {"live", FCO_LIVE},         {"branch", FCO_BRANCH},       {"tailrec", FCO_TAILREC},
-    {"rd", FCO_RD},             {"avail", FCO_AVAIL},         {"gcse", FCO_GCSE},
-    {"pre", FCO_PRE},           {"inline", FCO_INLINE},       {"tailcall", FCO_TAILCALL},
-    {"loops", FCO_LOOPS},       {"licm", FCO_LICM},           {"iv", FCO_IV},
-    {"regalloc", FCO_REGALLOC}, {"isel", FCO_ISEL},           {"layout", FCO_LAYOUT},
-    {"ssa", FCO_SSA},           {"sccp", FCO_SCCP},           {"domtree", FCO_DOMTREE},
-    {"adce", FCO_ADCE},         {"alias", FCO_ALIAS},         {"ipcp", FCO_IPCP},
-    {"ipdce", FCO_IPDCE},       {"unroll", FCO_UNROLL},       {"unswitch", FCO_UNSWITCH},
-    {"recur", FCO_RECUR},       {"sroa", FCO_SROA},           {"size", FCO_SIZE},
+    {"fold", FCO_FOLD},
+    {"algebra", FCO_ALGEBRA},
+    {"compare", FCO_COMPARE},
+    {"constprop", FCO_CONSTPROP},
+    {"copyprop", FCO_COPYPROP},
+    {"deadstore", FCO_DEADSTORE},
+    {"unreachable", FCO_UNREACH},
+    {"casts", FCO_CASTS},
+    {"canon", FCO_CANON},
+    {"cse", FCO_CSE},
+    {"strength", FCO_STRENGTH},
+    {"bool", FCO_BOOL},
+    {"cfg", FCO_CFG},
+    {"gconst", FCO_GCONST},
+    {"ccp", FCO_CCP},
+    {"cfs", FCO_CFS},
+    {"ublock", FCO_UBLOCK},
+    {"gdce", FCO_GDCE},
+    {"gcopy", FCO_GCOPY},
+    {"merge", FCO_MERGE},
+    {"thread", FCO_THREAD},
+    {"live", FCO_LIVE},
+    {"branch", FCO_BRANCH},
+    {"tailrec", FCO_TAILREC},
+    {"rd", FCO_RD},
+    {"avail", FCO_AVAIL},
+    {"gcse", FCO_GCSE},
+    {"pre", FCO_PRE},
+    {"inline", FCO_INLINE},
+    {"tailcall", FCO_TAILCALL},
+    {"loops", FCO_LOOPS},
+    {"licm", FCO_LICM},
+    {"iv", FCO_IV},
+    {"regalloc", FCO_REGALLOC},
+    {"isel", FCO_ISEL},
+    {"layout", FCO_LAYOUT},
+    {"ssa", FCO_SSA},
+    {"sccp", FCO_SCCP},
+    {"domtree", FCO_DOMTREE},
+    {"adce", FCO_ADCE},
+    {"alias", FCO_ALIAS},
+    {"ipcp", FCO_IPCP},
+    {"ipdce", FCO_IPDCE},
+    {"unroll", FCO_UNROLL},
+    {"unswitch", FCO_UNSWITCH},
+    {"recur", FCO_RECUR},
+    {"sroa", FCO_SROA},
+    {"size", FCO_SIZE},
 };
 
 /* Applies the list of an -O:name,name option: a name switches an optimization on, -name off.  The
@@ -107,6 +144,17 @@ int fc_apply_switch(FcOptions *o, const char *arg)
         break;
     case 'b':
         o->enum_int = arg[2] != '-';
+        break;
+    case 'm':
+        if (!strcmp(arg, "-maarch64") || !strcmp(arg, "-marm64") ||
+            !strcmp(arg, "-march=aarch64") || !strcmp(arg, "-march=arm64")) {
+            o->target_arch = FC_ARCH_AARCH64;
+        } else if (!strcmp(arg, "-mx86-64") || !strcmp(arg, "-mx86_64") ||
+                   !strcmp(arg, "-march=x86-64") || !strcmp(arg, "-march=x86_64")) {
+            o->target_arch = FC_ARCH_X86_64;
+        } else {
+            return 0;
+        }
         break;
     case 'd':
         o->merge_strings = arg[2] != '-';

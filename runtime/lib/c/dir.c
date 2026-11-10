@@ -103,7 +103,7 @@ char *_getdcwd(int drive, char *buf, int n)
 DIR *opendir(const char *name)
 {
     DIR *d;
-    int fd = (int)__syscall(SYS_open, name, 0200000, 0); /* O_DIRECTORY */
+    int fd = (int)__syscall(SYS_open, name, __FC_O_DIRECTORY, 0); /* O_DIRECTORY */
     if (fd < 0) {
         __sysret(fd);
         return NULL;

@@ -287,6 +287,19 @@ int locking(int fd, int mode, long length)
 static void __cvt_stat(long *k, struct stat *s)
 {
     int *w = (int *)k;
+#ifdef __aarch64__
+    s->st_dev = (short)k[0];
+    s->st_ino = (short)k[1];
+    s->st_mode = (short)w[4];
+    s->st_nlink = (short)w[5];
+    s->st_uid = w[6];
+    s->st_gid = w[7];
+    s->st_rdev = (short)k[4];
+    s->st_size = k[6];
+    s->st_atime = k[9];
+    s->st_mtime = k[11];
+    s->st_ctime = k[13];
+#else
     s->st_dev = (short)k[0];
     s->st_ino = (short)k[1];
     s->st_nlink = (short)k[2];
@@ -298,6 +311,7 @@ static void __cvt_stat(long *k, struct stat *s)
     s->st_atime = k[9];
     s->st_mtime = k[11];
     s->st_ctime = k[13];
+#endif
 }
 
 /* Gets information about the file at path. */

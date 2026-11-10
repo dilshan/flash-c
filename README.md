@@ -1,8 +1,8 @@
 # Flash C
 
-A small C compiler and a full-screen, text-mode IDE for Linux.
+A small C compiler and a full-screen, text-mode IDE for Linux (x86-64 and AArch64 / ARM64, including Raspberry Pi 4).
 
-* **`fcc`** is the command-line compiler. It reads C source and writes a native **x86-64 Linux
+* **`fcc`** is the command-line compiler. It reads C source and writes a native **ELF64 Linux
   executable** directly: no assembler, linker or C library is involved.
 * **`fc`** is the IDE: pull-down menus, overlapping edit windows, an error Message window, option
   dialogs, a source-level debugger and hyper-linked online help, laid out like the classic DOS-era
@@ -27,7 +27,7 @@ Flash C compiles **C (ANSI C89)** with a few C99 conveniences. C++ is not suppor
 
 ## Quick start
 
-**Install a release (Linux x86-64):** download `flash-c-<version>-linux-x86_64.tar.gz` from the
+**Install a release (Linux x86-64 / AArch64):** download `flash-c-<version>-linux-<arch>.tar.gz` from the
 [Releases](../../releases) page, then
 
 ```
@@ -42,6 +42,11 @@ in place with `./bin/fc` and `./bin/fcc`. See [releasing](docs/RELEASING.md) for
 **Build from source:** you need a C compiler (gcc or clang), `make`, and a terminal of at least 80×25 with UTF-8. 24-bit
 colour is used when `COLORTERM=truecolor`; otherwise 16 ANSI colours.
 
+```
+make                               # native build (x86-64 or AArch64)
+# Or cross-compile for Raspberry Pi 4 / ARM64:
+make CC=aarch64-linux-gnu-gcc      # produces native AArch64 binaries
+make CC=aarch64-linux-gnu-gcc dist # creates release tarball
 ```
 make                      # builds build/fc and build/fcc
 ./build/fc hello.c        # open (or create) hello.c in the IDE
