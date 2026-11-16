@@ -43,15 +43,11 @@ in place with `./bin/fc` and `./bin/fcc`. See [releasing](docs/RELEASING.md) for
 colour is used when `COLORTERM=truecolor`; otherwise 16 ANSI colours.
 
 ```
-make                               # native build (x86-64 or AArch64)
-# Or cross-compile for Raspberry Pi 4 / ARM64:
-make CC=aarch64-linux-gnu-gcc      # produces native AArch64 binaries
-make CC=aarch64-linux-gnu-gcc dist # creates release tarball
-```
-make                      # builds build/fc and build/fcc
-./build/fc hello.c        # open (or create) hello.c in the IDE
-./build/fcc hello.c       # or compile it directly; this produces ./hello
-./hello
+make                          # builds build/fc and build/fcc natively (x86-64 or AArch64)
+./build/fc hello.c            # open (or create) hello.c in the IDE
+./build/fcc hello.c           # or compile it directly; this produces ./hello
+
+make CC=aarch64-linux-gnu-gcc # produces native AArch64 binaries on x64_64
 ```
 
 `make test` runs the whole test suite, and `make install` copies both programs and the help files
