@@ -1,6 +1,6 @@
 # Flash C
 
-A small C compiler and a full-screen, text-mode IDE for Linux (x86-64 and AArch64 / ARM64, including Raspberry Pi 4).
+A small C compiler and a full-screen, text-mode IDE for Linux (x86-64 and AArch64 including Raspberry Pi 4).
 
 * **`fcc`** is the command-line compiler. It reads C source and writes a native **ELF64 Linux
   executable** directly: no assembler, linker or C library is involved.
