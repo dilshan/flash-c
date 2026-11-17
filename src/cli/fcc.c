@@ -38,6 +38,8 @@ static const char *usage =
     "Language and code generation\n"
     "  -b *            Treat enums as integers      (-b-  smallest type that fits)\n"
     "  -a *            Align structure members      (-a-  pack them)\n"
+    "  -maarch64       Target ARM64 / AArch64       (-marm64)\n"
+    "  -mx86-64        Target x86-64                (-mx86_64)\n"
     "  -d              Merge duplicate strings\n"
     "  -N              Check for stack overflow\n"
     "  -ls<KB>         Stack size in KB\n"

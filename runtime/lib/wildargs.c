@@ -123,7 +123,7 @@ static void __wild_expand(void)
                 dir[0] = '.';
                 dir[1] = 0;
             }
-            fd = __syscall(SYS_open, dir, 0x10000, 0);
+            fd = __syscall(SYS_open, dir, __FC_O_DIRECTORY, 0);
             if (fd >= 0) {
                 long got;
                 while ((got = __syscall(SYS_getdents64, fd, dbuf, 32768)) > 0) {

@@ -34,15 +34,15 @@
 /* ------------------------------------------------------------------ */
 /* state of the function being optimized                               */
 /* ------------------------------------------------------------------ */
-static uint64_t fl;      /* FCO_* passes enabled for this function */
+static uint64_t fl; /* FCO_* passes enabled for this function */
 static void pgo_function(Sym *f);
 static int pgo_loop_hot(Sym *f, Node *loop);
-static int jumps;        /* redundant jump elimination enabled (the -O switch) */
-static Sym *cur_fn;      /* the function */
-static int use_flow;     /* data-flow passes (propagation, dead stores, CSE) are allowed */
-static int changed;      /* set whenever a pass changed the tree */
-static int has_goto;     /* the function has goto statements or labels */
-static int no_cfg;       /* the control-flow graph passes must not run (setjmp) */
+static int jumps;    /* redundant jump elimination enabled (the -O switch) */
+static Sym *cur_fn;  /* the function */
+static int use_flow; /* data-flow passes (propagation, dead stores, CSE) are allowed */
+static int changed;  /* set whenever a pass changed the tree */
+static int has_goto; /* the function has goto statements or labels */
+static int no_cfg;   /* the control-flow graph passes must not run (setjmp) */
 
 /* Returns the representation-relevant size of a scalar type. */
 static int same_rep(Type *a, Type *b)
@@ -956,7 +956,7 @@ static void simplify_cast(Node *n, int bc)
         }
         if (l->kind == N_NUM && is_flt(to) && is_int(from)) {
             rep(n, fnum(from->uns && from->size == 8 ? (double)(unsigned long long)l->val
-                                                      : (double)l->val,
+                                                     : (double)l->val,
                         to, line));
             return;
         }
@@ -1054,7 +1054,7 @@ static void simplify_logic(Node *n, int bc)
     }
     if (r->kind == N_NUM) {
         int rt = r->val != 0;
-        if (and ? rt : !rt) { /* x && 1  and  x || 0  are just the truth value of x */
+        if (and? rt : !rt) { /* x && 1  and  x || 0  are just the truth value of x */
             rep(n, bc ? l : truth(l));
         } else { /* x && 0  and  x || 1  evaluate x and give a constant */
             Node *c = new_node(N_COMMA, n->ty, line);
@@ -1214,9 +1214,10 @@ static void ex(Node *n, Env *e, int bc)
         return;
     case N_DEREF:
         ex(n->l, e, 0);
-        if (n->l->kind == N_ADDR && (fl & FCO_ALGEBRA) && !is_agg(n->ty) && n->ty->kind != TY_FUNC &&
-            n->l->l->ty->kind == n->ty->kind && n->l->l->ty->size == n->ty->size &&
-            n->l->l->ty->uns == n->ty->uns && n->l->l->kind == N_VAR) {
+        if (n->l->kind == N_ADDR && (fl & FCO_ALGEBRA) && !is_agg(n->ty) &&
+            n->ty->kind != TY_FUNC && n->l->l->ty->kind == n->ty->kind &&
+            n->l->l->ty->size == n->ty->size && n->l->l->ty->uns == n->ty->uns &&
+            n->l->l->kind == N_VAR) {
             rep(n, n->l->l); /* *&x  ->  x */
         }
         return;
@@ -1281,7 +1282,8 @@ static void ex(Node *n, Env *e, int bc)
             rep(n, num((long long)(0 - (uint64_t)n->l->val), n->ty, n->line));
         } else if (n->l->kind == N_FNUM && (fl & FCO_FOLD)) {
             rep(n, fnum(-n->l->fval, n->ty, n->line));
-        } else if (n->l->kind == N_NEG && (fl & FCO_ALGEBRA) && same_value_rep(n->l->l->ty, n->ty)) {
+        } else if (n->l->kind == N_NEG && (fl & FCO_ALGEBRA) &&
+                   same_value_rep(n->l->l->ty, n->ty)) {
             rep(n, n->l->l);
         }
         return;
@@ -1654,7 +1656,6 @@ static Node *simp_stmt(Node *s)
     }
     return s;
 }
-
 
 /* ------------------------------------------------------------------ */
 /* dead assignment elimination                                         */
@@ -2098,7 +2099,7 @@ typedef struct ESet {
 
 /* Where a memory access goes: a named object (obj) at a byte offset, or through a pointer. */
 typedef struct Loc {
-    Sym *obj;    /* the object; NULL for an access through a pointer */
+    Sym *obj; /* the object; NULL for an access through a pointer */
     long off;
     int size;
     int var_off; /* the offset has a part that is not constant */
@@ -2110,8 +2111,8 @@ typedef struct Atom {
     int kind;
     Node *stmt;
     Node **slot;
-    ESet gen, kill; /* expressions this atom makes available / invalidates */
-    int allkill;    /* assigns so many variables that every expression is invalidated */
+    ESet gen, kill;   /* expressions this atom makes available / invalidates */
+    int allkill;      /* assigns so many variables that every expression is invalidated */
     Loc w[MAXWRITES]; /* memory the atom stores to */
     int nw, wall;     /* number of stores; calls or too many stores: all memory may change */
 } Atom;
@@ -2122,26 +2123,30 @@ enum { T_FALL, T_JUMP, T_BRANCH, T_RET, T_SWITCH };
 typedef struct Block {
     Atom *atoms;
     int natoms, capatoms;
-    int term;               /* how the block ends (T_*) */
-    int succ[2], nsucc;     /* successors; for a branch: [0] condition true, [1] false */
+    int term;                     /* how the block ends (T_*) */
+    int succ[2], nsucc;           /* successors; for a branch: [0] condition true, [1] false */
     int *multi, nmulti, capmulti; /* successors of a switch */
-    Node **labels;          /* goto labels placed at the start of the block */
+    Node **labels;                /* goto labels placed at the start of the block */
     int nlabels, caplabels;
-    int vis;                /* reached by the data-flow analysis */
-    Node *loop;             /* header of the loop statement (while, do, for), or NULL */
-    Env in;                 /* what is known at the start of the block */
+    int vis;    /* reached by the data-flow analysis */
+    Node *loop; /* header of the loop statement (while, do, for), or NULL */
+    Env in;     /* what is known at the start of the block */
 } Block;
 
 static Block *bl;
 static int nbl, capbl;
-static int cur;           /* block being built */
-static int cfg_ok;        /* the graph could be built */
+static int cur;    /* block being built */
+static int cfg_ok; /* the graph could be built */
+
 static struct LabelMap {
     char *name;
     int blk;
 } *lmap;
+
 static int nlmap, caplmap;
+
 enum { MAXNEST = 64 };
+
 static int brk_stk[MAXNEST], cont_stk[MAXNEST], sw_stk[MAXNEST], sw_def[MAXNEST];
 static int nbrk, ncont, nsw;
 
@@ -2473,8 +2478,8 @@ static int cfg_transfer(Block *b, Env *env, uint64_t analysis_flags)
  * only entered along edges that can be taken).  Returns 0 if it does not settle. */
 static int cfg_solve(void)
 {
-    uint64_t aflags = fl | FCO_CONSTPROP | FCO_COPYPROP | FCO_FOLD | FCO_ALGEBRA | FCO_COMPARE |
-                      FCO_BOOL;
+    uint64_t aflags =
+        fl | FCO_CONSTPROP | FCO_COPYPROP | FCO_FOLD | FCO_ALGEBRA | FCO_COMPARE | FCO_BOOL;
     int *queue = malloc((nbl + 1) * sizeof *queue);
     char *queued = calloc(nbl, 1);
     int qh = 0, qt = 0, count = 0, ok = 1;
@@ -2586,6 +2591,7 @@ static void cfg_apply(void)
 /* live variables and global dead code elimination                     */
 /* ------------------------------------------------------------------ */
 enum { MAXLIVE = 512 };
+
 static Sym *lv_syms[MAXLIVE];
 static int nlv, lv_words, lv_over;
 
@@ -2861,6 +2867,7 @@ static void cfg_threading(Node *body, int thread, int merge)
 /* tail-recursion elimination                                          */
 /* ------------------------------------------------------------------ */
 enum { MAXTAIL = 64, MAXPARAM = 16 };
+
 static Node *tail_rets[MAXTAIL];
 static int ntail, tail_bad;
 static Sym *tail_fn;
@@ -2945,7 +2952,8 @@ static void tail_recursion(Sym *f)
         for (int i = 0; i < np; i++) {
             args[i]->next = NULL;
         }
-        for (int i = 0; i < np; i++) { /* arguments may use the parameters: go through temporaries */
+        for (int i = 0; i < np;
+             i++) { /* arguments may use the parameters: go through temporaries */
             rhs[i] = args[i];
             if (np > 1 && args[i]->kind != N_NUM && args[i]->kind != N_FNUM) {
                 Node *tv = new_temp(params[i]->ty, line);
@@ -3145,16 +3153,17 @@ static void tail_phase(Sym *f)
 /* ------------------------------------------------------------------ */
 enum { MAXGRAPH = 3000 };
 
-static char *g_reach;            /* block reachable from the entry */
-static int *g_pstart, *g_pedge;  /* predecessors of block b: g_pedge[g_pstart[b] .. g_pstart[b + 1]) */
-static uint64_t *g_dom;          /* g_dom[b * g_w + k]: bit set of the blocks that dominate b */
+static char *g_reach; /* block reachable from the entry */
+static int *g_pstart,
+    *g_pedge;           /* predecessors of block b: g_pedge[g_pstart[b] .. g_pstart[b + 1]) */
+static uint64_t *g_dom; /* g_dom[b * g_w + k]: bit set of the blocks that dominate b */
 static int g_w;
 
 typedef struct Loop {
     int header, nblocks, ok;
-    Node *stmt;      /* the while, do or for statement of a structured loop */
-    uint64_t *in;    /* the blocks of the loop */
-    Sym **asg;       /* variables assigned in the loop, with the number of assignments */
+    Node *stmt;   /* the while, do or for statement of a structured loop */
+    uint64_t *in; /* the blocks of the loop */
+    Sym **asg;    /* variables assigned in the loop, with the number of assignments */
     int *asgn, nasg, asg_over;
 } Loop;
 
@@ -3472,6 +3481,7 @@ static struct Def {
     Sym *var;
     int blk, atom;
 } defs[MAXDEFS];
+
 static int ndefs, def_w;
 static Sym **rd_vars; /* the variables with definitions; the entry value of v is definition v */
 static int nrdv;
@@ -3655,6 +3665,7 @@ typedef struct Ex {
     Loc loads[4];
     int nloads;
 } Ex;
+
 static Ex exs[MAXEX];
 static int nex;
 
@@ -4386,8 +4397,7 @@ static int licm_transform(int use_rd, Node *body)
                     }
                     for (int k = 0; k < succ_count(&bl[lb]); k++) {
                         int s = succ_at(&bl[lb], k);
-                        if (!bit_has(lp->in, s) &&
-                            bit_has(lv_in + (size_t)s * lv_words, xi)) {
+                        if (!bit_has(lp->in, s) && bit_has(lv_in + (size_t)s * lv_words, xi)) {
                             dead_after = 0;
                         }
                     }
@@ -4478,7 +4488,7 @@ static int licm_transform(int use_rd, Node *body)
 typedef struct IvUpdate {
     Sym *var;
     long long step;
-    Node *root;   /* the expression i++ , i += c, i = i + c */
+    Node *root; /* the expression i++ , i += c, i = i + c */
     Atom *atom;
     Node **slotp; /* where the root is stored (for a for-loop step inside a comma) */
 } IvUpdate;
@@ -4554,8 +4564,8 @@ static struct {
     Loop *lp;
     Node *found;
     Sym *iv;
-    long long step;       /* step of the derived value per iteration */
-    int widen;            /* the induction variable is widened by a cast */
+    long long step; /* step of the derived value per iteration */
+    int widen;      /* the induction variable is widened by a cast */
 } iv_c;
 
 /* Returns the induction variable behind X: i, or (long)i for a signed 4-byte i. */
@@ -4721,11 +4731,12 @@ static long long unroll_norm(long long v, Type *t);
 /* ------------------------------------------------------------------ */
 /* dominator tree and dominance frontiers                              */
 /* ------------------------------------------------------------------ */
-static int *g_idom;                  /* immediate dominator of every block (-1 for the entry) */
-static int *g_cstart, *g_cedge;      /* children in the dominator tree */
+static int *g_idom;             /* immediate dominator of every block (-1 for the entry) */
+static int *g_cstart, *g_cedge; /* children in the dominator tree */
+
 static struct DfVec {
     int *v, n, cap;
-} *g_df;                             /* dominance frontier of every block */
+} *g_df; /* dominance frontier of every block */
 
 static void domtree_free(void)
 {
@@ -4811,23 +4822,24 @@ static void domtree_build(void)
 /* static single assignment form                                       */
 /* ------------------------------------------------------------------ */
 enum { SV_ENTRY, SV_DEF, SV_PHI, SV_OPAQUE };
+
 enum { ST_TOP, ST_CONST, ST_BOT };
 
 typedef struct SsaVal {
     int kind, var, blk, prev, state, live;
-    int atom;       /* SV_DEF: global number of the defining atom */
-    int *args;      /* SV_PHI: the value that comes from each predecessor */
-    long long iv;   /* constant value */
+    int atom;     /* SV_DEF: global number of the defining atom */
+    int *args;    /* SV_PHI: the value that comes from each predecessor */
+    long long iv; /* constant value */
 } SsaVal;
 
 static SsaVal *sv;
 static int nsv, capsv;
-static int *a_base;                /* number of the first atom of each block */
+static int *a_base;                  /* number of the first atom of each block */
 static int *a_def, *a_use0, *a_nuse; /* per atom: defined value, uses in the pools */
 static int *pu_var, *pu_val, npu, cappu;
 static int natoms_all;
-static int **bphi, *nbphi;         /* phi values of every block */
-static int *ssa_cur;               /* the current value of every variable during renaming */
+static int **bphi, *nbphi; /* phi values of every block */
+static int *ssa_cur;       /* the current value of every variable during renaming */
 static int *pstk, psp, cappstk;
 static int ssa_nvars;
 
@@ -4888,7 +4900,8 @@ static void push_def(int val)
 /* Returns true if the atom is a plain assignment  x = e  to a tracked variable. */
 static int ssa_simple_def(Atom *a, int nK)
 {
-    return (a->kind == A_EXPR || a->kind == A_VALUE) && *a->slot && lv_def(*a->slot) >= 0 && nK == 1;
+    return (a->kind == A_EXPR || a->kind == A_VALUE) && *a->slot && lv_def(*a->slot) >= 0 &&
+           nK == 1;
 }
 
 /* Renames the variables of block b and of the blocks it dominates. */
@@ -5069,8 +5082,8 @@ static int ssa_atom_env(int g, Env *env)
     return top;
 }
 
-static char *sc_exec;    /* block can run */
-static char *sc_edge;    /* edge (block, successor number) can be taken */
+static char *sc_exec; /* block can run */
+static char *sc_edge; /* edge (block, successor number) can be taken */
 static int *sc_eoff;
 
 /* Marks an edge as executable; returns 1 if it was not. */
@@ -5209,8 +5222,8 @@ static int sc_sweep(uint64_t aflags)
  * known constants are then propagated into the expressions.  Returns 1 if the tree changed. */
 static int sccp_run(void)
 {
-    uint64_t aflags = fl | FCO_CONSTPROP | FCO_COPYPROP | FCO_FOLD | FCO_ALGEBRA | FCO_COMPARE |
-                      FCO_BOOL;
+    uint64_t aflags =
+        fl | FCO_CONSTPROP | FCO_COPYPROP | FCO_FOLD | FCO_ALGEBRA | FCO_COMPARE | FCO_BOOL;
     sc_exec = calloc(nbl, 1);
     int total_edges = 0;
     sc_eoff = malloc((nbl + 1) * sizeof *sc_eoff);
@@ -5338,6 +5351,7 @@ static int adce_run(void)
 }
 
 static int has_zero;
+
 static void zero_cb(Node *n, void *ud)
 {
     (void)ud;
@@ -5606,8 +5620,8 @@ static Node *inl_expand(Node *call, InlInfo *in)
         walk(in->expr, inl_use_cb, in->ps[i]);
         int uses = inl_count;
         Node *a = args[i];
-        int simple = a->kind == N_NUM || a->kind == N_FNUM ||
-                     (a->kind == N_VAR && trackable(a->sym));
+        int simple =
+            a->kind == N_NUM || a->kind == N_FNUM || (a->kind == N_VAR && trackable(a->sym));
         int cheap = simple || (uses <= 1 && gc_ok(a));
         inl_s.ps[i] = in->ps[i];
         if (uses == 0 && !gc_ok(a)) { /* the argument is still evaluated */
@@ -5708,8 +5722,10 @@ static int stmt_size(Node *n)
 {
     int sz = 0;
     for (; n; n = n->next) {
-        int chain = n->kind == S_CASE || n->kind == S_DEFAULT; /* r is the case chain, not a child */
-        sz += 1 + stmt_size(n->l) + (chain ? 0 : stmt_size(n->r)) + stmt_size(n->c) + stmt_size(n->d);
+        int chain =
+            n->kind == S_CASE || n->kind == S_DEFAULT; /* r is the case chain, not a child */
+        sz +=
+            1 + stmt_size(n->l) + (chain ? 0 : stmt_size(n->r)) + stmt_size(n->c) + stmt_size(n->d);
     }
     return sz;
 }
@@ -5800,8 +5816,8 @@ static int unroll_step(Node *e, Sym *v, long long *k)
         return 1;
     }
     if (e->kind == N_ASSIGN && l->kind == N_VAR && l->sym == v && e->r->kind == N_BIN &&
-        (e->r->op == B_ADD || e->r->op == B_SUB) && e->r->l->kind == N_VAR &&
-        e->r->l->sym == v && e->r->r->kind == N_NUM) {
+        (e->r->op == B_ADD || e->r->op == B_SUB) && e->r->l->kind == N_VAR && e->r->l->sym == v &&
+        e->r->r->kind == N_NUM) {
         *k = e->r->op == B_ADD ? e->r->r->val : -e->r->r->val;
         return 1;
     }
@@ -6285,7 +6301,8 @@ void opt_function(Sym *f, int debugged)
         pgo_function(f);
     }
     if (debugged) { /* keep the statements and variable values the source shows */
-        fl &= FCO_FOLD | FCO_ALGEBRA | FCO_COMPARE | FCO_CASTS | FCO_CANON | FCO_STRENGTH | FCO_BOOL;
+        fl &=
+            FCO_FOLD | FCO_ALGEBRA | FCO_COMPARE | FCO_CASTS | FCO_CANON | FCO_STRENGTH | FCO_BOOL;
         jumps = 0;
     }
     if ((fl & FCO_INLINE) && !debugged && !PG.uses_volatile) {
@@ -6357,6 +6374,7 @@ static struct RaVar {
     Sym *sym;
     long weight;
 } ra_vars[RA_MAXVARS];
+
 static int ra_n, ra_setjmp, ra_unsafe_frame;
 
 /* Returns true for a local that can live in a register: an integer or pointer whose address is
@@ -6431,7 +6449,8 @@ static int ra_slot(Sym *f)
 
 /* Chooses the variables that live in the callee-saved registers rbx, r12-r15, and decides whether
  * the frame of the function can be dropped by a tail call (all variables are scalars whose address
- * is never taken).  The code generator saves and restores the registers in prologue and epilogue. */
+ * is never taken).  The code generator saves and restores the registers in prologue and epilogue.
+ */
 void opt_regalloc(Sym *f, int debugged)
 {
     uint64_t flags = CX->opt.opt_flags;
@@ -6503,7 +6522,7 @@ typedef struct CgNode {
 } CgNode;
 
 static CgNode *cg;
-static Sym **wp_fn;          /* the functions with a body */
+static Sym **wp_fn; /* the functions with a body */
 static int wp_n, wp_stack_n, wp_counter;
 static int *wp_stack;
 static Sym *wp_cur;
@@ -6732,6 +6751,7 @@ static void ip_call_cb(Node *n, void *ud)
 /* Walker callback: counts the assignments to and address-takings of a parameter. */
 static Sym *ip_target;
 static int ip_modified;
+
 static void ip_mod_cb(Node *n, void *ud)
 {
     (void)ud;
@@ -6799,6 +6819,7 @@ static void ip_arg_cb(Node *n, void *ud)
 
 /* Walker callback: counts S_EXPR statements that discard the value of a call of ip.f. */
 static int ip_disc;
+
 static void ip_disc_cb(Node *n, void *ud)
 {
     (void)ud;
@@ -6849,6 +6870,7 @@ static void ip_purecall_cb(Node *n, void *ud)
 /* Walker callback: lists the functions a body still names. */
 static Sym *keep_list[256];
 static int nkeep;
+
 static void keep_cb(Node *n, void *ud)
 {
     (void)ud;
@@ -6949,8 +6971,8 @@ void opt_program(int debugged)
         }
         for (int i = 0; i < wp_n; i++) { /* results that no caller uses */
             Sym *f = wp_fn[i];
-            if (f->from_rt || f->fn_addr || f->ncalls == 0 || f->rec == 1 || !scalar_ty(f->ty->ret) ||
-                f->ty->ret->kind == TY_VOID) {
+            if (f->from_rt || f->fn_addr || f->ncalls == 0 || f->rec == 1 ||
+                !scalar_ty(f->ty->ret) || f->ty->ret->kind == TY_VOID) {
                 continue;
             }
             ip.f = f;
@@ -7004,6 +7026,7 @@ static struct PgoEnt {
     char key[48];
     long count;
 } *pgo_tab;
+
 static int pgo_n, pgo_cap, pgo_loaded;
 
 /* Reads the profile written by a program compiled with -Pg.  Lines have the form "key count";

@@ -119,7 +119,7 @@ typedef struct Config {
     int stack_kb, elf_symtab, wx_segments;                           /* linker */
     char undefs[120];
     int max_errors, max_warnings, warn_display; /* 0 none, 1 selected, 2 all */
-    int opt[NOPT];                                                   /* FCO_* passes, by bit number */
+    int opt[NOPT];                              /* FCO_* passes, by bit number */
     int warn[NWARN];                            /* only the entries used by ide_fill_options() */
     int fp;                                     /* 0 no floating point, 1 floating point */
     char defines[200];

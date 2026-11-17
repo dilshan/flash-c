@@ -1,5 +1,6 @@
 # Flash C build
 CC      ?= gcc
+HOSTCC  ?= cc
 CFLAGS  ?= -O2 -std=gnu11 -D_GNU_SOURCE -Wall -Wno-unused-function -Wno-unused-variable -Wno-format-truncation -Wno-stringop-truncation -Wno-misleading-indentation -Wno-parentheses
 BUILD   := build
 PREFIX  ?= /usr/local
@@ -39,7 +40,7 @@ version:
 
 $(BUILD)/embed: tools/embed.c
 	@mkdir -p $(BUILD)
-	$(CC) -O1 -o $@ $<
+	$(HOSTCC) -O1 -o $@ $<
 
 $(BUILD)/compiler/embedded.c: $(BUILD)/embed $(HEADERS) $(LIB_SRC)
 	@mkdir -p $(dir $@)
@@ -81,12 +82,20 @@ install: all
 	install -d $(PREFIX)/share/flashc/help
 	install -m 644 help/*.fch $(PREFIX)/share/flashc/help
 
-# Release tarball (build/dist/flash-c-VERSION-linux-x86_64.tar.gz): binaries, help files, docs and install.sh.
-DIST_NAME := flash-c-$(VERSION)-linux-$(shell uname -m)
+# Release tarball (build/dist/flash-c-VERSION-linux-ARCH.tar.gz): binaries, help files, docs and install.sh.
+ARCH      ?= $(shell $(CC) -dumpmachine 2>/dev/null | cut -d- -f1)
+ifeq ($(strip $(ARCH)),)
+ARCH      := $(shell uname -m)
+endif
+DIST_NAME := flash-c-$(VERSION)-linux-$(ARCH)
+STRIP     ?= $(shell $(CC) -print-prog-name=strip 2>/dev/null)
+ifeq ($(strip $(STRIP)),)
+STRIP     := strip
+endif
 dist: all
 	rm -rf $(BUILD)/dist/$(DIST_NAME)
 	mkdir -p $(BUILD)/dist/$(DIST_NAME)/bin $(BUILD)/dist/$(DIST_NAME)/help
-	install -s $(BUILD)/fc $(BUILD)/fcc $(BUILD)/dist/$(DIST_NAME)/bin
+	install -s --strip-program=$(STRIP) $(BUILD)/fc $(BUILD)/fcc $(BUILD)/dist/$(DIST_NAME)/bin
 	install -m 644 help/*.fch $(BUILD)/dist/$(DIST_NAME)/help
 	cp -R docs $(BUILD)/dist/$(DIST_NAME)/docs
 	install -m 644 README.md LICENSE $(BUILD)/dist/$(DIST_NAME)

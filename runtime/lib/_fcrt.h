@@ -13,7 +13,20 @@
 long __syscall(long n, ...); /* intrinsic: Linux system call, up to six arguments */
 double __sqrt(double x);     /* intrinsic: sqrtsd */
 
-/* x86-64 Linux system call numbers used by the library */
+#ifdef __aarch64__
+#define __FC_O_DIRECTORY 040000
+#else
+#define __FC_O_DIRECTORY 0200000
+#endif
+
+/*
+ * Linux system call numbers used by the runtime library. Flash C uses x86-64
+ * syscall numbers as the canonical internal ABI for __syscall across all library
+ * modules. On AArch64 targets, the compiler backend (gen_a64_syscall / a64_syscall_num
+ * in src/compiler/gen.c) intercepts these calls, translates 1:1 numbers, and adapts
+ * legacy signatures to modern equivalents (e.g. open -> openat, stat -> newfstatat,
+ * poll -> ppoll).
+ */
 #define SYS_flock 73
 #define SYS_fsync 74
 #define SYS_lstat 6
@@ -57,7 +70,9 @@ double __sqrt(double x);     /* intrinsic: sqrtsd */
 #define SYS_chmod 90
 #define SYS_umask 95
 #define SYS_gettimeofday 96
+#define SYS_getrlimit 97
 #define SYS_statfs 137
+#define SYS_setrlimit 160
 #define SYS_settimeofday 164
 #define SYS_time 201
 #define SYS_getdents64 217

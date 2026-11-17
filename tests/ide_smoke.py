@@ -42,7 +42,7 @@ try:
     check('Save As names the window', 'sum.c' in text(s).split('\n')[1], s)
     check('file written to disk', os.path.exists(os.path.join(work, 'sum.c')))
 
-    s.send('AF9')
+    s.send('AF9', wait=1.5)
     t = text(s)
     check('compile status window', 'Compiling' in t and 'Success' in t and 'Errors:' in t, s)
     s.send('x')

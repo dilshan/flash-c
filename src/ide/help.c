@@ -248,7 +248,8 @@ static const Topic basic[] = {
      " See also: {Code generation options}, {Differences from classic compilers}\n"},
 
     {"Optimization options",
-     "optimization optimisation optimize dialog check list -O -Os -Z jump peephole switch options on off",
+     "optimization optimisation optimize dialog check list -O -Os -Z jump peephole switch options "
+     "on off",
      " Optimization options\n"
      "\n"
      " Options|Compiler|Optimizations opens a check list of every optimization\n"
@@ -303,7 +304,8 @@ static const Topic basic[] = {
      " See also: {Code generation options}, {Compiler options}\n"},
 
     {"Optimizations: expressions",
-     "optimization fold constant algebra compare propagation copy dead assignment unreachable casts canon cse strength bool",
+     "optimization fold constant algebra compare propagation copy dead assignment unreachable "
+     "casts canon cse strength bool",
      " Optimizations: expressions\n"
      "\n"
      " These work on one function at a time and on the expression trees.  The\n"
@@ -373,7 +375,8 @@ static const Topic basic[] = {
      " See also: {Optimization options}\n"},
 
     {"Optimizations: control flow",
-     "optimization control flow cfg basic block global constant ccp unreachable merge thread live branch tail recursion",
+     "optimization control flow cfg basic block global constant ccp unreachable merge thread live "
+     "branch tail recursion",
      " Optimizations: control flow\n"
      "\n"
      " These split a function into basic blocks (straight-line code with one\n"
@@ -440,7 +443,8 @@ static const Topic basic[] = {
      " See also: {Optimization options}\n"},
 
     {"Optimizations: loops and redundancy",
-     "optimization loop loops invariant induction reaching definitions available expressions gcse pre partial redundancy inline tail call licm iv",
+     "optimization loop loops invariant induction reaching definitions available expressions gcse "
+     "pre partial redundancy inline tail call licm iv",
      " Optimizations: loops and redundancy\n"
      "\n"
      "## Reaching definitions [rd]\n"
@@ -496,7 +500,8 @@ static const Topic basic[] = {
      " See also: {Optimization options}, {Optimizations: SSA and whole program}\n"},
 
     {"Optimizations: SSA and whole program",
-     "optimization ssa static single assignment dominator tree sccp adce aggressive dead code alias interprocedural constant recursion recur scalarization sroa unroll unswitch",
+     "optimization ssa static single assignment dominator tree sccp adce aggressive dead code "
+     "alias interprocedural constant recursion recur scalarization sroa unroll unswitch",
      " Optimizations: SSA and whole program\n"
      "\n"
      "## Static single assignment form [ssa]\n"
@@ -569,7 +574,8 @@ static const Topic basic[] = {
      " See also: {Optimization options}, {Profile-guided optimization}\n"},
 
     {"Optimizations: code generation",
-     "optimization register allocation instruction selection layout branch folding jump peephole redundant loads code size -Os -Z size",
+     "optimization register allocation instruction selection layout branch folding jump peephole "
+     "redundant loads code size -Os -Z size",
      " Optimizations: code generation\n"
      "\n"
      "## Register allocation [regalloc]\n"
@@ -610,8 +616,7 @@ static const Topic basic[] = {
      "\n"
      " See also: {Optimization options}\n"},
 
-    {"Profile-guided optimization",
-     "profile pgo -Pg -Pu fcprof.dat hot cold counters",
+    {"Profile-guided optimization", "profile pgo -Pg -Pu fcprof.dat hot cold counters",
      " Profile-guided optimization\n"
      "\n"
      " Two steps: run an instrumented program to record how it behaves, then\n"

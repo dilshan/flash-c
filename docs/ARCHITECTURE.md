@@ -21,9 +21,16 @@ want to change the code; to *use* Flash C see the [user guide](USER_GUIDE.md) an
 ## 1. Overview
 
 ```
-source ──► lexer/preprocessor ──► parser + type checker ──► optimizer ──► x86-64 code generator ──► ELF file
+source ──► lexer/preprocessor ──► parser + type checker ──► optimizer ──► x86-64/aarch64 code generator ──► ELF file
  (cpp.c)        (cpp.c)               (parse.c)             (opt.c)               (gen.c)
 ```
+
+The compiler targets both x86-64 and AArch64 (ARMv8-A). `FcOptions::target_arch` selects the
+target (`FC_ARCH_X86_64` or `FC_ARCH_AARCH64`); `-maarch64` / `-marm64` and `-mx86-64` /
+`-mx86_64` switch it on the command line. On a native AArch64 build the default is AArch64.
+`gen.c` contains both back ends, gated by the `IS_A64` macro (~2000 lines of AArch64 code
+interleaved with x86-64). The preprocessor defines `__aarch64__`, `__arm64__` and
+`__ARM_ARCH_8A__` when targeting AArch64.
 
 | Directory | Contents |
 |---|---|
@@ -58,29 +65,33 @@ The IDE links the same compiler as `fcc`, so both always behave alike.
 ## 3. Code generator and ELF writer
 
 * **Code generator** (`gen.c`). A straightforward accumulator machine: every expression leaves its
-  value in `rax`, and binary operators push the left operand. Floating values also travel in `rax`
-  as their `double` bit pattern and are moved to `xmm0`/`xmm1` only for the arithmetic instruction
-  (SSE2); `float` is stored in 4 bytes and widened on load.
-* **Calling convention.** Private: arguments are pushed right to left (8 bytes each), the caller
-  pops them, and the result is in `rax`. This makes `va_arg` trivial (`stdarg.h` is three macros)
-  and means no ABI compatibility with the host libc is needed or attempted. Structures are passed
-  by value by copying them into the argument slot; a structure result is built in a hidden frame
-  slot of the caller whose address is passed as an extra first argument.
+  value in `rax` (x86-64) or `x0` (AArch64), and binary operators push the left operand. Floating
+  values also travel in `rax` as their `double` bit pattern and are moved to `xmm0`/`xmm1` (SSE2)
+  or `d0`/`d1` (NEON) only for the arithmetic instruction; `float` is stored in 4 bytes and
+  widened on load.
+* **Calling convention.** Private: arguments are pushed right to left (8 bytes each) on x86-64 or
+  passed in `x0`–`x7` with spill to the stack on AArch64; the caller pops them (x86-64) or the
+  callee cleans up (AArch64), and the result is in `rax` / `x0`. This makes `va_arg` trivial
+  (`stdarg.h` is three macros) and means no ABI compatibility with the host libc is needed or
+  attempted. Structures are passed by value by copying them into the argument slot; a structure
+  result is built in a hidden frame slot of the caller whose address is passed as an extra first
+  argument.
 * **ELF writer.** One `PT_LOAD` segment (code, data, bss) at `0x400000`. With `-lw` there is an R+X
   segment for the header and code and a page-aligned R+W segment for data and bss; with `-lt` also
   `.symtab`, `.strtab` and section headers. Addresses are absolute 32-bit values with fixups
   resolved after layout. The entry stub calls the runtime function `_fc_start`, which calls `main`
-  and `exit`.
-* **Intrinsics** known to the code generator by name: `__syscall(n, args...)` (all system calls),
-  `__sqrt`, and `__setjmp` and `__longjmp` (inline code: save or restore `rbp`, `rsp` and the
-  resume address). The linker writes two stubs for kernel signal delivery (`__sigtramp`,
-  `__sigrestorer`).
-* **Code-generator switches.** `-Z` keeps a constant right operand in `rcx` instead of
-  `push rax` / `pop rax` and removes `push rax; pop` pairs that are not separated by a label or
-  line mark. `-O` drops a `jmp` to the next instruction and then relaxes the jumps of each function
-  (rel32 to rel8 until a fixed point), remapping labels, fixups and the debugger line table. `-N`
-  emits `cmp rsp, [__fc_stklimit]; jae; call __fc_stkover` in user functions; the limit is set by
-  the start-up code from `RLIMIT_STACK` (`-ls` first applies the chosen size with `setrlimit`).
+  and `exit`. AArch64 uses `EM_AARCH64` (0xB7) in the ELF header.
+* **Intrinsics** known to the code generator by name: `__syscall(n, args...)` (all system calls,
+  with x86-64 to AArch64 syscall number mapping), `__sqrt`, and `__setjmp` and `__longjmp` (inline
+  code: save or restore `rbp`/`x29`, `rsp`/`sp` and the resume address). The linker writes two
+  stubs for kernel signal delivery (`__sigtramp`, `__sigrestorer`).
+* **Code-generator switches.** `-Z` keeps a constant right operand in `rcx` instead of `push rax` /
+  `pop rax` (x86-64) or in `x1` (AArch64) and removes `push rax; pop` pairs that are not separated
+  by a label or line mark. `-O` drops a `jmp` to the next instruction and then relaxes the jumps of
+  each function (rel32 to rel8 until a fixed point), remapping labels, fixups and the debugger line
+  table. `-N` emits `cmp rsp, [__fc_stklimit]; jae; call __fc_stkover` (x86-64) or the AArch64
+  equivalent in user functions; the limit is set by the start-up code from `RLIMIT_STACK` (`-ls`
+  first applies the chosen size with `setrlimit`).
 * **Link map** (`-M`, `-Mp`, `-Md`). `write_map` lists `_TEXT`, `_DATA`, `_BSS`, public symbols and
   the detailed segment map using the same symbol records.
 
@@ -213,16 +224,17 @@ redundancy elimination never moves a load.
 
 Run after the tree passes (`opt_regalloc`, `gen.c`).
 
-* Locals chosen by use count (weighted by loop depth) live in `rbx` and `r12`-`r15`, which the
-  prologue saves and the epilogue restores.
-* Instruction selection uses immediate operands, loads a simple right operand straight into `rcx`,
-  fuses a comparison with the branch that uses it, and branches on `!`, `&&` and `||` without
-  materializing a boolean.
+* Locals chosen by use count (weighted by loop depth) live in `rbx` and `r12`-`r15` (x86-64) or
+  `x19`-`x28` (AArch64), which the prologue saves and the epilogue restores.
+* Instruction selection uses immediate operands, loads a simple right operand straight into `rcx`
+  (x86-64) or `x1` (AArch64), fuses a comparison with the branch that uses it, and branches on `!`,
+  `&&` and `||` without materializing a boolean. On AArch64, multi-instruction immediates use
+  `MOVZ`/`MOVK` sequences with negation optimization.
 * Block layout folds `jcc l; jmp m; l:` into `jncc m` and rotates `while` and `for` loops so the
   test sits at the bottom.
 * A tail call to another function pops its arguments into the caller's own argument slots,
-  restores the registers, runs `leave` and jumps (only when every variable in the frame is a scalar
-  whose address is never taken).
+  restores the registers, runs `leave` and jumps (x86-64) or uses `blr` with argument slot
+  reuse (AArch64), only when every variable in the frame is a scalar whose address is never taken.
 
 ### 4.9 Profile-guided optimization and code size
 
@@ -270,6 +282,9 @@ remembers its file, so the link map and the "module" in linker errors name the l
 * **Numerics.** `printf("%f")` uses an exact big-number decimal expansion of the binary value and
   rounds half to even, and matched glibc in every comparison in `tests/cases`. `math.h` is
   implemented with argument-reduced series (accuracy about 1e-15).
+* **System calls.** AArch64 uses different syscall numbers (e.g. `setrlimit` is 164 vs. 160 on
+  x86-64) and `O_DIRECTORY` is `040000` vs. `0200000`. `struct stat` field layout from the kernel
+  differs between architectures (`runtime/lib/c/io.c`).
 
 The function list is in the [library reference](LIBRARY.md), which `tools/gen_libdoc.py` generates
 from the headers and the module sources.
@@ -310,14 +325,16 @@ Design points:
   lines) and user globals, and exposes them as `fc_debug_info()` (`fc.h`, `FcDebug`). The data
   lives until the next compile.
 * **`dbgcore.c`.** Runs the executable (a static ELF at fixed addresses) under `ptrace` with its
-  stdio on a pseudo terminal. Breakpoints are `int3` bytes inserted only while the program runs.
-  Trace and step single-step until the line changes; a `call` is detected from the opcode and
-  stepped over with a temporary breakpoint at the return address (checking `rsp`, so recursion
-  works). Frames are found by following the `rbp` chain; locals are `[rbp+off]`. The IDE switches
-  to the user screen (`term_suspend`) only while the program runs freely; during that time keyboard
-  input is forwarded to the pty.
+  stdio on a pseudo terminal. Breakpoints are `int3` bytes (x86-64) or `0xd4200000` AArch64
+  instructions inserted only while the program runs. Trace and step single-step until the line
+  changes; a `call` is detected from the opcode and stepped over with a temporary breakpoint at the
+  return address (checking `rsp` / `sp`, so recursion works). Frames are found by following the
+  `rbp` chain (x86-64) or using the link register `LR` (AArch64); locals are `[rbp+off]` /
+  `[sp+off]`. The IDE switches to the user screen (`term_suspend`) only while the program runs
+  freely; during that time keyboard input is forwarded to the pty.
 * **`dbgeval.c`.** The expression evaluator (C operators on typed values read from
-  `/proc/<pid>/mem`), value formatter, inspector lines, frame descriptions and registers.
+  `/proc/<pid>/mem`), value formatter, inspector lines, frame descriptions and registers. On AArch64
+  the debugger shows X0–X28, FP, LR, SP, PC, PSTATE and condition flags.
 * **`debugger.c`.** The UI: commands, the Breakpoints, Call stack and Inspect dialogs, the execution
   marker and desktop persistence. `ide_build` calls `dbgui_reset` first because a compile frees the
   debug tables.
@@ -366,8 +383,8 @@ it does, what its parameters mean and what it returns. The main structures (`Tok
 |---|---|
 | `tests/run.sh` | compiles each `tests/cases/*.c` with Flash C and with the host `gcc` and compares program output byte for byte (an optional `name.in` file is fed to stdin) |
 | `tests/diag.sh` | the text and line numbers of the diagnostics |
-| `tests/options.sh` | every command-line switch |
-| `tests/opt.sh` | each optimization, and deep recursion and profile round trips |
+| `tests/options.sh` | every command-line switch, including all architecture combinations (`-maarch64` / `-marm64` / `-mx86-64` / `-mx86_64`) |
+| `tests/opt.sh` | each optimization, and deep recursion and profile round trips; skips size-sensitive passes on AArch64 (fixed-width instructions) |
 | `tests/optfuzz.py` | random programs, compiled with and without optimizations, output compared |
 | `tests/helpexamples.py` | compiles and runs every example in the help files, and checks line widths |
 | `tests/libtest.sh` | the library build options: link maps, `-ln`/`-lnm`/`-f-`, `#pragma startup/exit` order, wildcard arguments, exit codes, `abort`, `atexit`, and that every public header compiles on its own |
