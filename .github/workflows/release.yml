@@ -1,6 +1,7 @@
 name: Release
 
 # Publishes a GitHub release when a version tag such as v1.2.3 is pushed.
+# Builds and tests natively for x86-64 and AArch64, then publishes both tarballs.
 on:
   push:
     tags:
@@ -10,9 +11,18 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    # The oldest supported runner, so the binaries run on older glibc versions too.
-    runs-on: ubuntu-22.04
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          # The oldest supported runners, so the binaries run on older glibc versions too.
+          - arch: x86_64
+            runner: ubuntu-22.04
+          - arch: aarch64
+            runner: ubuntu-22.04-arm
+    name: build (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,18 +42,38 @@ jobs:
         run: make test
 
       - name: Package
+        run: make dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.arch }}
+          path: build/dist/flash-c-*.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
         run: |
-          make dist
-          cd build/dist
+          cd dist
           sha256sum flash-c-*.tar.gz > SHA256SUMS
+          cat SHA256SUMS
 
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           prerelease=""
           case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
           gh release create "$GITHUB_REF_NAME" $prerelease \
             --title "Flash C ${GITHUB_REF_NAME#v}" \
             --generate-notes \
-            build/dist/flash-c-*.tar.gz build/dist/SHA256SUMS
+            dist/flash-c-*.tar.gz dist/SHA256SUMS

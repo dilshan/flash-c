@@ -33,10 +33,11 @@ to every compile as `-DFC_VERSION`. The IDE (startup, About box, help) and `fcc`
 
 4. Watch the **Release** workflow in the Actions tab. It will:
    - check out the full history (needed for `git describe`),
-   - build on `ubuntu-22.04` (an older glibc keeps the binaries usable on most current distros),
-   - run `make test`,
-   - run `make dist` and write `SHA256SUMS`,
-   - create the GitHub release with generated notes and attach both files.
+   - build natively in parallel on `ubuntu-22.04` (x86-64) and `ubuntu-22.04-arm` (AArch64); the
+     older glibc keeps the binaries usable on most current distros,
+   - run `make test` and `make dist` on each,
+   - combine both tarballs, write `SHA256SUMS`,
+   - create the GitHub release with generated notes and attach the tarballs and checksums.
 5. Open the release page, edit the generated notes if you want, and check the download.
 
 A failed run publishes nothing. Fix the problem, delete the tag (`git tag -d v1.2.3 &&
@@ -44,7 +45,8 @@ git push origin :refs/tags/v1.2.3`), and tag again.
 
 ## What is in a release
 
-`flash-c-<version>-linux-x86_64.tar.gz` unpacks to `flash-c-<version>-linux-x86_64/`:
+`flash-c-<version>-linux-<arch>.tar.gz` (`<arch>` is `x86_64` or `aarch64`) unpacks to
+`flash-c-<version>-linux-<arch>/`:
 
 ```
 bin/fc  bin/fcc      IDE and command-line compiler (stripped)
